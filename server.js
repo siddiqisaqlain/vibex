@@ -358,7 +358,9 @@ function legalPage(res, key) {
 
 function productPage(req, res, id) {
   const p = load().find((x) => x.id === id);
-  const origin = (process.env.PUBLIC_URL || `http://${req.headers.host}`).replace(/\/$/, "");
+  // Hosts like Render sit behind HTTPS and pass the real scheme in x-forwarded-proto.
+  const proto = String(req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
+  const origin = (process.env.PUBLIC_URL || `${proto}://${req.headers.host}`).replace(/\/$/, "");
   const title = p ? `${p.name}${p.price ? ` · ₹${p.price.toLocaleString("en-IN")}` : ""} · Vibe X` : "Vibe X · The Surplus Room";
   const desc = p
     ? [p.brand, p.category, p.sizes, p.status === "sold" ? "Sold" : "In stock at Vibe X, Srinagar"].filter(Boolean).join(" · ")

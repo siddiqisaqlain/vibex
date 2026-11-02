@@ -32,14 +32,13 @@ Open http://localhost:4300 for the shop and http://localhost:4300/demo for the o
 | `public/config.js` | Shop name, Instagram, Google Maps link, WhatsApp number, **payment details** (currently demo values that can't receive money) |
 | `.env` or host settings | `OWNER_KEY`: required on a public server. Locks `/demo` and the owner controls; open them with `/demo?key=YOUR_KEY` |
 | | `ANTHROPIC_API_KEY`: optional. Lets AI read product photos to name and sort them. Without it, keyword rules read the caption |
-| | `PUBLIC_URL`: the site's public address, so Instagram and WhatsApp show photo previews of product links |
+| | `PUBLIC_URL`: optional. The site's public address for link previews; detected automatically on Render |
 | | `DESIGN=v1`: serve the previous surplus-style design (saved in `designs/v1-surplus`) |
 
 ## Deploy on Render
 
 1. render.com → **New** → **Blueprint** → choose this repository. `render.yaml` sets everything up and generates an `OWNER_KEY`.
-2. After the first deploy, set `PUBLIC_URL` to the site address Render gives you.
-3. Open `https://YOUR-SITE.onrender.com/demo?key=OWNER_KEY` for the owner screen.
+2. Open `https://YOUR-SITE.onrender.com/demo?key=OWNER_KEY` for the owner screen.
 
 On Render's free plan the server sleeps when idle and its disk resets on restart, so products and orders added after deploy go back to the samples. That's fine for a demo. For real use, add a persistent disk or a database.
 
