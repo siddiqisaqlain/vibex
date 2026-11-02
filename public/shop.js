@@ -17,11 +17,12 @@
   let known = null;
   let featuredId = null;
 
+  for (const [id, url] of [["ig-top", S.instagram], ["ig-visit", S.instagram], ["map-hero", S.maps], ["map-visit", S.maps]]) $(id).href = url;
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN");
   const hash = (s) => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
-  const lot = (p) => "Lot " + String(hash(p.id) % 9000 + 1000);
+  const lot = (p) => "LOT " + String(hash(p.id) % 9000 + 1000);
   const hoursOld = (p) => (Date.now() - new Date(p.createdAt)) / 3600e3;
   const isNew = (p) => p.status === "available" && hoursOld(p) < NEW_HOURS;
   const offPct = (p) => (p.mrp && p.price && p.mrp > p.price ? Math.round((1 - p.price / p.mrp) * 100) : 0);
@@ -41,53 +42,49 @@
     return `<div class="media ${p.image ? "" : "art-bg"} ${extraClass}">${pic}<a class="cover" href="/p/${encodeURIComponent(p.id)}" aria-label="${esc(p.name)}"></a>`;
   }
 
-  function badges(p) {
-    const left = p.status === "sold" ? `<span class="badge badge-sold">Sold</span>`
-      : p.status === "hold" ? `<span class="badge badge-hold">On hold</span>`
-      : isNew(p) ? `<span class="badge badge-new">Just in</span>` : "<span></span>";
-    return `<div class="badges">${left}<span class="badge">${lot(p)}</span></div>`;
-  }
-
-  function priceRow(p) {
-    const off = offPct(p);
-    return `<div class="price-row"><span class="price">${p.price ? rupees(p.price) : "Price on request"}</span>
-      ${off ? `<s class="mrp">${rupees(p.mrp)}</s><span class="off">${off}% off</span>` : ""}</div>`;
-  }
-
   function card(p, eager) {
+    const off = offPct(p);
     return `
-      <article class="card${p.status === "sold" ? " sold" : ""}${p.status === "hold" ? " hold" : ""}" data-id="${esc(p.id)}">
-        ${media(p, "", eager)}${badges(p)}</div>
+      <article class="card${p.status === "sold" ? " sold" : ""}" data-id="${esc(p.id)}" data-cat="${esc(p.category)}">
+        ${media(p, "", eager)}
+          <span class="lot">${lot(p)}</span>
+          ${isNew(p) ? `<span class="badge">Just in</span>` : ""}
+          <div class="tag">
+            <b>${p.price ? rupees(p.price) : "Ask"}</b>
+            ${off ? `<s>${rupees(p.mrp)}</s><span class="off">−${off}%</span>` : ""}
+          </div>
+          ${p.status === "sold" ? `<div class="sold-stamp"><span>SOLD</span></div>` : ""}
+          ${p.status === "hold" ? `<div class="sold-stamp hold-stamp"><span>ON HOLD</span></div>` : ""}
+        </div>
         <div class="info">
           ${p.brand ? `<span class="brand">${esc(p.brand)}</span>` : ""}
           <h3 class="name"><a href="/p/${encodeURIComponent(p.id)}">${esc(p.name)}</a></h3>
           <span class="meta">${[p.subcategory, p.sizes, p.quantity > 1 && p.status !== "sold" ? `${p.quantity} left` : null, ago(p)].filter(Boolean).map(esc).join(" · ")}</span>
-          ${priceRow(p)}
           ${window.VXOrder.button(p)}
         </div>
       </article>`;
   }
 
-  // Hero card: the newest piece. One primary action per page lives in the hero copy,
-  // so this card is a link to the piece rather than another set of buttons.
   function renderFeature(animate) {
     const p = products.filter((x) => x.status === "available").sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
     if (!p) { $("feature").innerHTML = ""; return; }
     const changed = p.id !== featuredId;
     featuredId = p.id;
     const off = offPct(p);
-    const pic = p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}">` : window.productArt(p, hash(p.id));
     $("feature").innerHTML = `
-      <a class="feature-card${animate && changed ? " swap" : ""}" href="/p/${encodeURIComponent(p.id)}">
-        <span class="feature-label"><span class="dot" aria-hidden="true"></span>Latest drop · ${esc(ago(p))}</span>
-        <div class="media ${p.image ? "" : "art-bg"}">${pic}</div>
+      <div class="feature-sticker">${off ? `${off}%<br>off` : "Just<br>in"}</div>
+      <div class="feature-card${animate && changed ? " swap" : ""}">
+        <div class="feature-head"><span>Latest drop</span><span class="live"><span class="dot"></span>${ago(p)}</span></div>
+        ${media(p)}<span class="lot">${lot(p)}</span></div>
         <div class="feature-body">
           ${p.brand ? `<span class="brand">${esc(p.brand)}</span>` : ""}
-          <div><h3>${esc(p.name)}</h3><span class="meta">${[p.sizes, p.category].filter(Boolean).map(esc).join(" · ")}</span></div>
-          <div class="feature-price"><b>${p.price ? rupees(p.price) : "Ask"}</b>${off ? `<s>${rupees(p.mrp)}</s>` : ""}</div>
-          <span class="feature-go">View this piece <i class="ph ph-arrow-right" aria-hidden="true"></i></span>
+          <div class="feature-row">
+            <div><h3>${esc(p.name)}</h3><span class="meta">${[p.sizes, p.category].filter(Boolean).map(esc).join(" · ")}</span></div>
+            <div class="feature-price"><b>${p.price ? rupees(p.price) : "Ask"}</b>${off ? `<s>${rupees(p.mrp)}</s>` : ""}</div>
+          </div>
+          ${window.VXOrder.button(p)}
         </div>
-      </a>`;
+      </div>`;
   }
 
   function renderMarquees() {
@@ -95,6 +92,9 @@
     const brands = [...new Set([...live, ...BASE_BRANDS])];
     const row = brands.map((b) => `<span>${esc(b)}</span>`).join("");
     $("brands").innerHTML = row + row;
+    const t = ["New drops posted daily", "100% original", "Pan-India shipping", "100,000+ orders delivered", "Srinagar, Kashmir"]
+      .map((x) => `<span>${x}</span>`).join("");
+    $("ticker").innerHTML = t + t + t + t;
   }
 
   function renderFilters() {
@@ -120,10 +120,9 @@
       .join("");
   }
 
-  // Cards are kept between updates and only rebuilt when that product changed, so photos
-  // already on screen never reload or go blank (phone browsers can skip lazy photos in
-  // content that is swapped in live). The first rows and new pieces load photos at once.
-  const cardCache = new Map(); // id -> { sig, el }
+  // Cards are kept between live updates and only rebuilt when that product changed, so
+  // photos never reload or go blank on phones. First rows and new pieces load photos at once.
+  const cardCache = new Map();
   const slot = (p, i) => `<div class="slot" data-id="${esc(p.id)}" data-i="${i}"></div>`;
   function fillSlots(fresh) {
     const byId = new Map(products.map((p) => [p.id, p]));
@@ -152,8 +151,8 @@
         const list = products.filter((p) => p.category === cat).sort(sortRack);
         if (!list.length) continue;
         const [title, blurb] = SHELF[cat];
-        html += `<section class="shelf"><header class="shelf-head"><div><h3>${title}<sup>${list.length}</sup></h3><p>${blurb}</p></div>
-          <button class="shelf-all" data-cat="${cat}">See all ${title.toLowerCase()} <i class="ph ph-arrow-right" aria-hidden="true"></i></button></header>
+        html += `<section class="shelf"><header class="shelf-head"><h3>${title}<sup>${list.length}</sup></h3><p>${blurb}</p>
+          <button class="shelf-all" data-cat="${cat}">See all ${title.toLowerCase()} →</button></header>
           <div class="grid">${list.map(slot).join("")}</div></section>`;
       }
     } else {
@@ -165,7 +164,7 @@
     $("empty").hidden = html !== "";
     const avail = products.filter((p) => p.status === "available").length;
     const fresh48 = products.filter(isNew).length;
-    $("count").textContent = `${avail} pieces in stock · ${fresh48} new in the last 2 days`;
+    $("count").textContent = `${avail} pieces in · ${fresh48} new in 48h`;
     renderFilters();
     renderSubs();
   }

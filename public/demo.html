@@ -4,29 +4,28 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Vibe X · WhatsApp to Website</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root { --bg:#000000; --text:#f3efe4; --muted:#9a958a; --line:#272727; --tag:#E76F3C;
+:root { --bg:#0b0b0a; --text:#f3efe4; --muted:#9a958a; --line:#26261f; --tag:#ff5a1f;
   --wa-head:#075e54; --wa-bg:#0b141a; --wa-me:#005c4b; --wa-them:#202c33; --wa-input:#2a3942; --wa-green:#00a884; }
 * { box-sizing: border-box; }
-body { margin:0; background:var(--bg); color:var(--text); font:14px/20px "Geist", system-ui, sans-serif; min-height:100vh; }
+body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 Inter, system-ui, sans-serif; min-height:100vh; }
 .head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 20px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
-.head h1 { margin:0; font-weight:700; font-size:20px; line-height:28px; letter-spacing:-.03em; }
+.head h1 { margin:0; font-family:"Archivo Black",sans-serif; font-weight:400; font-size:18px; letter-spacing:.01em; }
 .head h1 span { color:var(--tag); }
 .head p { margin:2px 0 0; color:var(--muted); font-size:13px; }
 .head button { font:inherit; font-size:12.5px; color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:8px; padding:6px 10px; cursor:pointer; }
 .head button:hover { color:var(--text); }
 .stage { display:grid; grid-template-columns: 380px 1fr; gap:20px; padding:20px; height:calc(100vh - 70px); min-height:640px; }
 @media (max-width: 900px) { .stage { grid-template-columns:1fr; height:auto; } .site { height:80vh; } }
-.label { font-size:14px; line-height:20px; color:var(--muted); font-weight:500; margin:0 0 8px; }
+.label { font-size:11px; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); font-weight:600; margin:0 0 8px; }
 
 /* phone */
 .phone-col { display:flex; flex-direction:column; min-height:0; }
 .phone { flex:1; min-height:560px; display:flex; flex-direction:column; border-radius:26px; overflow:hidden; border:8px solid #1c1c19; background:var(--wa-bg); }
 .wa-head { background:var(--wa-head); display:flex; align-items:center; gap:10px; padding:10px 12px; }
-.avatar { width:36px; height:36px; border-radius:50%; background:var(--text); color:#111; display:grid; place-items:center; font-weight:700; font-size:14px; letter-spacing:-.03em; flex:none; }
+.avatar { width:36px; height:36px; border-radius:50%; background:var(--text); color:#111; display:grid; place-items:center; font-family:"Archivo Black",sans-serif; font-size:13px; flex:none; }
 .avatar b { color:var(--tag); font-weight:400; }
 .wa-head strong { display:block; font-size:15px; }
 .wa-head small { color:#b9d6d1; font-size:12px; }
@@ -72,7 +71,7 @@ body { margin:0; background:var(--bg); color:var(--text); font:14px/20px "Geist"
 <body>
 <header class="head">
   <div>
-    <h1>Vibe<span>X</span> · WhatsApp to website</h1>
+    <h1>VIBE<span>X</span> · WhatsApp → Website</h1>
     <p>Send a product photo with a caption on the left. It goes up on the shop website on the right, by itself.</p>
   </div>
   <button id="reset" title="Put the sample products back and clear the chat">Reset demo</button>
@@ -80,7 +79,7 @@ body { margin:0; background:var(--bg); color:var(--text); font:14px/20px "Geist"
 
 <main class="stage">
   <section class="phone-col">
-    <p class="label">The owner's WhatsApp</p>
+    <p class="label">Shop owner's WhatsApp</p>
     <div class="phone">
       <div class="wa-head">
         <div class="avatar">V<b>X</b></div>
@@ -115,7 +114,6 @@ body { margin:0; background:var(--bg); color:var(--text); font:14px/20px "Geist"
 (() => {
   const $ = (id) => document.getElementById(id);
   const chat = $("chat");
-  // Owner key from the address (/demo?key=...), sent with every owner request.
   const KEY = new URLSearchParams(location.search).get("key") || "";
   const ownerHeaders = (extra = {}) => (KEY ? { ...extra, "x-owner-key": KEY } : extra);
   const EXAMPLES = [

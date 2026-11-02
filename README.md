@@ -33,7 +33,7 @@ Open http://localhost:4300 for the shop and http://localhost:4300/demo for the o
 | `.env` or host settings | `OWNER_KEY`: required on a public server. Locks `/demo` and the owner controls; open them with `/demo?key=YOUR_KEY` |
 | | `ANTHROPIC_API_KEY`: optional. Lets AI read product photos to name and sort them. Without it, keyword rules read the caption |
 | | `PUBLIC_URL`: optional. The site's public address for link previews; detected automatically on Render |
-| | `DESIGN=v1`: serve the previous surplus-style design (saved in `designs/v1-surplus`) |
+| | `DESIGN`: serve a saved design instead of the current one: `v1` first surplus, `v2` dark minimal, `v3` colourful, `v4` surplus on the v2 layout (all in `designs/`) |
 
 ## Deploy on Render
 

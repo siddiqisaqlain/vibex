@@ -15,8 +15,13 @@ const { classify, aiEnabled, MODEL } = require("./lib/classify");
 
 const PORT = Number(process.env.PORT) || 4300;
 const ROOT = __dirname;
-// DESIGN=v1 serves the saved surplus-style design (designs/v1-surplus) instead of the current one.
-const PUBLIC = process.env.DESIGN === "v1" ? path.join(ROOT, "designs", "v1-surplus") : path.join(ROOT, "public");
+// DESIGN picks a saved design instead of the current one in public/:
+//   public/ = current (surplus price-tag style); saved: v1 first surplus, v2 dark minimal,
+//   v3 colourful, v4 surplus look on the v2 layout (all in designs/)
+const DESIGNS = { v1: "v1-surplus", v2: "v2-dark", v3: "v3-colour", v4: "v4-mix" };
+const PUBLIC = DESIGNS[process.env.DESIGN] ? path.join(ROOT, "designs", DESIGNS[process.env.DESIGN]) : path.join(ROOT, "public");
+// Which page frame the active design uses for product, policy and 404 pages ("v1" or "v2").
+const SHELL = (() => { try { return JSON.parse(fs.readFileSync(path.join(PUBLIC, "design.json"), "utf8")).shell; } catch { return "v2"; } })();
 const DATA = path.join(ROOT, "data");
 const UPLOADS = path.join(DATA, "uploads");
 const DB = path.join(DATA, "products.json");
@@ -293,6 +298,7 @@ function legacyProductPage(title, head, id) {
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escHtml(title)}</title>
 ${head}
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shop.css">
@@ -314,7 +320,6 @@ function pageShell({ title, head = "", body, scripts = [] }) {
 ${head}
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/vendor/phosphor/style.css">
 <link rel="stylesheet" href="/shop.css">
 </head><body>
@@ -335,24 +340,49 @@ ${head}
 </body></html>`;
 }
 
+// v1 frame (surplus style) for policy and 404 pages.
+function v1Shell({ title, head = "", body }) {
+  return `<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escHtml(title)}</title>
+${head}
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shop.css">
+</head><body>
+<header class="top"><div class="wrap top-row"><a class="logo" href="/">VIBE<span>X</span></a>
+<nav class="nav" aria-label="Main"><a href="/#rack">New drops</a><a href="/#visit">Visit</a><a class="nav-ig" href="https://www.instagram.com/vibex.india/" target="_blank" rel="noopener">Instagram ↗</a></nav></div></header>
+<main class="wrap">${body}</main>
+<footer class="foot"><div class="wrap"><div class="foot-mark">VIBE<span>X</span></div>
+<div class="foot-row mono"><span>© Vibe X · The Surplus Room</span><span>World brands, one destination</span></div>
+<nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/#visit">Contact</a></nav></div></footer>
+</body></html>`;
+}
+
 function notFoundPage(res) {
-  send(res, 404, pageShell({
-    title: "Page not found · Vibe X",
-    head: '<meta name="robots" content="noindex">',
-    body: `<main class="wrap notfound page-top"><i class="ph ph-compass" aria-hidden="true"></i><h1>This page isn't on the rack</h1>
+  const body = SHELL === "v1"
+    ? `<div class="notfound"><p class="label">Error 404</p><h1>This page isn't on the rack</h1>
       <p>The link may be old, or the piece has sold. Everything we have right now is on the home page.</p>
-      <a class="btn btn-primary" href="/#rack">See today's drops <i class="ph ph-arrow-right" aria-hidden="true"></i></a></main>`,
-  }), "text/html; charset=utf-8");
+      <a class="btn btn-ink" href="/#rack">See today's drops</a></div>`
+    : `<main class="wrap notfound page-top"><i class="ph ph-compass" aria-hidden="true"></i><h1>This page isn't on the rack</h1>
+      <p>The link may be old, or the piece has sold. Everything we have right now is on the home page.</p>
+      <a class="btn btn-primary" href="/#rack">See today's drops <i class="ph ph-arrow-right" aria-hidden="true"></i></a></main>`;
+  const frame = SHELL === "v1" ? v1Shell : pageShell;
+  send(res, 404, frame({ title: "Page not found · Vibe X", head: '<meta name="robots" content="noindex">', body }), "text/html; charset=utf-8");
 }
 
 const { LEGAL } = require("./lib/legal");
 function legalPage(res, key) {
   const page = LEGAL[key];
-  send(res, 200, pageShell({
+  const inner = `<p class="${SHELL === "v1" ? "label" : "eyebrow"}">Vibe X policies</p><h1>${escHtml(page.title)}</h1>
+      <p class="draft">Draft for Vibe X to review. Nothing here is final until the shop confirms it.</p>${page.html}`;
+  const frame = SHELL === "v1" ? v1Shell : pageShell;
+  send(res, 200, frame({
     title: `${page.title} · Vibe X`,
     head: `<meta name="description" content="${escHtml(page.summary)}">`,
-    body: `<main class="wrap legal"><p class="eyebrow">Vibe X policies</p><h1>${escHtml(page.title)}</h1>
-      <p class="draft">Draft for Vibe X to review. Nothing here is final until the shop confirms it.</p>${page.html}</main>`,
+    body: SHELL === "v1" ? `<div class="legal">${inner}</div>` : `<main class="wrap legal">${inner}</main>`,
   }), "text/html; charset=utf-8");
 }
 
@@ -371,7 +401,7 @@ function productPage(req, res, id) {
     ...(p && p.image ? [["og:image", origin + p.image], ["og:image:alt", p.name]] : []),
   ].map(([k, v]) => `<meta property="${k}" content="${escHtml(v)}">`).join("\n");
   const head = `<meta name="description" content="${escHtml(desc)}">\n${og}\n<meta name="twitter:card" content="${p && p.image ? "summary_large_image" : "summary"}">`;
-  const html = process.env.DESIGN === "v1"
+  const html = SHELL === "v1"
     ? legacyProductPage(title, head, id)
     : pageShell({
         title, head,
@@ -488,8 +518,8 @@ http
       const pm = /^\/p\/([\w-]{1,40})$/.exec(p);
       if (pm) return productPage(req, res, pm[1]);
       const legal = { "/returns": "returns", "/terms": "terms", "/privacy": "privacy" }[p];
-      if (legal && process.env.DESIGN !== "v1") return legalPage(res, legal);
-      if (!path.extname(p) && process.env.DESIGN !== "v1") return notFoundPage(res);
+      if (legal) return legalPage(res, legal);
+      if (!path.extname(p)) return notFoundPage(res);
       return serveFile(res, PUBLIC, p.slice(1));
     } catch (e) {
       send(res, 500, { error: e.message });

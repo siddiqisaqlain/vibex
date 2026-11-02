@@ -14,5 +14,5 @@ services:
         generateValue: true
       - key: ANTHROPIC_API_KEY  # optional: lets AI read product photos
         sync: false
-      - key: DESIGN             # set to v1 for the previous surplus-style design
+      - key: DESIGN             # empty = current surplus design; v2 dark, v3 colourful, v4 mix
         sync: false

@@ -10,7 +10,7 @@ window.VXCheckout = (() => {
 
   let dlg = null, state = null, poll = null;
 
-  const COPY = `<i class="ph ph-copy" aria-hidden="true"></i>`;
+  const COPY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
 
   function upiLink(amount, note) {
     const q = new URLSearchParams({ pa: PAY.upiId, pn: PAY.payee, am: String(amount), cu: "INR", tn: note });
@@ -26,7 +26,7 @@ window.VXCheckout = (() => {
 
   function steps(n) {
     const names = ["Details", "Pay", "Done"];
-    return `<ol class="co-steps">${names.map((s, i) => `<li class="${i + 1 < n ? "done" : i + 1 === n ? "now" : ""}"><span>${i + 1 < n ? '<i class="ph ph-check" aria-hidden="true"></i>' : i + 1}</span>${s}</li>`).join("")}</ol>`;
+    return `<ol class="co-steps">${names.map((s, i) => `<li class="${i + 1 < n ? "done" : i + 1 === n ? "now" : ""}"><span>${i + 1 < n ? "✓" : i + 1}</span>${s}</li>`).join("")}</ol>`;
   }
 
   function itemRow(p) {
@@ -37,7 +37,7 @@ window.VXCheckout = (() => {
   }
 
   function shell(inner) {
-    dlg.innerHTML = `<div class="co"><button type="button" class="ask-x" data-close aria-label="Close"><i class="ph ph-x" aria-hidden="true"></i></button>${inner}</div>`;
+    dlg.innerHTML = `<div class="co"><button type="button" class="ask-x" data-close aria-label="Close">×</button>${inner}</div>`;
   }
 
   // ---------- Step 1: details ----------
@@ -63,7 +63,7 @@ window.VXCheckout = (() => {
         </div>
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
         <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
-        <button class="order order-now co-cta" type="submit">Continue to payment · ${O().rupees(p.price)}</button>
+        <button class="order co-cta" type="submit">Continue to payment · ${O().rupees(p.price)}</button>
       </form>`);
     const form = dlg.querySelector("form");
     form.addEventListener("change", (e) => {
@@ -94,7 +94,7 @@ window.VXCheckout = (() => {
     state.tab = tab;
     const o = state.order;
     const note = `${o.code} ${o.lot}`;
-    const tabs = [["upi", "UPI", "qr-code"], ["bank", "Bank", "bank"], ["number", "Phone", "phone"]];
+    const tabs = [["upi", "UPI / QR"], ["bank", "Bank transfer"], ["number", "Pay to number"]];
     const field = (label, value, mono = true) =>
       `<div class="co-field"><span>${label}</span><b class="${mono ? "mono" : ""}">${esc(value)}</b><button type="button" class="co-copy" data-copy="${esc(value)}" aria-label="Copy ${label}">${COPY}<em>Copy</em></button></div>`;
     let body = "";
@@ -102,7 +102,7 @@ window.VXCheckout = (() => {
       const link = upiLink(o.amount, note);
       const qr = PAY.qrImage ? `<img src="${esc(PAY.qrImage)}" alt="Vibe X payment QR">` : qrSvg(link);
       body = `<div class="co-qr">${qr}<p>Scan with GPay, PhonePe, Paytm or any UPI app.${PAY.qrImage ? ` Enter <b>${rupees(o.amount)}</b>.` : " The amount fills in by itself."}</p></div>
-        ${isPhone ? `<a class="btn btn-quiet co-upi" href="${esc(link)}">Open my UPI app <i class="ph ph-arrow-up-right" aria-hidden="true"></i></a>` : ""}
+        ${isPhone ? `<a class="btn btn-ink co-upi" href="${esc(link)}">Open my UPI app</a>` : ""}
         ${field("UPI ID", PAY.upiId)}`;
     } else if (tab === "bank") {
       body = field("Account name", PAY.bank.accountName, false) + field("Account number", PAY.bank.accountNumber) + field("IFSC", PAY.bank.ifsc) +
@@ -114,10 +114,10 @@ window.VXCheckout = (() => {
       ${PAY.demo ? `<p class="co-demo">Demo payment details. Don't send real money.</p>` : ""}
       <div class="co-amount"><span>Pay exactly</span><b>${rupees(o.amount)}</b><button type="button" class="co-copy" data-copy="${o.amount}" aria-label="Copy amount">${COPY}<em>Copy</em></button></div>
       <p class="co-small">Add <b class="mono">${esc(o.code)}</b> in the payment note so we can match it.</p>
-      <div class="co-tabs" role="tablist">${tabs.map(([k, l, ic]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === tab}"><i class="ph ph-${ic}" aria-hidden="true"></i>${l}</button>`).join("")}</div>
+      <div class="co-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === tab}">${l}</button>`).join("")}</div>
       <div class="co-pay">${body}</div>
-      <button type="button" class="order order-now co-cta" data-paid><i class="ph ph-check" aria-hidden="true"></i>I've paid</button>
-      <button type="button" class="co-back" data-back>Change details</button>`);
+      <button type="button" class="order co-cta" data-paid>I've paid</button>
+      <button type="button" class="co-back" data-back>← Change details</button>`);
   }
 
   // ---------- Step 2b: proof ----------
@@ -128,13 +128,13 @@ window.VXCheckout = (() => {
       <form class="co-form" novalidate>
         <h2>Share the payment</h2>
         <p class="ask-sub">So we can find your ${rupees(o.amount)} quickly. Either one is enough.</p>
-        <label>UPI ref / UTR number<input name="utr" inputmode="numeric" maxlength="30" placeholder="12 digit number from your payment app" value="${esc(state.utr || "")}"></label>
+        <label>UPI ref / UTR number<input name="utr" inputmode="numeric" maxlength="30" placeholder="12-digit number from your payment app" value="${esc(state.utr || "")}"></label>
         <div class="co-or"><span>or</span></div>
         <label class="co-upload"><input type="file" name="proof" accept="image/*" hidden>
           <span class="co-drop">${state.proof ? `<img src="${state.proof}" alt="Payment screenshot"><em>Change screenshot</em>` : `<b>Upload payment screenshot</b><em>From your gallery</em>`}</span></label>
         <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
-        <button class="order order-now co-cta" type="submit">Send payment details</button>
-        <button type="button" class="co-back" data-topay>Back to payment options</button>
+        <button class="order co-cta" type="submit">Send payment details</button>
+        <button type="button" class="co-back" data-topay>← Back to payment options</button>
       </form>`);
     const form = dlg.querySelector("form");
     form.proof.addEventListener("change", async (e) => {
@@ -169,7 +169,7 @@ window.VXCheckout = (() => {
     const when = f.delivery === "ship" ? `We'll ship to ${f.city} and send tracking on WhatsApp.` : "It'll be kept aside for you at the store in Srinagar.";
     shell(`${steps(confirmed ? 4 : 3)}
       <div class="co-done ${confirmed ? "is-ok" : cancelled ? "is-bad" : ""}">
-        <span class="co-badge">${confirmed ? '<i class="ph ph-check" aria-hidden="true"></i>' : cancelled ? '<i class="ph ph-warning" aria-hidden="true"></i>' : '<i class="ph ph-clock co-wait" aria-hidden="true"></i>'}</span>
+        <span class="co-badge">${confirmed ? "✓" : cancelled ? "!" : '<i class="co-spin"></i>'}</span>
         <p class="mono co-code">Order ${esc(o.code)}</p>
         <h2>${confirmed ? "Order confirmed" : cancelled ? "We couldn't match your payment" : "Payment sent. The piece is held for you."}</h2>
         <p>${confirmed ? `Vibe X received your ${rupees(o.amount)}. ${when}` : cancelled ? "Vibe X will message you on WhatsApp to sort it out." : `Vibe X is checking for your ${rupees(o.amount)}. This page updates by itself, and we'll also WhatsApp you.`}</p>
@@ -179,7 +179,7 @@ window.VXCheckout = (() => {
           <li class="${confirmed ? "done" : cancelled ? "bad" : "now"}">${cancelled ? "Payment not found" : "Vibe X confirms payment"}</li>
           <li class="${confirmed ? "now" : ""}">${f.delivery === "ship" ? "Shipped to you" : "Ready for pickup"}</li>
         </ul>
-        <button type="button" class="btn btn-quiet" data-close>Back to the rack</button>
+        <button type="button" class="btn btn-ink" data-close>Back to the rack</button>
       </div>`);
     clearInterval(poll);
     if (!confirmed && !cancelled) {

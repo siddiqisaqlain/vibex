@@ -7,7 +7,7 @@ window.VXOrder = (() => {
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN");
   const hash = (s) => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
-  const lot = (p) => "Lot " + String(hash(p.id) % 9000 + 1000);
+  const lot = (p) => "LOT " + String(hash(p.id) % 9000 + 1000);
   const pageUrl = (p) => `${location.origin}/p/${encodeURIComponent(p.id)}`;
   // ig.me/m/<handle> opens the shop's chat in the Instagram app on phones. On a computer it
   // only lands on the inbox, and Instagram web has no link to one person's chat, so send
@@ -16,9 +16,10 @@ window.VXOrder = (() => {
     (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
   const igChat = isPhone ? `https://ig.me/m/${S.igHandle}` : `https://www.instagram.com/${S.igHandle}/`;
 
-  const WA = `<i class="ph ph-whatsapp-logo" aria-hidden="true"></i>`;
-  const BAG = `<i class="ph ph-shopping-bag" aria-hidden="true"></i>`;
-  const IG = `<i class="ph ph-instagram-logo" aria-hidden="true"></i>`;
+  const WA = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"/></svg>`;
+  const BAG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l1 14H5L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>`;
+  const HOLD = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg>`;
+  const IG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>`;
 
   function message(p) {
     return `Hi Vibe X! Is this still available?\n${p.name}${p.price ? ` · ${rupees(p.price)}` : ""} · ${lot(p)}\n${pageUrl(p)}`;
@@ -54,7 +55,7 @@ window.VXOrder = (() => {
     const pic = p.image ? `<img src="${esc(p.image)}" alt="">` : window.productArt(p, hash(p.id));
     dialog.innerHTML = `
       <form class="ask-form" novalidate>
-        <button type="button" class="ask-x" data-close aria-label="Close"><i class="ph ph-x" aria-hidden="true"></i></button>
+        <button type="button" class="ask-x" data-close aria-label="Close">×</button>
         <div class="ask-item"><div class="ask-thumb ${p.image ? "" : "art-bg"}">${pic}</div>
           <div><span class="brand">${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><span class="mono">${p.price ? rupees(p.price) : "Ask"} · ${lot(p)}</span></div></div>
         <h2>Enquire on WhatsApp</h2>
@@ -64,7 +65,7 @@ window.VXOrder = (() => {
         <label>Your question <i>(optional)</i><input name="note" maxlength="300" placeholder="e.g. Will it fit size M? Can you ship to Delhi?"></label>
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
         <p class="ask-err" role="alert" hidden></p>
-        <button class="order order-now ask-send" type="submit">${WA}Send enquiry</button>
+        <button class="order ask-send" type="submit">${WA}Send enquiry</button>
       </form>`;
     const form = dialog.querySelector("form");
     form.addEventListener("submit", async (e) => {
@@ -82,10 +83,10 @@ window.VXOrder = (() => {
         });
         const out = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(out.error || "Couldn't send. Please try again.");
-        form.innerHTML = `<button type="button" class="ask-x" data-close aria-label="Close"><i class="ph ph-x" aria-hidden="true"></i></button>
-          <div class="ask-done"><span class="ask-tick"><i class="ph ph-check" aria-hidden="true"></i></span><h2>Enquiry sent</h2>
+        form.innerHTML = `<button type="button" class="ask-x" data-close aria-label="Close">×</button>
+          <div class="ask-done"><span class="ask-tick">✓</span><h2>Enquiry sent</h2>
           <p>Vibe X will WhatsApp you at <b>${esc(out.phone || "")}</b> about the ${esc(p.name)}.</p>
-          <button type="button" class="btn btn-quiet" data-close>Back to the rack</button></div>`;
+          <button type="button" class="btn btn-ink" data-close>Back to the rack</button></div>`;
       } catch (ex) {
         err.textContent = ex.message;
         err.hidden = false;
