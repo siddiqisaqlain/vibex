@@ -34,9 +34,9 @@
     return d === 1 ? "yesterday" : `${d}d ago`;
   }
 
-  function media(p, extraClass = "") {
+  function media(p, extraClass = "", eager = false) {
     const pic = p.image
-      ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy">`
+      ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="${eager ? "eager" : "lazy"}" decoding="async">`
       : window.productArt(p, hash(p.id));
     return `<div class="media ${p.image ? "" : "art-bg"} ${extraClass}">${pic}<a class="cover" href="/p/${encodeURIComponent(p.id)}" aria-label="${esc(p.name)}"></a>`;
   }
@@ -54,10 +54,10 @@
       ${off ? `<s class="mrp">${rupees(p.mrp)}</s><span class="off">${off}% off</span>` : ""}</div>`;
   }
 
-  function card(p, fresh) {
+  function card(p, eager) {
     return `
-      <article class="card${p.status === "sold" ? " sold" : ""}${p.status === "hold" ? " hold" : ""}${fresh ? " fresh" : ""}">
-        ${media(p)}${badges(p)}</div>
+      <article class="card${p.status === "sold" ? " sold" : ""}${p.status === "hold" ? " hold" : ""}" data-id="${esc(p.id)}">
+        ${media(p, "", eager)}${badges(p)}</div>
         <div class="info">
           ${p.brand ? `<span class="brand">${esc(p.brand)}</span>` : ""}
           <h3 class="name"><a href="/p/${encodeURIComponent(p.id)}">${esc(p.name)}</a></h3>
@@ -120,6 +120,30 @@
       .join("");
   }
 
+  // Cards are kept between updates and only rebuilt when that product changed, so photos
+  // already on screen never reload or go blank (phone browsers can skip lazy photos in
+  // content that is swapped in live). The first rows and new pieces load photos at once.
+  const cardCache = new Map(); // id -> { sig, el }
+  const slot = (p, i) => `<div class="slot" data-id="${esc(p.id)}" data-i="${i}"></div>`;
+  function fillSlots(fresh) {
+    const byId = new Map(products.map((p) => [p.id, p]));
+    for (const el of $("grid").querySelectorAll(".slot")) {
+      const p = byId.get(el.dataset.id);
+      if (!p) { el.remove(); continue; }
+      const sig = card(p, Number(el.dataset.i) < 8 || fresh.has(p.id));
+      let hit = cardCache.get(p.id);
+      if (!hit || hit.sig !== sig) {
+        const t = document.createElement("template");
+        t.innerHTML = sig.trim();
+        hit = { sig, el: t.content.firstElementChild };
+        cardCache.set(p.id, hit);
+      }
+      hit.el.classList.toggle("fresh", fresh.has(p.id));
+      el.replaceWith(hit.el);
+    }
+    for (const id of cardCache.keys()) if (!byId.has(id)) cardCache.delete(id);
+  }
+
   function renderGrid(fresh = new Set()) {
     let html = "";
     if (filter === "All") {
@@ -130,13 +154,14 @@
         const [title, blurb] = SHELF[cat];
         html += `<section class="shelf"><header class="shelf-head"><div><h3>${title}<sup>${list.length}</sup></h3><p>${blurb}</p></div>
           <button class="shelf-all" data-cat="${cat}">See all ${title.toLowerCase()} <i class="ph ph-arrow-right" aria-hidden="true"></i></button></header>
-          <div class="grid">${list.map((p) => card(p, fresh.has(p.id))).join("")}</div></section>`;
+          <div class="grid">${list.map(slot).join("")}</div></section>`;
       }
     } else {
       const list = products.filter((p) => p.category === filter && (!sub || p.subcategory === sub)).sort(sortRack);
-      if (list.length) html = `<div class="grid">${list.map((p) => card(p, fresh.has(p.id))).join("")}</div>`;
+      if (list.length) html = `<div class="grid">${list.map(slot).join("")}</div>`;
     }
     $("grid").innerHTML = html;
+    fillSlots(fresh);
     $("empty").hidden = html !== "";
     const avail = products.filter((p) => p.status === "available").length;
     const fresh48 = products.filter(isNew).length;
@@ -151,7 +176,7 @@
     renderGrid();
   }
 
-  const toast = (html) => window.VXOrder.toast(html, 3600);
+  const toast = (html) => window.VXOrder.toast(html, 6000);
 
   let lastJson = "";
   async function refresh() {
@@ -170,7 +195,7 @@
       if (first) renderMarquees();
       if (fresh.size) {
         const p = next.find((x) => fresh.has(x.id));
-        toast(`<b>New drop</b><span>${esc(p.name)}${p.price ? ` · ${rupees(p.price)}` : ""}</span>`);
+        toast(`<b>New drop</b><span>${esc(p.name)}${p.price ? ` · ${rupees(p.price)}` : ""}</span><button type="button" class="toast-go" data-goto="${esc(p.id)}">See it</button>`);
       }
     } catch { /* server restarting; next tick retries */ }
   }
@@ -194,6 +219,22 @@
   document.querySelectorAll("[data-jump]").forEach((a) => a.addEventListener("click", () => setFilter(a.dataset.jump)));
 
   window.VXOrder.install((id) => products.find((p) => p.id === id));
+
+  // Jump to a new piece from the "New drop" toast.
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-goto]");
+    if (!b) return;
+    const p = products.find((x) => x.id === b.dataset.goto);
+    if (p && filter !== "All" && p.category !== filter) setFilter("All");
+    const el = document.querySelector(`.card[data-id="${CSS.escape(b.dataset.goto)}"]`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    $("toast").hidden = true;
+  });
+
+  // Phones pause background tabs; catch up the moment the page is shown again.
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+  window.addEventListener("pageshow", (e) => { if (e.persisted) refresh(); });
+  window.addEventListener("focus", refresh);
 
   refresh();
   setInterval(refresh, 2000);
