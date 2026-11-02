@@ -7,7 +7,7 @@ window.VXOrder = (() => {
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN");
   const hash = (s) => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
-  const lot = (p) => "Lot " + String(hash(p.id) % 9000 + 1000);
+  const lot = (p) => "Lot " + (p.code || String(hash(p.id) % 9000 + 1000));
   const pageUrl = (p) => `${location.origin}/p/${encodeURIComponent(p.id)}`;
   // ig.me/m/<handle> opens the shop's chat in the Instagram app on phones. On a computer it
   // only lands on the inbox, and Instagram web has no link to one person's chat, so send

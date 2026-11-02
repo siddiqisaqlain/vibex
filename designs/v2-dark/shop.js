@@ -21,7 +21,7 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN");
   const hash = (s) => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
-  const lot = (p) => "Lot " + String(hash(p.id) % 9000 + 1000);
+  const lot = (p) => "Lot " + (p.code || String(hash(p.id) % 9000 + 1000));
   const hoursOld = (p) => (Date.now() - new Date(p.createdAt)) / 3600e3;
   const isNew = (p) => p.status === "available" && hoursOld(p) < NEW_HOURS;
   const offPct = (p) => (p.mrp && p.price && p.mrp > p.price ? Math.round((1 - p.price / p.mrp) * 100) : 0);

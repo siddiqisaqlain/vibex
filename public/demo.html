@@ -118,11 +118,13 @@ body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 Inter, 
   const ownerHeaders = (extra = {}) => (KEY ? { ...extra, "x-owner-key": KEY } : extra);
   const EXAMPLES = [
     "🔥 Arc'teryx Beta shell jacket, ₹7,999, MRP 32000, size M L",
-    "Dior Sauvage EDT 100ml ₹4,499",
+    "Gucci Guilty 2499 3 pcs",
+    "Dior Sauvage EDT 100ml ₹4,499 x2",
     "Levi's 501 jeans ₹1,899 sizes 30 32 34",
-    "Nike Air Force 1 sneakers ₹3,299 size UK 8 9",
-    "sold puffer",
-    "back in stock vest",
+    "sold 2342",
+    "add 2342 2",
+    "stock 2346 5",
+    "help",
   ];
   let image = null;
 
@@ -131,6 +133,7 @@ body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 Inter, 
   // WhatsApp-style *bold*
   const fmt = (s) => esc(s)
     .replace(/\*(.+?)\*/g, "<b>$1</b>")
+    .replace(/(^|[\s(])_(.+?)_(?=[\s).,]|$)/gm, "$1<i>$2</i>")
     .replace(/(https:\/\/wa\.me\/[^\s<]+)/g, '<a class="wa-link" href="$1" target="_blank" rel="noopener">Open chat with customer ↗</a>');
 
   function bubble(who, text, img) {
@@ -151,7 +154,7 @@ body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 Inter, 
   function intro() {
     chat.innerHTML = "";
     sys("Today");
-    bubble("them", "Salaam! 👋 Send me any product photo with a caption, the same one you'd put on your Status.\n\nI'll put it on your website straight away.\n\nTo take something down, reply *sold puffer* or *remove puffer*.");
+    bubble("them", "Salaam! 👋 Send me any product photo with a caption, the same one you'd put on your Status.\n\nI'll put it on your website straight away.\n\nAdd how many you have, like *3 pcs*. When one sells, send *sold* and the code I give you, like *sold 2342*. Send *help* any time.");
   }
 
   // Shrink photos before sending so uploads stay quick.

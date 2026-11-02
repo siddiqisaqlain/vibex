@@ -10,9 +10,10 @@ Customers can:
 
 The owner, from WhatsApp (or the `/demo` screen):
 
-- posts a photo and caption to list a product, e.g. `Carhartt jacket 4999 size L`
-- `sold carhartt`, `back in stock carhartt`, `remove carhartt`
-- `confirm VX-1234` or `cancel VX-1234` for orders
+- posts a photo and caption to list a product, e.g. `Carhartt jacket 4999 size L` or `Gucci Guilty 2499 3 pcs` (stock: `3 pcs`, `x3`, `qty 3`, `stock 3`)
+- gets back the product's 4-digit code (the LOT number on the site), then manages stock with it:
+  `sold 4795` (one), `sold 4795 2`, `add 4795 3`, `stock 4795 5`, `remove 4795`
+- `confirm VX-1234` or `cancel VX-1234` for orders; `help` lists every command
 
 > This version is a working demo. The WhatsApp side is simulated on the `/demo` screen; connecting the shop's real WhatsApp number (WhatsApp Cloud API) is the next step.
 

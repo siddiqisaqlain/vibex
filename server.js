@@ -45,6 +45,27 @@ function writeSeed() {
 if (!fs.existsSync(DB)) writeSeed();
 
 const load = () => JSON.parse(fs.readFileSync(DB, "utf8"));
+
+// Every product gets a unique 4-digit code: the LOT number on the website, and what the
+// owner types to change stock ("sold 4795 2"). Older items without one get the number
+// the website already showed for them.
+const hashLot = (id) => String([...String(id)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 9000 + 1000);
+function newCode(items) {
+  const used = new Set(items.map((p) => p.code));
+  for (;;) { const c = String(crypto.randomInt(1000, 10000)); if (!used.has(c)) return c; }
+}
+function ensureCodes() {
+  const items = load();
+  let changed = false;
+  for (const p of items) {
+    if (p.code) continue;
+    const used = new Set(items.map((x) => x.code));
+    p.code = used.has(hashLot(p.id)) ? newCode(items) : hashLot(p.id);
+    changed = true;
+  }
+  if (changed) fs.writeFileSync(DB, JSON.stringify(items, null, 2));
+}
+ensureCodes();
 const save = (items) => fs.writeFileSync(DB, JSON.stringify(items, null, 2));
 
 const TYPES = {
@@ -92,6 +113,8 @@ function saveImage(dataUrl, id) {
 function findTarget(items, query, wantStatus) {
   const pool = items.filter((p) => !wantStatus || p.status === wantStatus);
   if (!pool.length) return null;
+  const byCode = /^(?:lot|code|#)?\s*#?(\d{4})$/i.exec(query.trim());
+  if (byCode) return pool.find((p) => p.code === byCode[1]) || null;
   const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 1);
   if (!words.length) return pool[0];
   let best = null, bestScore = 0;
@@ -171,7 +194,7 @@ async function handleEnquiry(req, res) {
 const ORDERS = path.join(DATA, "orders.json");
 const loadOrders = () => { try { return JSON.parse(fs.readFileSync(ORDERS, "utf8")); } catch { return []; } };
 const saveOrders = (o) => fs.writeFileSync(ORDERS, JSON.stringify(o, null, 2));
-const lotOf = (id) => "LOT " + String([...String(id)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 9000 + 1000);
+const lotOf = (p) => "LOT " + (p.code || hashLot(p.id));
 const inr = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
 function newOrderCode(orders) {
@@ -205,7 +228,7 @@ async function createOrder(req, res) {
   const orders = loadOrders();
   const order = {
     id: crypto.randomBytes(8).toString("hex"), code: newOrderCode(orders),
-    productId: p.id, productName: p.name, lot: lotOf(p.id), amount: p.price,
+    productId: p.id, productName: p.name, lot: lotOf(p), amount: p.price,
     name, phone, delivery, address, city, pin,
     status: "awaiting_payment", createdAt: new Date().toISOString(),
   };
@@ -242,6 +265,46 @@ async function orderPaid(req, res, id) {
     text: `💰 *New order ${o.code}: check the payment*\n*${o.productName}* · ${inr(o.amount)} · ${o.lot}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 ${utr ? `Payment ref: ${utr}` : "Payment screenshot above"}\n\nCheck your bank or UPI app for ${inr(o.amount)}, then reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
   });
   send(res, 200, { code: o.code, status: o.status });
+}
+
+const HELP = `📋 *Commands*
+*Post a product:* send a photo with a caption, e.g. _Gucci Guilty 2499 3 pcs_ or _Zara shirt 1499 size M x2_
+*Sell:* _sold 4795_ (one) or _sold 4795 2_
+*More came in:* _add 4795 3_
+*Set stock:* _stock 4795 5_
+*Take down:* _remove 4795_
+*Orders:* _confirm VX-1234_ or _cancel VX-1234_
+The 4-digit code is the LOT number on the website, and I send it when you post.`;
+
+// Owner stock messages: "sold 4795 2", "add 4795 3", "stock 4795 5", "help".
+function stockCommand(text) {
+  const c = parseMessage(text);
+  if (c.type === "help") return HELP;
+  if (c.type !== "stock") return null;
+  const items = load();
+  const p = items.find((x) => x.code === c.code);
+  if (!p) return `I couldn't find code ${c.code}. The code is the LOT number on the website. Send *help* to see the commands.`;
+  const before = p.quantity || (p.status === "sold" ? 0 : 1);
+  let after;
+  if (c.action === "sold") {
+    if (p.status === "sold" || before === 0) return `“${p.name}” (#${p.code}) is already sold out. Send *add ${p.code} 1* if more came in.`;
+    after = Math.max(0, before - c.qty);
+  } else if (c.action === "add") {
+    after = before + c.qty;
+  } else {
+    after = c.qty;
+  }
+  p.quantity = after;
+  if (after === 0) { p.status = "sold"; delete p.holdFor; }
+  else if (p.status === "sold") p.status = "available";
+  save(items);
+  const left = after === 0 ? "*SOLD OUT* on the website." : `*${after}* left on the website.`;
+  if (c.action === "sold") {
+    const over = c.qty > before ? ` (you had only ${before}, so it's now sold out)` : "";
+    return `🏷️ Sold ${Math.min(c.qty, before)} × “${p.name}” (#${p.code})${over}. ${left}`;
+  }
+  if (c.action === "add") return `📦 Added ${c.qty} × “${p.name}” (#${p.code}). ${left}`;
+  return `📦 Stock for “${p.name}” (#${p.code}) set to ${after}. ${left}`;
 }
 
 // Owner replies "confirm VX-1234" / "cancel VX-1234" in the chat.
@@ -420,6 +483,8 @@ async function handleMessage(req, res) {
   if (!text.trim() && !body.image) return send(res, 400, { error: "empty message" });
 
   const items = load();
+  const stockReply = stockCommand(text);
+  if (stockReply) return send(res, 200, { reply: stockReply });
   const orderReply = orderCommand(text);
   if (orderReply) return send(res, 200, { reply: orderReply });
   const parsed = parseMessage(text);
@@ -471,14 +536,19 @@ async function handleMessage(req, res) {
   }
 
   const id = crypto.randomBytes(6).toString("hex");
-  const product = { id, ...listing, image: saveImage(body.image, id), status: "available", createdAt: new Date().toISOString(), by };
+  const fresh0 = load();
+  const product = {
+    id, ...listing, code: newCode(fresh0), quantity: listing.quantity || 1,
+    image: saveImage(body.image, id), status: "available", createdAt: new Date().toISOString(), by,
+  };
   const fresh = load(); // reload: another message may have landed while the AI was reading
   fresh.unshift(product);
   save(fresh);
   const shelf = [product.category, product.subcategory].filter(Boolean).join(" › ");
-  const bits = [product.brand, rupees(product.price), product.sizes, product.quantity > 1 ? `${product.quantity} in stock` : null].filter(Boolean).join(" · ");
+  const bits = [product.brand, rupees(product.price), product.sizes].filter(Boolean).join(" · ");
+  const stockLine = `\n\n🔢 Code *${product.code}* · ${product.quantity} in stock\nWhen one sells, send *sold ${product.code}*${product.quantity > 1 ? ` (or *sold ${product.code} 2* for two)` : ""}.`;
   const ask = product.price ? "" : "\n\nNo price found. Reply with the price next time, e.g. *2000*.";
-  send(res, 200, { reply: `✅ Added to *${shelf}*:\n*${product.name}*\n${bits}${note ? `\n\nℹ️ ${note}` : ""}${ask}`, product });
+  send(res, 200, { reply: `✅ Added to *${shelf}*:\n*${product.name}*\n${bits}${stockLine}${note ? `\n\nℹ️ ${note}` : ""}${ask}`, product });
 }
 
 http
@@ -506,6 +576,7 @@ http
       if (req.method === "POST" && p === "/api/message") return await handleMessage(req, res);
       if (req.method === "POST" && p === "/api/reset") {
         writeSeed();
+        ensureCodes();
         saveInbox([]);
         saveOrders([]);
         for (const f of fs.readdirSync(UPLOADS)) fs.unlinkSync(path.join(UPLOADS, f));
