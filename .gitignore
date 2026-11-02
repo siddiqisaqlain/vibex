@@ -1,0 +1,6 @@
+.env
+node_modules/
+data/products.json
+data/uploads/
+data/inbox.json
+data/orders.json

@@ -1,0 +1,15 @@
+{
+  "name": "vibex",
+  "private": true,
+  "engines": { "node": ">=22" },
+  "description": "Vibe X: WhatsApp product posts become a live shop website",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "@phosphor-icons/web": "^2.1.1",
+    "qrcode-generator": "^1.4.4",
+    "zod": "^4.6.7"
+  }
+}

@@ -1,0 +1,20 @@
+# Render blueprint: render.com -> New -> Blueprint -> pick this repo.
+services:
+  - type: web
+    name: vibex
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/products
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: OWNER_KEY          # unlocks /demo?key=... and the owner controls
+        generateValue: true
+      - key: PUBLIC_URL         # e.g. https://vibex.onrender.com (for link previews)
+        sync: false
+      - key: ANTHROPIC_API_KEY  # optional: lets AI read product photos
+        sync: false
+      - key: DESIGN             # set to v1 for the previous surplus-style design
+        sync: false
