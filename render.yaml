@@ -16,3 +16,13 @@ services:
         sync: false
       - key: DESIGN             # empty = current surplus design; v2 dark, v3 colourful, v4 mix
         sync: false
+      # Real WhatsApp: Vibe X sits behind the DSLR Hub hub (one shared bot number). Same values as
+      # the hub's WA_TOKEN / WA_PHONE_ID / WA_APP_SECRET; no WA_APP_ID / WA_WABA_ID here.
+      - key: WA_TOKEN
+        sync: false
+      - key: WA_PHONE_ID
+        sync: false
+      - key: WA_APP_SECRET
+        sync: false
+      - key: OWNER_WHATSAPP     # Vibe X owner number(s) with country code
+        sync: false

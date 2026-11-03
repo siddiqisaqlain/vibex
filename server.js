@@ -1,7 +1,8 @@
 // Vibe X demo server: run `npm install` once, then `node server.js`, and open http://localhost:4300/demo
 // Put ANTHROPIC_API_KEY=... in a .env file next to this one to let AI read product photos.
 //   /        the shop website
-//   /demo    the pitch view: a fake WhatsApp chat beside the live website
+//   /demo    the pitch view: a simulated WhatsApp chat beside the live website
+//   /webhook the real WhatsApp (Meta Cloud API), see lib/whatsapp.js
 // POST /api/message takes { text, image (data URL, optional) }, the same shape a real
 // WhatsApp webhook message will be turned into in version 2.
 
@@ -12,6 +13,8 @@ const crypto = require("crypto");
 try { process.loadEnvFile(path.join(__dirname, ".env")); } catch { /* no .env: keyword rules only */ }
 const { parseMessage, categoryAnswer, findSubcategory } = require("./lib/parse");
 const { classify, aiEnabled, MODEL } = require("./lib/classify");
+const wa = require("./lib/whatsapp");
+const SHOP_NAME = "Vibe X";
 
 const PORT = Number(process.env.PORT) || 4300;
 const ROOT = __dirname;
@@ -158,11 +161,40 @@ function tooMany(ip) {
   return list.length > 5;
 }
 
+// The site's public address, for photo links sent on WhatsApp (Render sets RENDER_EXTERNAL_URL).
+const siteUrl = () => (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+
 function sendToOwner(msg) {
   const inbox = loadInbox();
   inbox.push(msg);
   saveInbox(inbox);
-  // Version 2: also send to the owner's WhatsApp (image message + text) via the Cloud API.
+  // Also to the owner's real WhatsApp, when it's connected (lib/whatsapp.js).
+  const img = msg.image && /^\//.test(msg.image) && siteUrl() ? siteUrl() + msg.image : null;
+  wa.notifyOwners(msg.text, img);
+}
+
+// ---- Real WhatsApp (Cloud API webhook) ----
+// Meta calls the hub server; when the owner posts to Vibe X, the hub passes Meta's signed
+// message on to this /webhook. We answer 200 at once and do the work after.
+async function whatsappWebhook(req, res, url) {
+  if (req.method === "GET") {
+    const challenge = wa.verify(url);
+    if (challenge === null) return send(res, 403, { error: "verify token mismatch" });
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    return res.end(challenge);
+  }
+  let raw;
+  try { raw = await readBody(req, 1024 * 1024); } catch { return send(res, 413, { error: "too large" }); }
+  if (!wa.signatureOk(raw, req.headers["x-hub-signature-256"])) {
+    console.warn(`WhatsApp webhook rejected: ${req.headers["x-hub-signature-256"] ? "signature doesn't match WA_APP_SECRET" : "no signature header"}`);
+    return send(res, 401, { error: "bad signature" });
+  }
+  send(res, 200, { ok: true });
+  if (!wa.enabled()) return console.warn("WhatsApp webhook called but WA_* / OWNER_WHATSAPP settings are missing");
+  let payload;
+  try { payload = JSON.parse(raw); } catch { return; }
+  wa.handleWebhook(payload, { ownerMessage, shopName: SHOP_NAME, shopKey: "vibex", shopUrl: siteUrl() || "our website", choiceFile: path.join(DATA, "wa-shop.json") },
+    raw, req.headers["x-hub-signature-256"]);
 }
 
 async function handleEnquiry(req, res) {
@@ -496,42 +528,50 @@ function productPage(req, res, id) {
 
 const rupees = (n) => (n ? `₹${n.toLocaleString("en-IN")}` : "price on request");
 
+// The demo screen's door into ownerMessage(). The real WhatsApp door is whatsappWebhook().
 async function handleMessage(req, res) {
   let body;
   try { body = JSON.parse(await readBody(req)); } catch { return send(res, 400, { error: "bad request" }); }
+  const out = await ownerMessage(body);
+  send(res, out.status || 200, out);
+}
+
+// One message from the owner ({ text, image: data URL }) -> { reply, buttons? }.
+// Both the /demo chat and the real WhatsApp webhook come through here.
+async function ownerMessage(body) {
   const text = String(body.text || "").slice(0, 1000);
-  if (!text.trim() && !body.image) return send(res, 400, { error: "empty message" });
+  if (!text.trim() && !body.image) return { status: 400, error: "empty message" };
 
   const items = load();
   const stockReply = stockCommand(text);
-  if (stockReply) return send(res, 200, { reply: stockReply });
+  if (stockReply) return { reply: stockReply };
   const orderReply = orderCommand(text);
-  if (orderReply) return send(res, 200, { reply: orderReply });
-  if (/^(stats|report|status|aaj|today)$/i.test(text.trim())) return send(res, 200, { reply: statsReply() });
+  if (orderReply) return { reply: orderReply };
+  if (/^(stats|report|status|aaj|today)$/i.test(text.trim())) return { reply: statsReply() };
   const draft = draftReply(text, Boolean(body.image));
-  if (draft) return send(res, 200, draft);
+  if (draft) return draft;
   const parsed = parseMessage(text);
 
   if (parsed.type === "command") {
     const want = parsed.action === "restock" ? "sold" : parsed.action === "sold" ? "available" : null;
     const target = findTarget(items, parsed.query, want);
-    if (!target) return send(res, 200, { reply: "I couldn't find that item on the website. Try a word from its name, like “sold puffer”." });
+    if (!target) return { reply: "I couldn't find that item on the website. Try a word from its name, like “sold puffer”." };
     if (parsed.action === "remove") {
       save(items.filter((p) => p.id !== target.id));
-      return send(res, 200, { reply: `🗑️ Removed “${target.name}” from the website.` });
+      return { reply: `🗑️ Removed “${target.name}” from the website.` };
     }
     if (parsed.action === "sold" && target.status !== "sold") logActivity({ type: "sold", id: target.id, qty: 1, amount: target.price || 0 });
     if (parsed.action === "sold" && target.quantity > 1) {
       target.quantity -= 1;
       save(items);
-      return send(res, 200, { reply: `🏷️ One “${target.name}” sold. ${target.quantity} left on the website.\nReply *sold ${target.name.split(" ")[0].toLowerCase()}* again for the next one.` });
+      return { reply: `🏷️ One “${target.name}” sold. ${target.quantity} left on the website.\nReply *sold ${target.name.split(" ")[0].toLowerCase()}* again for the next one.` };
     }
     target.status = parsed.action === "sold" ? "sold" : "available";
     if (parsed.action === "restock" && !target.quantity) target.quantity = 1;
     save(items);
-    return send(res, 200, {
+    return {
       reply: parsed.action === "sold" ? `🏷️ Marked “${target.name}” as SOLD.` : `✅ “${target.name}” is back in stock.`,
-    });
+    };
   }
 
   // Rules always run; the AI reader (when configured) decides what the item is from the photo,
@@ -565,8 +605,8 @@ async function handleMessage(req, res) {
   const queue = loadPending();
   queue.push({ id, listing, note, by, image, sure, guess: listing.category });
   savePending(queue);
-  if (queue.length > 1) return send(res, 200, { reply: `📝 Got “${listing.name}”. I'll show it to you to check after the one above.`, buttons: DRAFT_BUTTONS });
-  send(res, 200, { reply: card(queue[0]), buttons: DRAFT_BUTTONS });
+  if (queue.length > 1) return { reply: `📝 Got “${listing.name}”. I'll show it to you to check after the one above.`, buttons: DRAFT_BUTTONS };
+  return { reply: card(queue[0]), buttons: DRAFT_BUTTONS };
 }
 
 // ---- Check before it goes live ----
@@ -793,6 +833,7 @@ http
     const p = decodeURIComponent(url.pathname);
     try {
       if (req.method === "GET" && p === "/api/products") return send(res, 200, load());
+      if (p === "/webhook" && (req.method === "GET" || req.method === "POST")) return await whatsappWebhook(req, res, url);
       if (req.method === "POST" && p === "/api/enquiry") return await handleEnquiry(req, res);
       if (req.method === "POST" && p === "/api/orders") return await createOrder(req, res);
       const om = /^\/api\/orders\/([a-f0-9]{16})(\/paid)?$/.exec(p);
@@ -840,5 +881,7 @@ http
   .listen(PORT, () => {
     console.log(`Vibe X demo: http://localhost:${PORT}/demo  (shop only: http://localhost:${PORT}/)`);
     console.log(aiEnabled() ? `Photo reading: ON (${MODEL})` : "Photo reading: OFF (no ANTHROPIC_API_KEY in .env), using keyword rules");
+    console.log(wa.enabled() ? `WhatsApp: ON (owner ${wa.owners().map((n) => n.slice(0, 4) + "…").join(", ")})` : "WhatsApp: OFF (set WA_TOKEN, WA_PHONE_ID, WA_APP_SECRET, WA_VERIFY_TOKEN, OWNER_WHATSAPP)");
+    setTimeout(() => wa.ensureSubscriptions(siteUrl() && `${siteUrl()}/webhook`), 20e3);
     console.log(process.env.OWNER_KEY ? "Owner key: ON (open /demo?key=YOUR_KEY)" : "Owner key: OFF (fine locally; set OWNER_KEY on a public server)");
   });
