@@ -67,6 +67,7 @@ body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 Inter, 
 .urlbar a { color:var(--muted); font-size:12px; }
 .site { flex:1; border:0; width:100%; background:#0e0e0c; }
 </style>
+<link rel="stylesheet" href="/owner-kit.css">
 </head>
 <body>
 <header class="head">
@@ -154,7 +155,7 @@ body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 Inter, 
   function intro() {
     chat.innerHTML = "";
     sys("Today");
-    bubble("them", "Salaam! 👋 Send me any product photo with a caption, the same one you'd put on your Status.\n\nI'll put it on your website straight away.\n\nAdd how many you have, like *3 pcs*. When one sells, send *sold* and the code I give you, like *sold 2342*. Send *help* any time.");
+    bubble("them", "Salaam! 👋 Send me any product photo with a caption, the same one you'd put on your Status.\n\nI'll show you the name, price and quantity to check. Reply *done* and it goes live on your website.\n\nAdd how many you have, like *3 pcs*. When one sells, send *sold* and the code I give you, like *sold 2342*. Send *help* any time.");
   }
 
   // Shrink photos before sending so uploads stay quick.
@@ -202,6 +203,7 @@ body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 Inter, 
       const data = await res.json();
       t.remove();
       bubble("them", data.reply || data.error || "Something went wrong.");
+      if (window.OwnerKit) window.OwnerKit.onReply(data);
     } catch {
       t.remove();
       bubble("them", "⚠️ Couldn't reach the website. Is the demo server running?");
@@ -245,5 +247,6 @@ body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 Inter, 
   intro();
 })();
 </script>
+<script src="/owner-kit.js"></script>
 </body>
 </html>

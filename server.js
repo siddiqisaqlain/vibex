@@ -10,7 +10,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 try { process.loadEnvFile(path.join(__dirname, ".env")); } catch { /* no .env: keyword rules only */ }
-const { parseMessage } = require("./lib/parse");
+const { parseMessage, categoryAnswer, findSubcategory } = require("./lib/parse");
 const { classify, aiEnabled, MODEL } = require("./lib/classify");
 
 const PORT = Number(process.env.PORT) || 4300;
@@ -67,6 +67,12 @@ function ensureCodes() {
 }
 ensureCodes();
 const save = (items) => fs.writeFileSync(DB, JSON.stringify(items, null, 2));
+
+// Posts the bot wasn't sure about ("Gucci 2499": clothes or perfume?) wait here, oldest first,
+// until the owner answers. They are not on the website until then.
+const PENDING = path.join(DATA, "pending.json");
+const loadPending = () => { try { return JSON.parse(fs.readFileSync(PENDING, "utf8")); } catch { return []; } };
+const savePending = (list) => fs.writeFileSync(PENDING, JSON.stringify(list, null, 2));
 
 const TYPES = {
   ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript",
@@ -268,13 +274,16 @@ async function orderPaid(req, res, id) {
 }
 
 const HELP = `📋 *Commands*
-*Post a product:* send a photo with a caption, e.g. _Gucci Guilty 2499 3 pcs_ or _Zara shirt 1499 size M x2_
+*Post a product:* send a photo with a caption, e.g. _Gucci Guilty 2499 3 pcs_ or _Zara shirt 1499 size M x2_. I'll show you name, price and quantity to check, then reply *done* to put it live
+*Today's numbers:* _stats_
 *Sell:* _sold 4795_ (one) or _sold 4795 2_
 *More came in:* _add 4795 3_
 *Set stock:* _stock 4795 5_
+*Wrong section:* _move 4795 perfume_ (or clothes, shoes, accessory)
 *Take down:* _remove 4795_
 *Orders:* _confirm VX-1234_ or _cancel VX-1234_
-The 4-digit code is the LOT number on the website, and I send it when you post.`;
+The 4-digit code is the LOT number on the website, and I send it when you post.
+Tip: put *perfume*, *clothes*, *shoes* or *accessory* in the caption and I'll never have to ask which it is.`;
 
 // Owner stock messages: "sold 4795 2", "add 4795 3", "stock 4795 5", "help".
 function stockCommand(text) {
@@ -284,6 +293,13 @@ function stockCommand(text) {
   const items = load();
   const p = items.find((x) => x.code === c.code);
   if (!p) return `I couldn't find code ${c.code}. The code is the LOT number on the website. Send *help* to see the commands.`;
+  if (c.action === "move") {
+    if (p.category === c.category) return `“${p.name}” (#${p.code}) is already in *${c.category}*.`;
+    p.category = c.category;
+    p.subcategory = findSubcategory(`${p.caption || ""} ${p.name}`, c.category);
+    save(items);
+    return `↪️ Moved “${p.name}” (#${p.code}) to *${[p.category, p.subcategory].filter(Boolean).join(" › ")}* on the website.`;
+  }
   const before = p.quantity || (p.status === "sold" ? 0 : 1);
   let after;
   if (c.action === "sold") {
@@ -300,6 +316,8 @@ function stockCommand(text) {
   save(items);
   const left = after === 0 ? "*SOLD OUT* on the website." : `*${after}* left on the website.`;
   if (c.action === "sold") {
+    const n = Math.min(c.qty, before);
+    if (n > 0) logActivity({ type: "sold", id: p.id, qty: n, amount: (p.price || 0) * n });
     const over = c.qty > before ? ` (you had only ${before}, so it's now sold out)` : "";
     return `🏷️ Sold ${Math.min(c.qty, before)} × “${p.name}” (#${p.code})${over}. ${left}`;
   }
@@ -327,6 +345,7 @@ function orderCommand(text) {
   if (o.status === "confirmed") return `${o.code} is already confirmed.`;
   o.status = "confirmed";
   o.confirmedAt = new Date().toISOString();
+  logActivity({ type: "sold", id: o.productId, qty: 1, amount: o.amount, order: o.code });
   if (p) {
     if (p.quantity > 1) p.quantity -= 1;
     else { p.status = "sold"; delete p.holdFor; }
@@ -487,6 +506,9 @@ async function handleMessage(req, res) {
   if (stockReply) return send(res, 200, { reply: stockReply });
   const orderReply = orderCommand(text);
   if (orderReply) return send(res, 200, { reply: orderReply });
+  if (/^(stats|report|status|aaj|today)$/i.test(text.trim())) return send(res, 200, { reply: statsReply() });
+  const draft = draftReply(text, Boolean(body.image));
+  if (draft) return send(res, 200, draft);
   const parsed = parseMessage(text);
 
   if (parsed.type === "command") {
@@ -497,6 +519,7 @@ async function handleMessage(req, res) {
       save(items.filter((p) => p.id !== target.id));
       return send(res, 200, { reply: `🗑️ Removed “${target.name}” from the website.` });
     }
+    if (parsed.action === "sold" && target.status !== "sold") logActivity({ type: "sold", id: target.id, qty: 1, amount: target.price || 0 });
     if (parsed.action === "sold" && target.quantity > 1) {
       target.quantity -= 1;
       save(items);
@@ -513,7 +536,7 @@ async function handleMessage(req, res) {
   // Rules always run; the AI reader (when configured) decides what the item is from the photo,
   // and the rules fill any price/size it left empty.
   const rules = parsed.product;
-  let listing = rules, note = null, by = "rules";
+  let listing = rules, note = null, by = "rules", sure = parsed.sure;
   if (aiEnabled()) {
     try {
       const ai = await classify(text, body.image);
@@ -529,6 +552,7 @@ async function handleMessage(req, res) {
         quantity: ai.quantity ?? rules.quantity,
       };
       note = ai.note;
+      sure = ai.sure;
       by = "ai";
     } catch (e) {
       console.warn(`AI reader failed, used keyword rules instead: ${e.message}`);
@@ -536,19 +560,215 @@ async function handleMessage(req, res) {
   }
 
   const id = crypto.randomBytes(6).toString("hex");
-  const fresh0 = load();
-  const product = {
-    id, ...listing, code: newCode(fresh0), quantity: listing.quantity || 1,
-    image: saveImage(body.image, id), status: "available", createdAt: new Date().toISOString(), by,
+  const image = saveImage(body.image, id);
+  const queue = loadPending();
+  queue.push({ id, listing, note, by, image, sure, guess: listing.category });
+  savePending(queue);
+  if (queue.length > 1) return send(res, 200, { reply: `📝 Got “${listing.name}”. I'll show it to you to check after the one above.`, buttons: DRAFT_BUTTONS });
+  send(res, 200, { reply: card(queue[0]), buttons: DRAFT_BUTTONS });
+}
+
+// ---- Check before it goes live ----
+// Every post waits as a draft until the owner says "done". He sees name, price, quantity and
+// section, and can change any of them first. Drafts are not on the website.
+const CATEGORY_WORDS = { Clothing: "clothes", Fragrances: "perfume", Footwear: "shoes", Accessories: "accessory" };
+const SECTION_LABEL = { Clothing: "Clothes", Fragrances: "Perfume", Footwear: "Shoes", Accessories: "Accessory" };
+const DRAFT_BUTTONS = ["✅ Done", "✏️ Change", "❌ Cancel"];
+// Edit words, so a typo like "pirce 3000" or "qyt 2" still counts.
+const EDIT_WORDS = { price: "price", rate: "price", mrp: "mrp", qty: "qty", quantity: "qty", stock: "qty", pcs: "qty", name: "name", brand: "brand", size: "size", sizes: "size" };
+function editWord(w) {
+  w = w.toLowerCase();
+  if (EDIT_WORDS[w]) return EDIT_WORDS[w];
+  const dist = (a, b) => {
+    const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+    for (let j = 1; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+    return d[a.length][b.length];
   };
-  const fresh = load(); // reload: another message may have landed while the AI was reading
+  const hit = Object.keys(EDIT_WORDS).find((k) => k.length >= 3 && dist(w, k) <= (k.length >= 5 ? 2 : 1));
+  return hit ? EDIT_WORDS[hit] : null;
+}
+const HOW_TO_CHANGE = `Send what's different, e.g.\n*price 2999* · *qty 3* · *name Gucci Guilty EDT* · *size M L* · *mrp 8000*\nWrong section? Send *clothes*, *perfume*, *shoes* or *accessory*.`;
+
+function card(item, changed = "") {
+  const l = item.listing;
+  const mark = (k) => (changed === k ? " ✏️" : "");
+  const section = [SECTION_LABEL[l.category], l.subcategory && l.subcategory !== "Perfume" ? l.subcategory : null].filter(Boolean).join(" › ");
+  const lines = [
+    `🏷️ Name: *${l.name}*${mark("name")}`,
+    `💰 Price: ${l.price ? `*${rupees(l.price)}*` : "❗ *missing*"}${l.mrp ? ` (MRP ${rupees(l.mrp)})` : ""}${mark("price")}`,
+    `📦 Quantity: *${l.quantity || 1}*${mark("qty")}`,
+    `🗂️ Section: *${section}*${item.sure ? "" : " ❓ my guess"}${mark("section")}`,
+  ];
+  if (l.brand) lines.splice(1, 0, `✨ Brand: ${l.brand}${mark("brand")}`);
+  if (l.sizes || changed === "size") lines.push(`📏 Size: ${l.sizes || "-"}${mark("size")}`);
+  const head = changed ? "✏️ Updated. Check again:" : "📝 Check before it goes on your website:";
+  const tail = !l.price
+    ? `\n\nAdd the price first, e.g. *price 2499*.`
+    : `\n\nAll good? Reply *done* to post it.\nSomething wrong? Tap *Change* or send e.g. *price 2999*, *qty 3*.`;
+  const unsure = item.sure ? "" : `\nNot ${CATEGORY_WORDS[l.category]}? Send *clothes*, *perfume*, *shoes* or *accessory*.`;
+  return `${head}\n\n${lines.join("\n")}${tail}${unsure}${item.note ? `\n\nℹ️ ${item.note}` : ""}`;
+}
+
+const DONE = /^(✅\s*)?(done|ok|okay|yes|y|post|post it|go|live|send|haan|han|ha|ji|theek|thik|sahi|correct|right|👍)[.!]*$/i;
+const CANCEL = /^(❌\s*)?(cancel|no|drop|discard|delete|nahi|nah)[.!]*$/i;
+const CHANGE = /^(✏️\s*)?(change|edit|fix)[.!]*$/i;
+
+// The owner's reply while a draft is open: done / cancel / change / an edit. Returns { reply, ... } or null.
+function draftReply(text, hasImage) {
+  if (hasImage) return null; // a new photo is a new post: it queues behind this one
+  const t = text.trim();
+  const queue = loadPending();
+  const item = queue[0];
+  const word = /^\D+$/.test(t) ? categoryAnswer(t) : null;
+  // "pirce 3,000" -> "price 3,000": fix the edit word, keep the value.
+  const [first, ...rest] = t.split(/\s+/);
+  const kind = rest.length ? editWord(first.replace(/[:=\-]+$/, "")) : null;
+  const e = kind ? `${kind} ${rest.join(" ")}` : t;
+  if (!item) {
+    if (DONE.test(t) || CANCEL.test(t) || CHANGE.test(t) || (kind && (kind === "name" || /^[₹\d,.\/-]+$/.test(rest.join(""))))) return { reply: "Nothing is waiting to be checked. Send a product photo with a caption to post it." };
+    return null;
+  }
+  const l = item.listing;
+  const next = () => (queue.length ? `\n\n—\n\n${card(queue[0])}` : "");
+  const reshow = (changed) => { savePending(queue); return { reply: card(item, changed), buttons: DRAFT_BUTTONS }; };
+
+  if (DONE.test(t)) {
+    if (!l.price) return { reply: `💰 It needs a price before it goes live. Send e.g. *price 2499*.`, buttons: ["✏️ Change", "❌ Cancel"] };
+    queue.shift();
+    savePending(queue);
+    const product = publish({ id: item.id, listing: l, by: item.by, image: item.image });
+    const win = celebrate(product);
+    return { reply: liveReply(product, win) + next(), product, celebrate: win, buttons: queue.length ? DRAFT_BUTTONS : undefined };
+  }
+  if (CANCEL.test(t)) {
+    queue.shift();
+    savePending(queue);
+    if (item.image) { try { fs.unlinkSync(path.join(UPLOADS, path.basename(item.image))); } catch { /* already gone */ } }
+    return { reply: `🗑️ Dropped “${l.name}”. Nothing went on the website.${next()}`, buttons: queue.length ? DRAFT_BUTTONS : undefined };
+  }
+  if (CHANGE.test(t)) return { reply: `✏️ What should I change on “${l.name}”?\n\n${HOW_TO_CHANGE}`, buttons: ["✅ Done", "❌ Cancel"] };
+  if (word) {
+    l.category = word;
+    l.subcategory = findSubcategory(`${l.caption || ""} ${l.name}`, word);
+    item.sure = true;
+    return reshow("section");
+  }
+  let m;
+  if ((m = /^(?:price|rate|rs\.?|₹)\s*[:=\-]?\s*(?:₹|rs\.?)?\s*([\d,]{2,9})(?:\s*\/-)?$/i.exec(e)) || (m = /^(?:₹|rs\.?)?\s*([\d,]{3,9})(?:\s*\/-)?$/i.exec(e))) {
+    const n = Number(m[1].replace(/,/g, ""));
+    if (n >= 10) { l.price = n; return reshow("price"); }
+  }
+  if ((m = /^mrp\s*[:=\-]?\s*(?:₹|rs\.?)?\s*([\d,]{2,9})$/i.exec(e))) { l.mrp = Number(m[1].replace(/,/g, "")); return reshow("price"); }
+  if ((m = /^(?:qty|quantity|stock|pcs|pieces|nos)\s*[:=\-]?\s*(\d{1,3})$/i.exec(e)) || (m = /^(\d{1,3})\s*(?:pcs|pc|pieces|piece|nos|qty)$/i.exec(e)) || (m = /^[x×]\s*(\d{1,3})$/i.exec(e))) {
+    const n = Number(m[1]);
+    if (n > 0) { l.quantity = n; return reshow("qty"); }
+  }
+  if ((m = /^name\s*[:=\-]?\s+(.{2,80})$/i.exec(e))) { l.name = m[1].trim(); return reshow("name"); }
+  if ((m = /^brand\s*[:=\-]?\s+(.{2,40})$/i.exec(e))) { l.brand = m[1].trim(); return reshow("brand"); }
+  if ((m = /^sizes?\s*[:=\-]?\s+(.{1,40})$/i.exec(e))) {
+    const v = m[1].trim();
+    l.sizes = /^\d+\s?ml$/i.test(v) ? v.replace(/\s?ml/i, " ml") : v.split(/[\s,\/&]+/).filter(Boolean).map((x) => x.toUpperCase()).join(" · ");
+    return reshow("size");
+  }
+  // Looks like a new product (words and a price)? Queue it behind this one.
+  const looks = parseMessage(t);
+  if (!kind && looks.type === "product" && looks.product.price && looks.product.name !== "New arrival") {
+    const id = crypto.randomBytes(6).toString("hex");
+    queue.push({ id, listing: looks.product, note: null, by: "rules", image: null, sure: looks.sure, guess: looks.product.category });
+    savePending(queue);
+    return { reply: `📝 Got “${looks.product.name}” too. I'll show it to you after “${l.name}”.\n\nFirst, is “${l.name}” ready? Reply *done*, or *cancel* to drop it.`, buttons: DRAFT_BUTTONS };
+  }
+  return { reply: `🤔 I didn't get that. I'm still holding “${l.name}” for you to check.\n\n${HOW_TO_CHANGE}\n\nOr reply *done* to post it, *cancel* to drop it.`, buttons: DRAFT_BUTTONS };
+}
+
+function publish({ id, listing, by, image }) {
+  const fresh = load(); // reload: another message may have landed meanwhile
+  const product = {
+    id, ...listing, code: newCode(fresh), quantity: listing.quantity || 1,
+    image, status: "available", createdAt: new Date().toISOString(), by,
+  };
   fresh.unshift(product);
   save(fresh);
+  return product;
+}
+
+// ---- Activity log: posts and sales, for streaks, "today" counts and the stats bar ----
+const ACTIVITY = path.join(DATA, "activity.json");
+const loadActivity = () => { try { return JSON.parse(fs.readFileSync(ACTIVITY, "utf8")); } catch { return []; } };
+function logActivity(ev) {
+  const list = loadActivity();
+  list.push({ at: new Date().toISOString(), ...ev });
+  fs.writeFileSync(ACTIVITY, JSON.stringify(list.slice(-5000), null, 2));
+}
+// Days are counted in shop time (Srinagar).
+const shopDay = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+function streakDays(acts) {
+  const days = new Set(acts.filter((a) => a.type === "post").map((a) => shopDay(a.at)));
+  let n = 0;
+  for (let d = Date.now(); days.has(shopDay(d)); d -= 864e5) n++;
+  return n;
+}
+
+// The fun bit: counts and milestones after each post goes live.
+function celebrate(product) {
+  logActivity({ type: "post", id: product.id, name: product.name });
+  const acts = loadActivity();
+  const today = shopDay(Date.now());
+  const postedToday = acts.filter((a) => a.type === "post" && shopDay(a.at) === today).length;
+  const live = load().filter((p) => p.status !== "sold").length;
+  const streak = streakDays(acts);
+  let milestone = null;
+  if ([5, 10, 20, 30, 50].includes(postedToday)) milestone = `🔥 ${postedToday} drops today. You're on fire!`;
+  else if (live % 25 === 0) milestone = `🏆 ${live} pieces live on your website!`;
+  else if (postedToday === 1) milestone = "🌅 First drop of the day!";
+  else if (postedToday === 3) milestone = "⚡ 3 drops today. Keep them coming!";
+  return { name: product.name, code: product.code, image: product.image, postedToday, live, streak, milestone };
+}
+
+function liveReply(product, win) {
   const shelf = [product.category, product.subcategory].filter(Boolean).join(" › ");
   const bits = [product.brand, rupees(product.price), product.sizes].filter(Boolean).join(" · ");
-  const stockLine = `\n\n🔢 Code *${product.code}* · ${product.quantity} in stock\nWhen one sells, send *sold ${product.code}*${product.quantity > 1 ? ` (or *sold ${product.code} 2* for two)` : ""}.`;
-  const ask = product.price ? "" : "\n\nNo price found. Reply with the price next time, e.g. *2000*.";
-  send(res, 200, { reply: `✅ Added to *${shelf}*:\n*${product.name}*\n${bits}${stockLine}${note ? `\n\nℹ️ ${note}` : ""}${ask}`, product });
+  const score = [`📈 ${win.postedToday} posted today`, win.streak > 1 ? `🔥 ${win.streak}-day streak` : null, `🛍️ ${win.live} live`].filter(Boolean).join(" · ");
+  return `🎉 *LIVE on your website!*\n*${product.name}*\n${bits}\nin ${shelf}\n\n🔢 Code *${product.code}* · ${product.quantity} in stock\nWhen one sells, send *sold ${product.code}*${product.quantity > 1 ? ` (or *sold ${product.code} 2* for two)` : ""}.\nWrong section? Send *move ${product.code} ${product.category === "Fragrances" ? "clothes" : "perfume"}*.\n\n${score}${win.milestone ? `\n${win.milestone}` : ""}`;
+}
+
+// ---- Numbers for the owner: the stats bar on /demo, and the "stats" chat command ----
+function stats() {
+  const items = load();
+  const orders = loadOrders();
+  const inbox = loadInbox();
+  const acts = loadActivity();
+  const today = shopDay(Date.now());
+  const isToday = (d) => d && shopDay(d) === today;
+  const onSale = items.filter((p) => p.status !== "sold");
+  const units = (p) => (p.quantity > 0 ? p.quantity : 1);
+  const soldToday = acts.filter((a) => a.type === "sold" && isToday(a.at));
+  const sections = {};
+  for (const p of onSale) sections[p.category] = (sections[p.category] || 0) + 1;
+  return {
+    live: onSale.length,
+    units: onSale.reduce((n, p) => n + units(p), 0),
+    stockValue: onSale.reduce((n, p) => n + (p.price || 0) * units(p), 0),
+    postedToday: acts.filter((a) => a.type === "post" && isToday(a.at)).length,
+    soldToday: soldToday.reduce((n, a) => n + (a.qty || 1), 0),
+    salesToday: soldToday.reduce((n, a) => n + (a.amount || 0), 0),
+    ordersToCheck: orders.filter((o) => o.status === "paid").length,
+    enquiriesToday: inbox.filter((m) => m.kind === "enquiry" && isToday(m.at)).length,
+    drafts: loadPending().length,
+    lastOne: onSale.filter((p) => p.status === "available" && units(p) === 1).length,
+    soldOut: items.filter((p) => p.status === "sold").length,
+    streak: streakDays(acts),
+    sections,
+  };
+}
+function statsReply() {
+  const s = stats();
+  const sec = Object.entries(s.sections).map(([k, v]) => `${SECTION_LABEL[k] || k} ${v}`).join(" · ");
+  return `📊 *Your website today*\n\n🛍️ ${s.live} pieces live (${s.units} in stock, worth ${inr(s.stockValue)})\n📈 ${s.postedToday} posted today${s.streak > 1 ? ` · 🔥 ${s.streak}-day streak` : ""}\n💸 ${s.soldToday} sold today${s.salesToday ? ` · ${inr(s.salesToday)}` : ""}\n💰 ${s.ordersToCheck} order${s.ordersToCheck === 1 ? "" : "s"} waiting for you to check payment\n💬 ${s.enquiriesToday} enquir${s.enquiriesToday === 1 ? "y" : "ies"} today\n⏳ ${s.lastOne} on their last piece · ${s.soldOut} sold out\n\n${sec}`;
 }
 
 http
@@ -565,7 +785,7 @@ http
         const o = loadOrders().find((x) => x.id === om[1]);
         return o ? send(res, 200, { code: o.code, status: o.status }) : send(res, 404, { error: "not found" });
       }
-      const ownerOnly = p === "/demo" || p === "/demo.html" || p === "/api/inbox" || p === "/api/message" || p === "/api/reset";
+      const ownerOnly = p === "/demo" || p === "/demo.html" || p === "/api/inbox" || p === "/api/message" || p === "/api/reset" || p === "/api/stats";
       if (ownerOnly && !isOwner(req, url)) {
         return p.startsWith("/api/") ? send(res, 401, { error: "Owner key required." }) : notFoundPage(res);
       }
@@ -574,11 +794,16 @@ http
         return send(res, 200, loadInbox().filter((m) => m.at > after));
       }
       if (req.method === "POST" && p === "/api/message") return await handleMessage(req, res);
+      if (req.method === "GET" && p === "/api/stats") return send(res, 200, stats());
+      // Owner screen add-ons (stats bars, reply buttons, celebration), shared by every design.
+      if (p === "/owner-kit.js" || p === "/owner-kit.css") return serveFile(res, path.join(ROOT, "owner"), p.slice(1));
       if (req.method === "POST" && p === "/api/reset") {
         writeSeed();
         ensureCodes();
         saveInbox([]);
         saveOrders([]);
+        savePending([]);
+        fs.writeFileSync(ACTIVITY, "[]");
         for (const f of fs.readdirSync(UPLOADS)) fs.unlinkSync(path.join(UPLOADS, f));
         return send(res, 200, { ok: true });
       }

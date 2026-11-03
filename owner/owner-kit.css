@@ -1,0 +1,51 @@
+/* Owner screen add-ons: stats bars, reply buttons, celebration. Uses the demo page's own colour tokens. */
+.kit-bars { padding: 10px 20px 0; display: flex; flex-direction: column; gap: 6px; }
+.kit-bar { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.kit-bar::-webkit-scrollbar { display: none; }
+
+.kit-main .kit-tile { position: relative; flex: 1 0 auto; min-width: 136px; display: flex; align-items: center; gap: 9px;
+  padding: 7px 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.025); }
+.kit-ico { font-size: 17px; line-height: 1; }
+.kit-tile b.kit-num { display: block; font-size: 19px; line-height: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+.kit-tile small { display: block; font-size: 11.5px; line-height: 15px; color: var(--muted); white-space: nowrap; }
+.kit-tile .kit-sub { font-style: normal; color: var(--text); }
+.kit-tile.kit-alert { border-color: var(--tag); background: color-mix(in srgb, var(--tag) 12%, transparent); }
+.kit-tile.kit-alert b.kit-num { color: var(--tag); }
+.kit-bump b.kit-num { animation: kit-pop .6s cubic-bezier(.22,1,.36,1); }
+@keyframes kit-pop { 30% { transform: scale(1.35); color: var(--wa-green, #00a884); } }
+.kit-plus { position: absolute; right: 10px; top: 4px; font-size: 12px; font-weight: 700; color: var(--wa-green, #00a884); animation: kit-rise 1.4s ease-out forwards; pointer-events: none; }
+@keyframes kit-rise { to { transform: translateY(-14px); opacity: 0; } }
+
+.kit-strip { align-items: center; gap: 0; font-size: 12px; line-height: 18px; color: var(--muted); white-space: nowrap;
+  padding: 4px 4px; border-top: 1px dashed var(--line); }
+.kit-strip > span { padding: 0 10px; border-right: 1px solid var(--line); }
+.kit-strip > span:last-child { border-right: 0; }
+.kit-strip b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.kit-strip .kit-sep { flex: 1 0 8px; border: 0; padding: 0; }
+.kit-streak.on b { color: var(--tag); }
+
+/* The demo's two columns lose the height the bars take. */
+.kit-on .stage { height: calc(100vh - 70px - var(--kit-h, 0px)); }
+@media (max-width: 900px) { .kit-on .stage { height: auto; } .kit-bars { padding: 10px 12px 0; } }
+
+/* Reply buttons, WhatsApp style: under the bot's message */
+.kit-btns { align-self: flex-start; display: flex; gap: 4px; max-width: 82%; flex-wrap: wrap; margin-top: -2px; }
+.kit-btns button { flex: 1 1 auto; font: inherit; font-size: 13.5px; font-weight: 600; color: #53bdeb; background: var(--wa-them, #202c33);
+  border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.kit-btns button:hover { background: #2a3942; }
+
+/* Celebration */
+.kit-confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 50; }
+.kit-host { position: relative; }
+.kit-win { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 12px;
+  width: min(420px, calc(100% - 24px)); padding: 12px 14px; border-radius: 14px; background: #111b21; color: #e9edef;
+  border: 1px solid var(--wa-green, #00a884); box-shadow: 0 18px 50px rgba(0,0,0,.5); animation: kit-in .55s cubic-bezier(.22,1.4,.36,1); }
+.kit-win.out { opacity: 0; transform: translate(-50%, -10px); transition: opacity .5s, transform .5s; }
+.kit-win img { width: 56px; height: 56px; object-fit: cover; border-radius: 9px; flex: none; }
+.kit-win-ico { font-size: 34px; flex: none; }
+.kit-win small { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--wa-green, #00a884); font-weight: 700; }
+.kit-win b { display: block; font-size: 16px; line-height: 21px; }
+.kit-win span { display: block; font-size: 12.5px; color: #8696a0; }
+.kit-win em { display: block; margin-top: 4px; font-style: normal; font-weight: 600; color: #ffd23f; font-size: 13px; }
+@keyframes kit-in { from { opacity: 0; transform: translate(-50%, -16px) scale(.92); } }
+@media (prefers-reduced-motion: reduce) { .kit-win, .kit-bump b.kit-num, .kit-plus { animation: none; } }
