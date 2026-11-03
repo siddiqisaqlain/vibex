@@ -423,6 +423,7 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 @media (max-width: 720px) { .menu-btn { display: block; } .nav { align-items: center; gap: 12px; } }
 body.menu-open { overflow: hidden; }
 .menu { position: fixed; inset: 58px 0 0; z-index: 19; background: var(--bone); padding: 16px 16px 32px; display: flex; flex-direction: column; opacity: 0; transition: opacity .3s cubic-bezier(.22,1,.36,1); overflow-y: auto; }
+.menu[hidden] { display: none; } /* author display:flex would otherwise override [hidden] and leave an invisible overlay catching taps */
 .menu.open { opacity: 1; }
 .menu a { padding: 16px 0; border-bottom: 2px solid var(--ink); font: 900 30px/1.1 var(--display); font-stretch: 120%; text-transform: uppercase; text-decoration: none; opacity: 0; transform: translateY(16px); transition: opacity .5s cubic-bezier(.22,1,.36,1), transform .5s cubic-bezier(.22,1,.36,1), color .3s; }
 .menu a:hover { color: var(--orange); }

@@ -82,6 +82,7 @@ img { display: block; }
   .menu-btn { display: block; }
 }
 .menu { position: fixed; inset: 0; z-index: 35; background: var(--bg); padding: 96px 24px 32px; display: flex; flex-direction: column; gap: 8px; opacity: 0; transition: opacity var(--fade) var(--ease); }
+.menu[hidden] { display: none; } /* author display:flex would otherwise override [hidden] and leave an invisible overlay catching taps */
 .menu.open { opacity: 1; }
 .menu a { font: 600 30px/36px var(--font); letter-spacing: -.02em; text-decoration: none; padding: 12px 0; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; opacity: 0; transform: translateY(16px); transition: opacity var(--move) var(--ease), transform var(--move) var(--ease); }
 .menu.open a { opacity: 1; transform: none; }
