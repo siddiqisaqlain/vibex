@@ -279,6 +279,7 @@ const HELP = `📋 *Commands*
 *Sell:* _sold 4795_ (one) or _sold 4795 2_
 *More came in:* _add 4795 3_
 *Set stock:* _stock 4795 5_
+*Clothes:* I'll ask for the size before it goes live. Put it in the caption to skip that, e.g. _size M L_
 *Wrong section:* _move 4795 perfume_ (or clothes, shoes, accessory)
 *Take down:* _remove 4795_
 *Orders:* _confirm VX-1234_ or _cancel VX-1234_
@@ -593,6 +594,18 @@ function editWord(w) {
 }
 const HOW_TO_CHANGE = `Send what's different, e.g.\n*price 2999* · *qty 3* · *name Gucci Guilty EDT* · *size M L* · *mrp 8000*\nWrong section? Send *clothes*, *perfume*, *shoes* or *accessory*.`;
 
+// Clothes need a size before they go live (shoes and perfume don't).
+const needsSize = (l) => l.category === "Clothing" && !l.sizes;
+// "m l xl" -> "M · L · XL", "free" -> "Free size", "100ml" -> "100 ml"
+function formatSizes(v) {
+  v = v.trim();
+  if (/^(free|free ?size|one ?size|os)$/i.test(v)) return "Free size";
+  if (/^\d+\s?ml$/i.test(v)) return v.replace(/\s?ml/i, " ml");
+  return v.split(/[\s,\/&]+/).filter(Boolean).map((x) => x.toUpperCase()).join(" · ").replace(/^(UK|US|EU) · /, "$1 ");
+}
+// A bare size answer: "M", "m l xl", "32 34", "free size", "UK 9"
+const SIZE_ONLY = /^(?:(?:xxs|xs|s|m|l|xl|xxl|xxxl|2xl|3xl|4xl|\d{2}|uk\s?\d{1,2}|free|free ?size|one ?size)(?:[\s,\/&]+|$))+$/i;
+
 function card(item, changed = "") {
   const l = item.listing;
   const mark = (k) => (changed === k ? " ✏️" : "");
@@ -604,10 +617,12 @@ function card(item, changed = "") {
     `🗂️ Section: *${section}*${item.sure ? "" : " ❓ my guess"}${mark("section")}`,
   ];
   if (l.brand) lines.splice(1, 0, `✨ Brand: ${l.brand}${mark("brand")}`);
-  if (l.sizes || changed === "size") lines.push(`📏 Size: ${l.sizes || "-"}${mark("size")}`);
+  if (l.category === "Clothing") lines.push(`📏 Size: ${l.sizes ? `*${l.sizes}*` : "❗ *missing*"}${mark("size")}`);
+  else if (l.sizes || changed === "size") lines.push(`📏 Size: ${l.sizes || "-"}${mark("size")}`);
   const head = changed ? "✏️ Updated. Check again:" : "📝 Check before it goes on your website:";
-  const tail = !l.price
-    ? `\n\nAdd the price first, e.g. *price 2499*.`
+  const missing = [!l.price && "the *price* (e.g. *price 2499*)", needsSize(l) && "the *size* (e.g. *M* or *M L XL*, or *free size*)"].filter(Boolean);
+  const tail = missing.length
+    ? `\n\nBefore it can go live, send ${missing.join(" and ")}.`
     : `\n\nAll good? Reply *done* to post it.\nSomething wrong? Tap *Change* or send e.g. *price 2999*, *qty 3*.`;
   const unsure = item.sure ? "" : `\nNot ${CATEGORY_WORDS[l.category]}? Send *clothes*, *perfume*, *shoes* or *accessory*.`;
   return `${head}\n\n${lines.join("\n")}${tail}${unsure}${item.note ? `\n\nℹ️ ${item.note}` : ""}`;
@@ -638,6 +653,7 @@ function draftReply(text, hasImage) {
 
   if (DONE.test(t)) {
     if (!l.price) return { reply: `💰 It needs a price before it goes live. Send e.g. *price 2499*.`, buttons: ["✏️ Change", "❌ Cancel"] };
+    if (needsSize(l)) return { reply: `📏 What size is “${l.name}”? Send e.g. *M*, *M L XL*, *32 34*, or *free size*.`, buttons: ["✏️ Change", "❌ Cancel"] };
     queue.shift();
     savePending(queue);
     const product = publish({ id: item.id, listing: l, by: item.by, image: item.image });
@@ -657,6 +673,7 @@ function draftReply(text, hasImage) {
     item.sure = true;
     return reshow("section");
   }
+  if (SIZE_ONLY.test(t) && (l.category === "Clothing" || !/^\d{2}$/.test(t))) { l.sizes = formatSizes(t); return reshow("size"); }
   let m;
   if ((m = /^(?:price|rate|rs\.?|₹)\s*[:=\-]?\s*(?:₹|rs\.?)?\s*([\d,]{2,9})(?:\s*\/-)?$/i.exec(e)) || (m = /^(?:₹|rs\.?)?\s*([\d,]{3,9})(?:\s*\/-)?$/i.exec(e))) {
     const n = Number(m[1].replace(/,/g, ""));
@@ -670,8 +687,7 @@ function draftReply(text, hasImage) {
   if ((m = /^name\s*[:=\-]?\s+(.{2,80})$/i.exec(e))) { l.name = m[1].trim(); return reshow("name"); }
   if ((m = /^brand\s*[:=\-]?\s+(.{2,40})$/i.exec(e))) { l.brand = m[1].trim(); return reshow("brand"); }
   if ((m = /^sizes?\s*[:=\-]?\s+(.{1,40})$/i.exec(e))) {
-    const v = m[1].trim();
-    l.sizes = /^\d+\s?ml$/i.test(v) ? v.replace(/\s?ml/i, " ml") : v.split(/[\s,\/&]+/).filter(Boolean).map((x) => x.toUpperCase()).join(" · ");
+    l.sizes = formatSizes(m[1]);
     return reshow("size");
   }
   // Looks like a new product (words and a price)? Queue it behind this one.
