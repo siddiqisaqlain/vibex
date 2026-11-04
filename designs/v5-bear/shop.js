@@ -163,15 +163,25 @@
     const track = $("slides");
     const go = (i) => track.scrollTo({ left: i * track.clientWidth, behavior: "smooth" });
     const cur = () => Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
-    track.onscroll = () => {
+    const mark = () => {
       const i = cur();
       $("slider-dots").querySelectorAll("button").forEach((b, j) => b.toggleAttribute("aria-current", j === i));
+      track.querySelectorAll(".slide").forEach((s, j) => s.classList.toggle("on", j === i)); // its text rises in
     };
+    track.onscroll = mark;
+    requestAnimationFrame(mark);
     $("slider-dots").onclick = (e) => { const b = e.target.closest("[data-slide]"); if (b) { go(+b.dataset.slide); restart(); } };
     const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
     function restart() {
       clearInterval(slideTimer);
-      if (slides.length > 1 && !reduce) slideTimer = setInterval(() => go((cur() + 1) % slides.length), 5500);
+      // hold the first slide while the opening map is up, and for a full turn after it lifts
+      let introGone = document.querySelector(".vxi") ? 0 : 1;
+      if (slides.length > 1 && !reduce) slideTimer = setInterval(() => {
+        if (document.querySelector(".vxi")) { introGone = 0; return; }
+        if (introGone === 0) { introGone = Date.now(); return; }            // the map just lifted: give slide 1 a full turn
+        if (introGone > 1 && Date.now() - introGone < 4000) return;
+        go((cur() + 1) % slides.length);
+      }, 5500);
     }
     track.onpointerdown = restart;
     restart();
