@@ -44,7 +44,7 @@
     ["Kochi", 170.5, 628.6], ["Leh", 197.8, 75.5],
   ];
   const LAKSHADWEEP = [[94.6, 614.9], [85, 601.1], [103, 663.6], [96.5, 625.8]];
-  const RED = "#e92e30", INK = "#1a1a1a";
+  const RED = "#e2382c", INK = "#121212";
 
   // ---- timeline (ms) ----
   const SWEEP_AT = 250, SWEEP = 1500;
@@ -80,22 +80,22 @@
   const css = `
   body.vxi-on { overflow: hidden; }
   .vxi { position: fixed; inset: 0; z-index: 1000; cursor: pointer; }
-  .vxi-bg { position: absolute; inset: 0; background: radial-gradient(110% 80% at 50% 42%, #ffffff 0%, #f4f4f4 62%, #ebebeb 100%); transition: opacity .55s ease; }
+  .vxi-bg { position: absolute; inset: 0; background: radial-gradient(110% 80% at 50% 42%, #f9f8f5 0%, #f2f0eb 62%, #e9e6e0 100%); transition: opacity .55s ease; }
   .vxi canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   .vxi-copy { position: absolute; left: 0; right: 0; bottom: calc(8vh + env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
-  .vxi-logo { font: 900 34px/1 Montserrat, Arial, sans-serif; color: ${INK}; letter-spacing: .02em; white-space: nowrap; transform-origin: 0 0; opacity: 0; transform: translateY(14px); animation: vxiUp .8s cubic-bezier(.2,.8,.2,1) .6s forwards; }
-  .vxi-logo span { color: ${RED}; margin-left: 3px; }
-  .vxi-copy p { margin: 12px 0 0; font: 500 12.5px/1.4 Roboto, Arial, sans-serif; text-transform: uppercase; letter-spacing: .18em; color: #6f6f6f; opacity: 0; transform: translateY(10px); animation: vxiUp .8s cubic-bezier(.2,.8,.2,1) .8s forwards; transition: opacity .25s; }
+  .vxi-logo { font: 800 36px/1 'Schibsted Grotesk', Arial, sans-serif; color: ${INK}; letter-spacing: -.045em; white-space: nowrap; transform-origin: 0 0; opacity: 0; transform: translateY(14px); animation: vxiUp .8s cubic-bezier(.2,.8,.2,1) .6s forwards; }
+  .vxi-logo span { color: ${RED}; margin-left: 2px; }
+  .vxi-copy p { margin: 12px 0 0; font: 500 11.5px/1.4 'Geist Mono', ui-monospace, monospace; text-transform: uppercase; letter-spacing: .1em; color: #85837d; opacity: 0; transform: translateY(10px); animation: vxiUp .8s cubic-bezier(.2,.8,.2,1) .8s forwards; transition: opacity .25s; }
   .vxi-copy p b { color: ${RED}; font-weight: 700; }
   @keyframes vxiUp { to { opacity: 1; transform: none; } }
   .vxi-skip, .vxi-compass { transition: opacity .3s; }
-  .vxi-skip { position: absolute; right: 16px; top: calc(16px + env(safe-area-inset-top)); padding: 8px 14px; border: 1px solid #d2d2d2; border-radius: 999px; background: rgba(255,255,255,.8); backdrop-filter: blur(6px); font: 500 12px Roboto, Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #3f3f3f; cursor: pointer; }
-  .vxi-compass { position: absolute; left: 18px; top: calc(18px + env(safe-area-inset-top)); width: 34px; height: 34px; border-radius: 50%; border: 1px solid #d2d2d2; background: rgba(255,255,255,.8); font: 700 9px Roboto, Arial, sans-serif; color: ${INK}; }
+  .vxi-skip { position: absolute; right: 16px; top: calc(16px + env(safe-area-inset-top)); padding: 8px 14px; border: 1px solid rgba(18,18,18,.18); border-radius: 999px; background: rgba(249,248,245,.8); backdrop-filter: blur(6px); font: 500 11px 'Geist Mono', ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; color: #3d3c39; cursor: pointer; }
+  .vxi-compass { position: absolute; left: 18px; top: calc(18px + env(safe-area-inset-top)); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(18,18,18,.18); background: rgba(249,248,245,.8); font: 600 9px 'Geist Mono', monospace; color: ${INK}; }
   .vxi-compass-in { position: relative; width: 100%; height: 100%; display: grid; place-items: center; }
   .vxi-compass i { position: absolute; top: 4px; width: 0; height: 0; border: 4px solid transparent; border-bottom: 9px solid ${RED}; border-top: 0; }
   .vxi.leaving { pointer-events: none; }
   .vxi.leaving .vxi-skip, .vxi.leaving .vxi-compass, .vxi.leaving .vxi-copy p { opacity: 0; }
-  @media (max-width: 600px) { .vxi-logo { font-size: 28px; } .vxi-copy p { font-size: 11px; letter-spacing: .14em; } }`;
+  @media (max-width: 600px) { .vxi-logo { font-size: 30px; } .vxi-copy p { font-size: 10.5px; letter-spacing: .08em; } }`;
 
   const el = document.createElement("div");
   el.className = "vxi";
@@ -173,10 +173,10 @@
     ctx.globalAlpha = alpha;
     ctx.strokeStyle = dark ? INK : "rgba(26,26,26,.5)"; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(tx, ty); ctx.stroke();
-    ctx.font = `${dark ? 700 : 600} ${dark ? 12 : 10.5}px Roboto, Arial, sans-serif`;
+    ctx.font = `500 ${dark ? 11.5 : 10}px "Geist Mono", ui-monospace, monospace`;
     const label = text.toUpperCase(), w = ctx.measureText(label).width + 16, hh = dark ? 23 : 19;
     const bx = side === "L" ? tx - w + 8 : side === "R" ? tx - 8 : tx - w / 2, by = ty - hh;
-    ctx.fillStyle = dark ? INK : "rgba(255,255,255,.96)";
+    ctx.fillStyle = dark ? INK : "rgba(251,250,248,.97)";
     ctx.shadowColor = "rgba(0,0,0,.16)"; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
     ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, by, w, hh, hh / 2) : ctx.rect(bx, by, w, hh); ctx.fill();
     ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
@@ -207,7 +207,7 @@
     // floor: a faint dot grid the model sits on
     const diving = e > .12;
     if (!diving) {
-    ctx.fillStyle = "#c9c9c9";
+    ctx.fillStyle = "#c3beb4";
     for (let gx = -560; gx <= 560; gx += 40) for (let gy = -520; gy <= 560; gy += 40) {
       const d = Math.hypot(gx * .9, gy) / 600;
       if (d > 1) continue;
@@ -222,35 +222,35 @@
     if (!diving) {
       ctx.fillStyle = "rgba(0,0,0,.03)";
       for (const off of [22, 14, 8]) for (const p of polys) { path(p, -T * 3, off * .4, off); ctx.fill(); }
-      for (const [z, c] of [[-T, "#c4c4c4"], [-T * .66, "#d0d0d0"], [-T * .33, "#dcdcdc"]]) {
+      for (const [z, c] of [[-T, "#c7c2b9"], [-T * .66, "#d3cfc7"], [-T * .33, "#dfdbd4"]]) {
         ctx.fillStyle = c; for (const p of polys) { path(p, z); ctx.fill(); }
       }
     }
     ctx.lineJoin = "round";
-    ctx.strokeStyle = "#a9a9a9"; ctx.lineWidth = 2.2;
+    ctx.strokeStyle = "#a59f94"; ctx.lineWidth = 2.2;
     for (const p of polys) { path(p, 0); ctx.stroke(); }
     const [, gTop] = P(0, -300, 0), [, gBot] = P(0, 320, 0);
     const top = ctx.createLinearGradient(0, gTop, 0, gBot);
-    top.addColorStop(0, "#ffffff"); top.addColorStop(1, "#f3f3f3");
+    top.addColorStop(0, "#faf9f6"); top.addColorStop(1, "#f1efea");
     ctx.fillStyle = top;
     for (const p of polys) { path(p, 0); ctx.fill(); }
-    ctx.strokeStyle = "#e0e0e0"; ctx.lineWidth = .7;
+    ctx.strokeStyle = "#e2ded7"; ctx.lineWidth = .7;
     for (const p of polys) { path(p, 0); ctx.stroke(); }
     ctx.globalAlpha = appear;
-    ctx.fillStyle = "#bdbdbd";
+    ctx.fillStyle = "#bdb8ae";
     for (const [x, y] of LAKSHADWEEP) { const [sx, sy] = P(x - CX, y - CY, 0); ctx.beginPath(); ctx.arc(sx, sy, 1.5, 0, 7); ctx.fill(); }
 
     // Srinagar: a beam of light and rings breathing outward
     const hx = SRINAGAR[0] - CX, hy = SRINAGAR[1] - CY;
     const [bx0, by0] = P(hx, hy, 0), [bx1, by1] = P(hx, hy, 110 * ease(clamp01((ms - 100) / 700)));
     const beam = ctx.createLinearGradient(bx0, by0, bx1, by1);
-    beam.addColorStop(0, "rgba(233,46,48,.55)"); beam.addColorStop(1, "rgba(233,46,48,0)");
+    beam.addColorStop(0, "rgba(226,56,44,.55)"); beam.addColorStop(1, "rgba(226,56,44,0)");
     ctx.strokeStyle = beam; ctx.lineWidth = 5; ctx.lineCap = "round";
     ctx.beginPath(); ctx.moveTo(bx0, by0); ctx.lineTo(bx1, by1); ctx.stroke();
     for (let k = 0; k < 3; k++) {
       const ph = ((ms / 2100) + k / 3) % 1;
       ring(hx, hy, 5 + ph * 30);
-      ctx.strokeStyle = `rgba(233,46,48,${.55 * (1 - ph) * appear})`; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.strokeStyle = `rgba(226,56,44,${.55 * (1 - ph) * appear})`; ctx.lineWidth = 1.2; ctx.stroke();
     }
 
     // routes
@@ -261,8 +261,8 @@
       const pts = r.pts.slice(0, n + 1);
       ctx.lineCap = "round";
       ctx.strokeStyle = "rgba(0,0,0,.05)"; ctx.lineWidth = 1.2; strokeLine(pts, 0);          // shadow on the map
-      ctx.strokeStyle = "rgba(233,46,48,.10)"; ctx.lineWidth = 6; strokeLine(pts);           // glow
-      ctx.strokeStyle = "rgba(233,46,48,.75)"; ctx.lineWidth = 1.5; strokeLine(pts);         // the arc
+      ctx.strokeStyle = "rgba(226,56,44,.10)"; ctx.lineWidth = 6; strokeLine(pts);           // glow
+      ctx.strokeStyle = "rgba(226,56,44,.75)"; ctx.lineWidth = 1.5; strokeLine(pts);         // the arc
       if (p < 1) {
         ctx.strokeStyle = RED; ctx.lineWidth = 3; strokeLine(pts.slice(-7));                  // comet
         const [sx, sy, f] = P(...pts[pts.length - 1]);
@@ -271,7 +271,7 @@
       } else {
         const since = ms - r.at - FLY;
         const rip = clamp01(since / 800);
-        if (rip < 1) { ring(r.x, r.y, 4 + rip * 20); ctx.strokeStyle = `rgba(233,46,48,${.8 * (1 - rip) * appear})`; ctx.lineWidth = 1.3; ctx.stroke(); }
+        if (rip < 1) { ring(r.x, r.y, 4 + rip * 20); ctx.strokeStyle = `rgba(226,56,44,${.8 * (1 - rip) * appear})`; ctx.lineWidth = 1.3; ctx.stroke(); }
         ring(r.x, r.y, 3.4); ctx.fillStyle = RED; ctx.fill();
         const rise = ease(clamp01(since / 380));
         if (r.tag) tag(r.x, r.y, r.name, 28 * rise, false, rise * appear, r.tag);

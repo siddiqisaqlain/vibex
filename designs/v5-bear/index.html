@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Vibe X · The Surplus Store, Srinagar</title>
 <meta name="description" content="Original world-brand surplus clothing, footwear and fragrances. Srinagar, Kashmir. Pan-India shipping.">
-<meta name="theme-color" content="#e92e30">
+<meta name="theme-color" content="#f4f2ee">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,7 +14,7 @@
 <body class="home">
 <script src="/intro.js"></script>
 
-<div class="ticker" aria-hidden="true"><div class="ticker-track" id="ticker"></div></div>
+<div class="ticker" aria-hidden="true"><span class="dot"></span><div class="ticker-track" id="ticker"></div></div>
 
 <header class="top">
   <div class="wrap top-row">
@@ -25,7 +25,7 @@
       <a href="#rack" data-jump="Clothing">Clothing</a>
       <a href="#rack" data-jump="Fragrances">Fragrances</a>
       <a href="#rack" data-jump="Footwear">Footwear</a>
-      <a href="#visit">Our store</a>
+      <a href="#visit">The store</a>
     </nav>
     <div class="icons">
       <a class="icon" id="wa-top" target="_blank" rel="noopener" aria-label="WhatsApp us">
@@ -42,7 +42,7 @@
   <a href="#rack" data-jump="Clothing">Clothing</a>
   <a href="#rack" data-jump="Fragrances">Fragrances</a>
   <a href="#rack" data-jump="Footwear">Footwear</a>
-  <a href="#visit">Visit our store</a>
+  <a href="#visit">Visit the store</a>
   <a href="/returns">Returns and refunds</a>
   <a id="ig-menu" target="_blank" rel="noopener">Instagram ↗</a>
 </div>
@@ -50,23 +50,40 @@
 <main>
   <nav class="cat-tabs" id="cat-tabs" aria-label="Shop by category"></nav>
 
-  <section class="slider" id="slider" aria-roledescription="carousel" aria-label="Featured">
-    <div class="slides" id="slides"></div>
-    <div class="slider-dots" id="slider-dots"></div>
+  <section class="hero wrap" aria-label="Vibe X">
+    <div class="hero-copy">
+      <p class="eyebrow"><span class="dot"></span>Live from Srinagar <i>34.08° N, 74.80° E</i></p>
+      <h1>World brands.<br><span>One destination.</span></h1>
+      <p class="lede">Original surplus from the labels you know: jackets, fleece, footwear and fragrances at a fraction of retail. Every piece is posted the moment it's unpacked.</p>
+      <div class="cta">
+        <a class="btn btn-ink" href="#rack" data-jump="New">Shop new in <span aria-hidden="true">→</span></a>
+        <a class="btn btn-line" href="#visit">Visit the store</a>
+      </div>
+      <dl class="hero-stats" id="hero-stats"></dl>
+    </div>
+    <div class="slider" id="slider" aria-roledescription="carousel" aria-label="Newest pieces">
+      <div class="slides" id="slides"></div>
+      <div class="slider-bar">
+        <a class="slide-cap" id="slide-cap"></a>
+        <span class="slide-count" id="slide-count"></span>
+        <div class="slider-dots" id="slider-dots"></div>
+      </div>
+    </div>
   </section>
 
   <section class="trust wrap" id="stats" aria-label="Why Vibe X"></section>
 
   <section class="range wrap" aria-labelledby="range-h">
-    <h2 class="sec-h" id="range-h">Shop our range</h2>
+    <header class="sec-head"><span class="sec-no">01</span><h2 class="sec-h" id="range-h">Shop by category</h2></header>
     <div class="range-row" id="range"></div>
   </section>
 
   <section class="rack wrap" id="rack">
-    <div class="rack-head">
+    <header class="sec-head rack-head">
+      <span class="sec-no">02</span>
       <h2 class="sec-h">Fresh off the truck</h2>
-      <p class="live-note"><span class="dot"></span>Live from the store. Posted on WhatsApp, listed here in seconds.</p>
-    </div>
+      <p class="live-note"><span class="dot"></span>Posted on WhatsApp, listed here in seconds</p>
+    </header>
     <div class="tabs" id="filters" role="tablist" aria-label="Category"></div>
     <div class="subs" id="subs" hidden></div>
     <div class="active-filters" id="active" hidden></div>
@@ -75,29 +92,22 @@
     <div class="more-wrap"><button class="more" id="more" type="button" hidden>Load more</button><span class="count" id="count"></span></div>
   </section>
 
-  <section class="shop-by wrap" aria-label="Shop by size and price">
-    <div class="panel" id="by-size">
-      <h2 class="sec-h">Shop by size</h2>
-      <div class="pills" id="sizes"></div>
+  <section class="find wrap" aria-labelledby="find-h">
+    <header class="sec-head"><span class="sec-no">03</span><h2 class="sec-h" id="find-h">Find your fit</h2></header>
+    <div class="shop-by">
+      <div class="panel" id="by-size"><h3 class="panel-h">By size</h3><div class="pills" id="sizes"></div></div>
+      <div class="panel" id="by-price"><h3 class="panel-h">By price</h3><div class="pills" id="prices"></div></div>
     </div>
-    <div class="panel" id="by-price">
-      <h2 class="sec-h">Shop by price</h2>
-      <div class="pills" id="prices"></div>
-    </div>
-  </section>
-
-  <section class="panel brands-panel wrap-in" id="by-brand" hidden>
-    <h2 class="sec-h">Shop by brand</h2>
-    <div class="pills pills-scroll" id="brands"></div>
+    <div class="panel brands-panel" id="by-brand" hidden><h3 class="panel-h">By label</h3><div class="pills brand-list" id="brands"></div></div>
   </section>
 
   <section class="looks wrap" id="looks-sec" aria-labelledby="looks-h" hidden>
-    <h2 class="sec-h" id="looks-h">Just landed</h2>
+    <header class="sec-head"><span class="sec-no">04</span><h2 class="sec-h" id="looks-h">Just landed</h2></header>
     <div class="looks-grid" id="looks"></div>
   </section>
 
-  <section class="how wrap" aria-label="How to order">
-    <h2 class="sec-h">How it works</h2>
+  <section class="how wrap" aria-labelledby="how-h">
+    <header class="sec-head"><span class="sec-no">05</span><h2 class="sec-h" id="how-h">How it works</h2></header>
     <ol>
       <li><span>01</span><b>Spot it here</b><p>Every piece is real stock in our Srinagar store, posted the moment it's unpacked.</p></li>
       <li><span>02</span><b>Order or enquire</b><p>Pay by UPI in a minute, or message us on WhatsApp about the exact piece.</p></li>
@@ -106,17 +116,20 @@
   </section>
 
   <section class="store wrap" id="visit" aria-labelledby="store-h">
-    <h2 class="sec-h" id="store-h">Our store</h2>
+    <header class="sec-head"><span class="sec-no">06</span><h2 class="sec-h" id="store-h">The store</h2></header>
     <div class="store-card">
       <div class="store-pic" id="store-pic" aria-hidden="true"></div>
       <div class="store-info">
-        <p class="store-tag">Flagship · Srinagar</p>
-        <h3>Vibe X, The Surplus Store</h3>
+        <p class="store-tag">Flagship · Khanyaar, Srinagar</p>
+        <h3>Come try it on.</h3>
         <p id="store-addr"></p>
-        <p class="store-line"><b>Call / WhatsApp</b> <a id="store-phone"></a></p>
-        <p class="store-line"><b>New stock</b> unpacked most days</p>
+        <dl class="store-facts">
+          <div><dt>Call / WhatsApp</dt><dd><a id="store-phone"></a></dd></div>
+          <div><dt>New stock</dt><dd>Unpacked most days</dd></div>
+          <div><dt>Ships</dt><dd>Anywhere in India</dd></div>
+        </dl>
         <div class="store-cta">
-          <a class="btn btn-red" id="map-visit" target="_blank" rel="noopener">Get directions</a>
+          <a class="btn btn-ink" id="map-visit" target="_blank" rel="noopener">Get directions <span aria-hidden="true">↗</span></a>
           <a class="btn btn-line" id="ig-visit" target="_blank" rel="noopener">@vibex.india</a>
         </div>
       </div>
@@ -127,7 +140,6 @@
 <footer class="foot">
   <div class="wrap foot-grid">
     <div class="foot-brand">
-      <div class="logo logo-foot">VIBE<span>X</span></div>
       <p>World brands. One destination. Original surplus from the labels you know, at a fraction of retail.</p>
     </div>
     <div>
@@ -135,7 +147,7 @@
       <a href="#rack" data-jump="New">New in</a><a href="#rack" data-jump="Clothing">Clothing</a><a href="#rack" data-jump="Fragrances">Fragrances</a><a href="#rack" data-jump="Footwear">Footwear</a>
     </div>
     <div>
-      <h4>Quick links</h4>
+      <h4>Help</h4>
       <a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a>
     </div>
     <div>
@@ -143,9 +155,10 @@
       <a id="wa-foot" target="_blank" rel="noopener">WhatsApp</a><a id="ig-foot" target="_blank" rel="noopener">Instagram</a><a id="map-foot" target="_blank" rel="noopener">Directions</a>
     </div>
   </div>
+  <div class="foot-mark" aria-hidden="true">VIBE<span>X</span></div>
   <div class="wrap foot-base">
     <p class="foot-biz" id="foot-biz"></p>
-    <span>© 2026 Vibe X</span>
+    <span>© 2026 Vibe X · Srinagar, Kashmir</span>
   </div>
 </footer>
 

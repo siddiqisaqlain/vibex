@@ -45,14 +45,8 @@
   else $("store-phone").parentElement.hidden = true;
 
   // Trust strip: only the numbers the owner confirmed (shop.json → claims.stats).
-  const ICONS = [
-    '<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="17.5" r="1.6"/><circle cx="17" cy="17.5" r="1.6"/>',
-    '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
-    '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
-    '<path d="M5 12l4 4L19 6"/>',
-  ];
   const stats = (S.claims && S.claims.stats) || [];
-  $("stats").innerHTML = stats.map((x, i) => `<div><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[i] || ICONS[3]}</svg><p><b>${esc(x.big)}</b><span>${esc(x.small)}</span></p></div>`).join("");
+  $("stats").innerHTML = stats.map((x, i) => `<div><span class="trust-no">${String(i + 1).padStart(2, "0")}</span><p><b>${esc(x.big)}</b><span>${esc(x.small)}</span></p></div>`).join("");
   $("stats").hidden = !stats.length;
   $("stats").style.setProperty("--n", Math.max(1, stats.length));
 
@@ -121,6 +115,14 @@
   }
 
   // ---- category pills under the header ----
+  // Hero numbers: counted from the rack right now, so they are always true.
+  function renderHeroStats() {
+    const live = products.filter((p) => p.status === "available");
+    const labels = new Set(live.map((p) => p.brand).filter(Boolean)).size;
+    const rows = [[live.length, "pieces on the rail"], [products.filter(isNew).length, "new in 48 hours"], [labels, "labels in stock"]].filter(([n]) => n > 0);
+    $("hero-stats").innerHTML = rows.map(([n, l]) => `<div><dt>${n}</dt><dd>${l}</dd></div>`).join("");
+  }
+
   function renderCatTabs() {
     const fresh = products.filter(isNew).length;
     const tabs = [
@@ -138,27 +140,27 @@
   function renderSlider() {
     const photos = (list) => list.filter((p) => p.image && p.status === "available");
     const byNew = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
+    // the newest pieces with photos, one per slide (a mix of categories when there is one)
     const all = photos(products).sort(byNew);
-    const slides = [];
-    if (all.length) slides.push({ kicker: "The Surplus Store · Srinagar", title: "World brands.<br>One destination.", cta: "Shop new in", jump: "New", imgs: all.slice(0, 3) });
-    for (const c of CATS) {
-      const list = photos(products.filter((p) => p.category === c)).sort(byNew);
-      const total = products.filter((p) => p.category === c && p.status !== "sold").length;
-      if (list.length) slides.push({ kicker: `${total} pieces in`, title: esc(c), sub: BLURB[c], cta: `Shop ${c.toLowerCase()}`, jump: c, imgs: list.slice(0, 3) });
-    }
+    const picks = [];
+    for (const c of CATS) { const p = all.find((x) => x.category === c); if (p) picks.push(p); }
+    for (const p of all) if (picks.length < 5 && !picks.includes(p)) picks.push(p);
+    const slides = picks.sort(byNew).slice(0, 5);
     const el = $("slider");
     el.hidden = !slides.length;
     if (!slides.length) return;
-    $("slides").innerHTML = slides.map((s, i) => `
-      <div class="slide" role="group" aria-roledescription="slide" aria-label="${i + 1} of ${slides.length}">
-        <div class="slide-pics n${s.imgs.length}">${s.imgs.map((p, j) => `<img src="${esc(p.image)}" alt="" ${i === 0 && j === 0 ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async">`).join("")}</div>
-        <div class="slide-copy">
-          <p>${esc(s.kicker)}</p>
-          <h2>${s.title}</h2>
-          ${s.sub ? `<span>${esc(s.sub)}</span>` : ""}
-          <a class="btn btn-white" href="#rack" data-jump="${s.jump}">${esc(s.cta)}</a>
-        </div>
-      </div>`).join("");
+    $("slides").innerHTML = slides.map((p, i) => `
+      <a class="slide" href="${pdp(p)}" role="group" aria-roledescription="slide" aria-label="${esc(p.name)}, ${i + 1} of ${slides.length}">
+        <div class="slide-pics"><img src="${esc(p.image)}" alt="${esc(p.name)}" ${i === 0 ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async"></div>
+        ${isNew(p) ? `<span class="slide-flag">${hoursOld(p) < 24 ? "New today" : "Just in"}</span>` : ""}
+      </a>`).join("");
+    const caption = (i) => {
+      const p = slides[i];
+      $("slide-cap").href = pdp(p);
+      $("slide-cap").innerHTML = `<span>${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><em>${p.price ? rupees(p.price) : "Price on request"}</em>`;
+      $("slide-count").textContent = `${String(i + 1).padStart(2, "0")} / ${String(slides.length).padStart(2, "0")}`;
+    };
+    caption(0);
     $("slider-dots").innerHTML = slides.length > 1 ? slides.map((_, i) => `<button type="button" aria-label="Slide ${i + 1}" data-slide="${i}"${i ? "" : ' aria-current="true"'}></button>`).join("") : "";
     const track = $("slides");
     const go = (i) => track.scrollTo({ left: i * track.clientWidth, behavior: "smooth" });
@@ -166,7 +168,8 @@
     const mark = () => {
       const i = cur();
       $("slider-dots").querySelectorAll("button").forEach((b, j) => b.toggleAttribute("aria-current", j === i));
-      track.querySelectorAll(".slide").forEach((s, j) => s.classList.toggle("on", j === i)); // its text rises in
+      track.querySelectorAll(".slide").forEach((s, j) => s.classList.toggle("on", j === i));
+      caption(Math.min(i, slides.length - 1));
     };
     track.onscroll = mark;
     requestAnimationFrame(mark);
@@ -207,6 +210,8 @@
         <span class="range-name">${esc(t.label)}</span><span class="range-n">${t.n} ${t.n === 1 ? "piece" : "pieces"}</span>
       </button>`).join("");
     $("range").parentElement.hidden = tiles.length < 2;
+    // one clean row for up to six tiles, otherwise two even rows
+    $("range").style.setProperty("--cols", tiles.length <= 6 ? tiles.length : Math.ceil(tiles.length / 2));
   }
 
   // ---- shop by size / price / brand ----
@@ -344,6 +349,7 @@
       products = next;
       renderGrid(fresh);
       renderCatTabs();
+      renderHeroStats();
       renderRange();
       renderLooks();
       if (first || fresh.size) renderSlider();
