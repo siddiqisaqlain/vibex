@@ -65,6 +65,12 @@
         "small": "new drops"
       }
     ],
+    "orders": {
+      "count": 150000,
+      "label": "1.5 lakh+",
+      "small": "orders fulfilled"
+    },
+    "_ordersNote": "Shown in the opening animation. Given by the agency on 2026-11-04; not yet confirmed in writing by the owner. Delete 'orders' to hide it.",
     "ticker": [
       "Express delivery across 15K+ pincodes in India",
       "Trusted by 2 lakh+ customers across India",

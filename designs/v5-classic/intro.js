@@ -49,7 +49,8 @@
   // ---- timeline (ms) ----
   const SWEEP_AT = 250, SWEEP = 1500;
   const LAUNCH_AT = 450, STEP = 55, FLY = 750;
-  const HOLD_TO = LAUNCH_AT + (CITIES.length - 1) * STEP + FLY + 380;   // ~2.5 s
+  const LANDED = LAUNCH_AT + (CITIES.length - 1) * STEP + FLY;            // last parcel down
+  const HOLD_TO = LANDED + 700;                                          // a beat to read the count (~2.8 s)
   const EXIT = 820; // the dive / hand-off
 
   // ---- geometry, centred on the middle of the mainland ----
@@ -94,7 +95,16 @@
   .vxi-compass-in { position: relative; width: 100%; height: 100%; display: grid; place-items: center; }
   .vxi-compass i { position: absolute; top: 4px; width: 0; height: 0; border: 4px solid transparent; border-bottom: 9px solid ${RED}; border-top: 0; }
   .vxi.leaving { pointer-events: none; }
-  .vxi.leaving .vxi-skip, .vxi.leaving .vxi-compass, .vxi.leaving .vxi-copy p { opacity: 0; }
+  .vxi.leaving .vxi-skip, .vxi.leaving .vxi-compass, .vxi.leaving .vxi-copy p, .vxi.leaving .vxi-count { opacity: 0; }
+  /* orders counter: ticks up as parcels land, then flips to the headline figure with a flash */
+  .vxi-count { position: relative; margin-top: 12px; font: 900 46px/1 Montserrat, Arial, sans-serif; letter-spacing: .01em; color: ${INK}; font-variant-numeric: tabular-nums; white-space: nowrap; transition: opacity .25s; }
+  .vxi-count b { display: inline-block; font: inherit; }
+  .vxi-count.done b { color: ${RED}; animation: vxiPop .55s cubic-bezier(.2,1.6,.4,1), vxiShine 1.1s ease .35s; background: linear-gradient(100deg, ${RED} 41%, #ffd2cc 50%, ${RED} 59%) 0 0 / 260% 100% no-repeat; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .vxi-count.done::after { content: ""; position: absolute; left: 50%; top: 50%; width: 120%; height: 160%; transform: translate(-50%, -50%) scale(.6); border-radius: 999px; background: radial-gradient(closest-side, rgba(226,56,44,.22), rgba(226,56,44,0)); animation: vxiBurst .9s ease-out forwards; pointer-events: none; }
+  @keyframes vxiPop { 0% { transform: scale(.82); } 100% { transform: scale(1); } }
+  @keyframes vxiShine { from { background-position: 100% 0; } to { background-position: 0 0; } }
+  @keyframes vxiBurst { 0% { opacity: 1; transform: translate(-50%, -50%) scale(.6); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); } }
+  @media (max-width: 600px) { .vxi-count { font-size: 38px; } }
   @media (max-width: 600px) { .vxi-logo { font-size: 28px; } .vxi-copy p { font-size: 11px; letter-spacing: .14em; } }`;
 
   const el = document.createElement("div");
@@ -103,7 +113,7 @@
   el.setAttribute("aria-label", "Vibe X ships from Srinagar to cities across India");
   el.innerHTML = `<style>${css}</style><div class="vxi-bg"></div><canvas></canvas>
     <div class="vxi-compass" aria-hidden="true"><div class="vxi-compass-in"><i></i><span>N</span></div></div>
-    <div class="vxi-copy"><div class="vxi-logo">VIBE<span>X</span></div><p>From Srinagar to <b>all of India</b></p></div>
+    <div class="vxi-copy"><div class="vxi-logo">VIBE<span>X</span></div><div class="vxi-count" hidden><b>0</b></div><p>From Srinagar to <b>all of India</b></p></div>
     <button class="vxi-skip" type="button">Skip</button>`;
   document.body.prepend(el);
   document.body.classList.add("vxi-on");
@@ -111,6 +121,25 @@
   const needle = el.querySelector(".vxi-compass-in"), logo = el.querySelector(".vxi-logo"), copy = el.querySelector(".vxi-copy");
   const copyP = copy.querySelector("p");
   logo.style.animationPlayState = copyP.style.animationPlayState = "paused";   // they start with the clock
+
+  // Orders fulfilled (shop.json -> claims.orders). config.js loads after this script, so it is read
+  // when the clock starts. It counts up with the parcels and lands on the headline figure.
+  const countEl = el.querySelector(".vxi-count"), countB = countEl.querySelector("b");
+  let orders = null, shown = -1;
+  function setupCount() {
+    const o = window.SHOP && window.SHOP.claims && window.SHOP.claims.orders;
+    if (!o || !o.count) return;
+    orders = o;
+    countEl.hidden = false;
+    copyP.innerHTML = `${(o.small || "orders fulfilled").replace(/[<>&]/g, "")} · from Srinagar to <b>all of India</b>`;
+  }
+  function tickCount(ms) {
+    if (countEl.classList.contains("done")) return;
+    const p = clamp01((ms - LAUNCH_AT) / (LANDED - LAUNCH_AT));
+    const n = Math.round(orders.count * (1 - Math.pow(1 - p, 2.2)) / 100) * 100;
+    if (p >= 1) { countB.textContent = String(orders.label || orders.count).toUpperCase(); countEl.classList.add("done"); return; }
+    if (n !== shown) { shown = n; countB.textContent = n.toLocaleString("en-IN"); }
+  }
 
   let W = 0, H = 0, dpr = 1;
   function resize() { dpr = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; canvas.width = W * dpr; canvas.height = H * dpr; }
@@ -142,7 +171,7 @@
     for (const [x, y] of frame) { const [a, b] = raw(x, y, 0); if (a < x0) x0 = a; if (a > x1) x1 = a; if (b < y0) y0 = b; if (b > y1) y1 = b; }
     y0 -= 40 * s;                                                  // headroom for arcs and the Srinagar tag
     const mobile = W < 700;
-    const box = { l: mobile ? 26 : 70, r: mobile ? 26 : 70, t: mobile ? 92 : 70, b: mobile ? 150 : 170 };
+    const box = { l: mobile ? 26 : 70, r: mobile ? 26 : 70, t: mobile ? 92 : 70, b: (mobile ? 150 : 170) + (orders ? (mobile ? 50 : 60) : 0) };
     const bw = W - box.l - box.r, bh = H - box.t - box.b;
     const fit = Math.min(bw / (x1 - x0), bh / (y1 - y0));
     // the dive: zoom hard into Srinagar until the white top of the model fills the screen
@@ -193,7 +222,8 @@
   const built = () => document.querySelector("#slides .slide") && document.querySelector("#grid .card");
   let raf = 0, over = false;
   function draw(now) {
-    if (!t0 && (built() || now - tLoad > 1600)) { t0 = now; root.dataset.vxiStart = Math.round(now); logo.style.animationPlayState = copyP.style.animationPlayState = "running"; }
+    if (!t0 && (built() || now - tLoad > 1600)) { t0 = now; root.dataset.vxiStart = Math.round(now); logo.style.animationPlayState = copyP.style.animationPlayState = "running"; setupCount(); }
+    if (orders) tickCount(t0 ? now - t0 : 0);
     const ms = t0 ? now - t0 : 0;
     if (t0 && !exitAt && ms >= HOLD_TO) leave(false);
     const e = camera(ms, now);
