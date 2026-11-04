@@ -37,18 +37,18 @@
   const SRINAGAR = [139.8, 77.3];
   // name, x, y (map units), tag: name tag to the Left / Centre / Right of the pin's stem
   const CITIES = [
-    ["Delhi", 190.1, 211.6, "C"], ["Chandigarh", 181.1, 160.5], ["Jaipur", 160.4, 251.9], ["Ahmedabad", 93.2, 341.8, "L"],
-    ["Lucknow", 268.2, 253.3], ["Mumbai", 99.7, 430.3, "L"], ["Bhopal", 194.3, 336.3], ["Kolkata", 423.0, 352.0, "R"],
-    ["Pune", 120.1, 442.7], ["Hyderabad", 216.8, 467.6, "C"], ["Guwahati", 493.7, 269.9, "C"], ["Goa", 119.5, 509.1],
-    ["Bengaluru", 198.0, 563.5, "L"], ["Patna", 355.8, 282.7], ["Chennai", 254.0, 561.2, "R"], ["Bhubaneswar", 370.0, 403.1],
+    ["Delhi", 190.1, 211.6, "C"], ["Ahmedabad", 93.2, 341.8, "L"],
+    ["Lucknow", 268.2, 253.3], ["Mumbai", 99.7, 430.3, "L"], ["Kolkata", 423.0, 352.0, "R"],
+    ["Hyderabad", 216.8, 467.6, "C"], ["Guwahati", 493.7, 269.9, "C"], 
+    ["Bengaluru", 198.0, 563.5, "L"], ["Chennai", 254.0, 561.2, "R"], ["Bhubaneswar", 370.0, 403.1],
     ["Kochi", 170.5, 628.6], ["Leh", 197.8, 75.5],
   ];
   const LAKSHADWEEP = [[94.6, 614.9], [85, 601.1], [103, 663.6], [96.5, 625.8]];
   const RED = "#e92e30", INK = "#1a1a1a";
 
   // ---- timeline (ms) ----
-  const SWEEP_AT = 250, SWEEP = 1500;
-  const LAUNCH_AT = 450, STEP = 55, FLY = 750;
+  const SWEEP_AT = 300, SWEEP = 2400;
+  const LAUNCH_AT = 600, STEP = 120, FLY = 1150;
   const LANDED = LAUNCH_AT + (CITIES.length - 1) * STEP + FLY;            // last parcel down
   const HOLD_TO = LANDED + 700;                                          // a beat to read the count (~2.8 s)
   const EXIT = 820; // the dive / hand-off
@@ -99,15 +99,15 @@
   /* delivery pill: slides up under the counter while the parcels are in the air */
   .vxi-ship { display: inline-flex; align-items: center; gap: 9px; margin-top: 14px; padding: 8px 14px 8px 11px; border-radius: 999px; background: ${INK}; color: #fff; font: 500 11.5px Roboto, Arial, sans-serif; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; opacity: 0; transform: translateY(12px); transition: opacity .25s; }
   .vxi-ship.on { animation: vxiUp .7s cubic-bezier(.2,.8,.2,1) forwards; }
-  .vxi-ship svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 1.6; stroke-linejoin: round; animation: vxiDrive 1.4s ease-in-out infinite; }
+  .vxi-ship svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 1.6; stroke-linejoin: round; }
   .vxi-ship b { font-weight: 700; color: ${RED}; filter: brightness(1.35); }
   .vxi-ship span { opacity: .85; }
   @keyframes vxiDrive { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
   .vxi.leaving .vxi-ship { opacity: 0; }
   /* after the deliveries: the intro waits for the customer (tap / click / scroll / Enter) */
   .vxi-go { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; padding: 10px 18px; border: 1px solid rgba(18,18,18,.22); border-radius: 999px; background: rgba(255,255,255,.7); backdrop-filter: blur(6px); font: 500 12px Roboto, Arial, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: ${INK}; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity .3s; }
-  .vxi-go.on { animation: vxiUp .7s cubic-bezier(.2,.8,.2,1) forwards, vxiNudge 2.2s ease-in-out 1s infinite; }
-  .vxi-go i { width: 8px; height: 8px; border-radius: 50%; background: ${RED}; animation: vxiBeat 1.6s ease-out infinite; }
+  .vxi-go.on { animation: vxiUp .8s cubic-bezier(.2,.8,.2,1) forwards; }
+  .vxi-go i { width: 7px; height: 7px; border-radius: 50%; background: ${RED}; animation: vxiBeat 2.8s ease-out infinite; }
   .vxi-go svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   @keyframes vxiNudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
   @keyframes vxiBeat { 0% { box-shadow: 0 0 0 0 rgba(226,56,44,.5); } 80%, 100% { box-shadow: 0 0 0 9px rgba(226,56,44,0); } }
@@ -118,9 +118,8 @@
   /* orders counter: ticks up as parcels land, then flips to the headline figure with a flash */
   .vxi-count { position: relative; margin-top: 12px; font: 900 46px/1 Montserrat, Arial, sans-serif; letter-spacing: .01em; color: ${INK}; font-variant-numeric: tabular-nums; white-space: nowrap; transition: opacity .25s; }
   .vxi-count b { display: inline-block; font: inherit; }
-  .vxi-count.done b { color: ${RED}; animation: vxiPop .55s cubic-bezier(.2,1.6,.4,1), vxiShine 1.1s ease .35s; background: linear-gradient(100deg, ${RED} 41%, #ffd2cc 50%, ${RED} 59%) 0 0 / 260% 100% no-repeat; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .vxi-count.done::after { content: ""; position: absolute; left: 50%; top: 50%; width: 120%; height: 160%; transform: translate(-50%, -50%) scale(.6); border-radius: 999px; background: radial-gradient(closest-side, rgba(226,56,44,.22), rgba(226,56,44,0)); animation: vxiBurst .9s ease-out forwards; pointer-events: none; }
-  @keyframes vxiPop { 0% { transform: scale(.82); } 100% { transform: scale(1); } }
+  .vxi-count.done b { color: ${RED}; animation: vxiPop .6s cubic-bezier(.2,1.2,.4,1); }
+  @keyframes vxiPop { 0% { transform: scale(.94); } 100% { transform: scale(1); } }
   @keyframes vxiShine { from { background-position: 100% 0; } to { background-position: 0 0; } }
   @keyframes vxiBurst { 0% { opacity: 1; transform: translate(-50%, -50%) scale(.6); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); } }
   @media (max-width: 600px) { .vxi-count { font-size: 38px; } }
@@ -193,7 +192,7 @@
   let exitAt = 0;
   function camera(ms, now) {
     const s = ease(clamp01((ms - SWEEP_AT) / SWEEP));
-    const drift = Math.max(0, ms - SWEEP_AT - SWEEP * .6);
+    const drift = Math.max(0, ms - SWEEP_AT - SWEEP * .6) * .5;
     const e = exitAt ? clamp01((now - exitAt) / EXIT) : 0;
     cam.pitch = s * .8 * (1 - .35 * ease(e));
     cam.bearing = -0.02 - s * .14 - drift * .0000016;
@@ -237,7 +236,7 @@
     const label = text.toUpperCase(), w = ctx.measureText(label).width + 16, hh = dark ? 23 : 19;
     const bx = side === "L" ? tx - w + 8 : side === "R" ? tx - 8 : tx - w / 2, by = ty - hh;
     ctx.fillStyle = dark ? INK : "rgba(255,255,255,.96)";
-    ctx.shadowColor = "rgba(0,0,0,.16)"; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
+    ctx.shadowColor = "rgba(0,0,0,.08)"; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
     ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, by, w, hh, hh / 2) : ctx.rect(bx, by, w, hh); ctx.fill();
     ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     ctx.fillStyle = dark ? "#fff" : INK; ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -273,7 +272,7 @@
       const d = Math.hypot(gx * .9, gy) / 600;
       if (d > 1) continue;
       const [sx, sy, f] = P(gx, gy, -T * 3);
-      ctx.globalAlpha = appear * .55 * (1 - d) * (1 - d);
+      ctx.globalAlpha = appear * .35 * (1 - d) * (1 - d);
       ctx.fillRect(sx - .8 * f, sy - .8 * f, 1.6 * f, 1.6 * f);
     }
     }
@@ -305,13 +304,13 @@
     const hx = SRINAGAR[0] - CX, hy = SRINAGAR[1] - CY;
     const [bx0, by0] = P(hx, hy, 0), [bx1, by1] = P(hx, hy, 110 * ease(clamp01((ms - 100) / 700)));
     const beam = ctx.createLinearGradient(bx0, by0, bx1, by1);
-    beam.addColorStop(0, "rgba(233,46,48,.55)"); beam.addColorStop(1, "rgba(233,46,48,0)");
-    ctx.strokeStyle = beam; ctx.lineWidth = 5; ctx.lineCap = "round";
+    beam.addColorStop(0, "rgba(233,46,48,.28)"); beam.addColorStop(1, "rgba(233,46,48,0)");
+    ctx.strokeStyle = beam; ctx.lineWidth = 3; ctx.lineCap = "round";
     ctx.beginPath(); ctx.moveTo(bx0, by0); ctx.lineTo(bx1, by1); ctx.stroke();
-    for (let k = 0; k < 3; k++) {
-      const ph = ((ms / 2100) + k / 3) % 1;
-      ring(hx, hy, 5 + ph * 30);
-      ctx.strokeStyle = `rgba(233,46,48,${.55 * (1 - ph) * appear})`; ctx.lineWidth = 1.2; ctx.stroke();
+    {
+      const ph = (ms / 3400) % 1;                                    // one slow ring
+      ring(hx, hy, 6 + ph * 26);
+      ctx.strokeStyle = `rgba(233,46,48,${.32 * (1 - ph) * appear})`; ctx.lineWidth = 1; ctx.stroke();
     }
 
     // routes
@@ -321,20 +320,20 @@
       const q = ease(clamp01(p)), n = Math.max(1, Math.round(q * 48));
       const pts = r.pts.slice(0, n + 1);
       ctx.lineCap = "round";
-      ctx.strokeStyle = "rgba(0,0,0,.05)"; ctx.lineWidth = 1.2; strokeLine(pts, 0);          // shadow on the map
-      ctx.strokeStyle = "rgba(233,46,48,.10)"; ctx.lineWidth = 6; strokeLine(pts);           // glow
-      ctx.strokeStyle = "rgba(233,46,48,.75)"; ctx.lineWidth = 1.5; strokeLine(pts);         // the arc
+      ctx.strokeStyle = "rgba(0,0,0,.035)"; ctx.lineWidth = 1; strokeLine(pts, 0);           // shadow on the map
+      ctx.strokeStyle = "rgba(233,46,48,.05)"; ctx.lineWidth = 4; strokeLine(pts);           // glow
+      ctx.strokeStyle = "rgba(233,46,48,.5)"; ctx.lineWidth = 1.1; strokeLine(pts);          // the arc
       if (p < 1) {
-        ctx.strokeStyle = RED; ctx.lineWidth = 3; strokeLine(pts.slice(-7));                  // comet
+        ctx.strokeStyle = "rgba(233,46,48,.7)"; ctx.lineWidth = 2; strokeLine(pts.slice(-6));  // comet
         const [sx, sy, f] = P(...pts[pts.length - 1]);
-        ctx.fillStyle = "#fff"; ctx.shadowColor = RED; ctx.shadowBlur = 14;
-        ctx.beginPath(); ctx.arc(sx, sy, 2.6 * f, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+        ctx.fillStyle = "#fff"; ctx.shadowColor = "rgba(233,46,48,.6)"; ctx.shadowBlur = 6;
+        ctx.beginPath(); ctx.arc(sx, sy, 2.1 * f, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
       } else {
         const since = ms - r.at - FLY;
-        const rip = clamp01(since / 800);
-        if (rip < 1) { ring(r.x, r.y, 4 + rip * 20); ctx.strokeStyle = `rgba(233,46,48,${.8 * (1 - rip) * appear})`; ctx.lineWidth = 1.3; ctx.stroke(); }
-        ring(r.x, r.y, 3.4); ctx.fillStyle = RED; ctx.fill();
-        const rise = ease(clamp01(since / 380));
+        const rip = clamp01(since / 1100);
+        if (rip < 1) { ring(r.x, r.y, 4 + rip * 20); ctx.strokeStyle = `rgba(233,46,48,${.4 * (1 - rip) * appear})`; ctx.lineWidth = 1; ctx.stroke(); }
+        ring(r.x, r.y, 3); ctx.fillStyle = RED; ctx.fill();
+        const rise = ease(clamp01(since / 600));
         if (r.tag) tag(r.x, r.y, r.name, 28 * rise, false, rise * appear, r.tag);
         else {
           const [gx, gy] = P(r.x, r.y, 0), [tx, ty] = P(r.x, r.y, 10 * rise);
@@ -346,14 +345,14 @@
     // while it waits: parcels keep leaving Srinagar, one route at a time
     if (ms > LANDED && !exitAt) {
       routes.forEach((r, i) => {
-        const ph = (ms - LANDED - i * 410) % 7400;
+        const ph = (ms - LANDED - 400 - i * 1600) % (routes.length * 1600);
         if (ph < 0 || ph > FLY) return;
         const q = ease(ph / FLY), k = Math.round(q * 48);
         ctx.globalAlpha = appear;
-        ctx.strokeStyle = RED; ctx.lineWidth = 2.6; ctx.lineCap = "round"; strokeLine(r.pts.slice(Math.max(0, k - 6), k + 1));
+        ctx.strokeStyle = "rgba(233,46,48,.6)"; ctx.lineWidth = 1.8; ctx.lineCap = "round"; strokeLine(r.pts.slice(Math.max(0, k - 6), k + 1));
         const [sx, sy, f] = P(...r.pts[k]);
-        ctx.fillStyle = "#fff"; ctx.shadowColor = RED; ctx.shadowBlur = 12;
-        ctx.beginPath(); ctx.arc(sx, sy, 2.4 * f, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+        ctx.fillStyle = "#fff"; ctx.shadowColor = "rgba(233,46,48,.6)"; ctx.shadowBlur = 6;
+        ctx.beginPath(); ctx.arc(sx, sy, 2 * f, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
       });
     }
     const [hsx, hsy] = P(hx, hy, 0);
