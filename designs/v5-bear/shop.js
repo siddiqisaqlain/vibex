@@ -31,7 +31,8 @@
   const hoursOld = (p) => (Date.now() - new Date(p.createdAt)) / 3600e3;
   const isNew = (p) => p.status === "available" && hoursOld(p) < NEW_HOURS;
   const offPct = (p) => (p.mrp && p.price && p.mrp > p.price ? Math.round((1 - p.price / p.mrp) * 100) : 0);
-  const pdp = (p) => `/p/${encodeURIComponent(p.id)}`;
+  const BASE = window.VX_BASE || ""; // "/preview/<name>" when shown as a hidden preview
+  const pdp = (p) => `${BASE}/p/${encodeURIComponent(p.id)}`;
   const wa = S.whatsapp ? `https://wa.me/${S.whatsapp}?text=${encodeURIComponent("Hi Vibe X! I saw your website.")}` : S.instagram;
 
   // ---- static bits from shop.json ----

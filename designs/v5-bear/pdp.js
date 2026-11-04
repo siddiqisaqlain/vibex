@@ -3,6 +3,7 @@
 (() => {
   const O = window.VXOrder;
   const { esc, rupees, lot, hash } = O;
+  const BASE = window.VX_BASE || ""; // "/preview/<name>" when shown as a hidden preview
   const root = document.getElementById("pdp");
   const id = root.dataset.id;
   let products = [];
@@ -17,20 +18,20 @@
   }
 
   function mini(p) {
-    return `<a class="mini" href="/p/${encodeURIComponent(p.id)}">${media(p)}
+    return `<a class="mini" href="${BASE}/p/${encodeURIComponent(p.id)}">${media(p)}
       <span class="brand">${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><span class="mono">${p.price ? rupees(p.price) : "Ask"}</span></a>`;
   }
 
   function render() {
     const p = products.find((x) => x.id === id);
     if (!p) {
-      root.innerHTML = `<div class="pdp-gone"><h1>This piece has left the rack.</h1><p>It was sold or taken down. New stock lands most days.</p><a class="btn btn-ink" href="/#rack">See today's drops</a></div>`;
+      root.innerHTML = `<div class="pdp-gone"><h1>This piece has left the rack.</h1><p>It was sold or taken down. New stock lands most days.</p><a class="btn btn-ink" href="${BASE}/#rack">See today's drops</a></div>`;
       return;
     }
     const off = offPct(p);
     const related = products.filter((x) => x.id !== p.id && x.category === p.category && x.status === "available").slice(0, 4);
     root.innerHTML = `
-      <a class="back mono" href="/#rack">← Back to the rack</a>
+      <a class="back mono" href="${BASE}/#rack">← Back to the rack</a>
       <div class="pdp-grid">
         <div class="pdp-media">${media(p)}</div>
         <div class="pdp-info">

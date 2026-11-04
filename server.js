@@ -562,7 +562,38 @@ function legalPage(res, key) {
   }), "text/html; charset=utf-8");
 }
 
-function productPage(req, res, id) {
+// Hidden previews of saved designs, for showing the client: /preview/classic and /preview/modern.
+// Same live stock, orders and checkout as the shop; the shop's own home page is unchanged.
+// Not linked from anywhere and marked noindex. Asset paths are pointed at the design's folder.
+const PREVIEWS = { classic: "v5-classic", modern: "v5-bear" };
+function previewHtml(html, name) {
+  const base = `/preview/${name}`;
+  return html
+    .replace(/(src|href)="\/(?!\/)([^"#?]*\.[a-z0-9]+)"/gi, (m, attr, file) => `${attr}="${base}/${file}"`) // files
+    .replace(/href="\/(#[^"]*)?"/g, (m, hash) => `href="${base}/${hash || ""}"`)                          // home links
+    .replace("<head>", `<head>\n<meta name="robots" content="noindex, nofollow">\n<script>window.VX_BASE = "${base}";</script>`);
+}
+function previewRoute(req, res, name, rest) {
+  const dir = path.join(ROOT, "designs", PREVIEWS[name]);
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  if (rest === "") { res.writeHead(301, { Location: `/preview/${name}/` }); return res.end(); }
+  if (rest === "/") return send(res, 200, previewHtml(fs.readFileSync(path.join(dir, "index.html"), "utf8"), name), "text/html; charset=utf-8");
+  const pm = /^\/p\/([\w-]{1,40})$/.exec(rest);
+  if (pm) {
+    const { p, title, head } = productMeta(req, pm[1]);
+    return send(res, p ? 200 : 404, previewHtml(legacyProductPage(title, head, pm[1]), name), "text/html; charset=utf-8");
+  }
+  if (rest === "/config.js") return sendConfig(res);
+  return serveFile(res, dir, rest.slice(1));
+}
+
+function sendConfig(res) {
+  const pub = { ...SHOP, orderingOpen: ORDERING_OPEN };
+  res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
+  return res.end(`window.SHOP = ${JSON.stringify(pub).replace(/</g, "\\u003c")};\n`);
+}
+
+function productMeta(req, id) {
   const p = load().find((x) => x.id === id);
   // Hosts like Render sit behind HTTPS and pass the real scheme in x-forwarded-proto.
   const proto = String(req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
@@ -577,6 +608,11 @@ function productPage(req, res, id) {
     ...(p && p.image ? [["og:image", origin + p.image], ["og:image:alt", p.name]] : []),
   ].map(([k, v]) => `<meta property="${k}" content="${escHtml(v)}">`).join("\n");
   const head = `<meta name="description" content="${escHtml(desc)}">\n${og}\n<meta name="twitter:card" content="${p && p.image ? "summary_large_image" : "summary"}">`;
+  return { p, title, head };
+}
+
+function productPage(req, res, id) {
+  const { p, title, head } = productMeta(req, id);
   const html = SHELL === "v1"
     ? legacyProductPage(title, head, id)
     : pageShell({
@@ -1373,11 +1409,9 @@ http
       }
       if (p.startsWith("/seed-photos/")) return serveFile(res, SEED_PHOTOS, p.slice("/seed-photos/".length));
       if (p.startsWith("/uploads/")) return serveFile(res, UPLOADS, p.slice("/uploads/".length));
-      if (p === "/config.js") {
-        const pub = { ...SHOP, orderingOpen: ORDERING_OPEN };
-        res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
-        return res.end(`window.SHOP = ${JSON.stringify(pub).replace(/</g, "\\u003c")};\n`);
-      }
+      if (p === "/config.js") return sendConfig(res);
+      const pv = /^\/preview\/(classic|modern)(\/.*)?$/.exec(p);
+      if (pv) return previewRoute(req, res, pv[1], pv[2] || "");
       if (p === "/" ) return serveFile(res, PUBLIC, "index.html");
       if (p === "/demo") return serveFile(res, PUBLIC, "demo.html");
       const pm = /^\/p\/([\w-]{1,40})$/.exec(p);
