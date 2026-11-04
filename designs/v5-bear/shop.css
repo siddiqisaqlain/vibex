@@ -531,13 +531,6 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .co-copy { display: inline-flex; align-items: center; gap: 5px; padding: 7px 9px; background: transparent; border: 1.5px solid var(--ink); color: inherit; font: 600 11px/1 var(--mono); text-transform: uppercase; cursor: pointer; }
 .co-copy svg { width: 14px; height: 14px; }
 .co-copy em { font-style: normal; }
-.co-or { display: flex; align-items: center; gap: 10px; color: var(--muted); font: 500 12px var(--mono); }
-.co-or::before, .co-or::after { content: ""; flex: 1; border-top: 1px dashed var(--line); }
-.co-upload { cursor: pointer; }
-.co-drop { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px; border: 2px dashed var(--ink); background: #fffdf7; text-transform: none; letter-spacing: 0; font: inherit; }
-.co-drop b { font: 700 14.5px var(--display); }
-.co-drop em { font: 500 12px var(--mono); color: var(--muted); font-style: normal; }
-.co-drop img { max-height: 160px; max-width: 100%; border: 1px solid var(--line); }
 .co-done { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 6px; }
 .co-done p { margin: 0; color: var(--ink-2); }
 .co-badge { width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; background: var(--paper); border: 2px solid var(--ink); font-size: 28px; font-weight: 700; }
@@ -611,11 +604,11 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .co-choice label { border: 1px solid var(--line-2); border-radius: 12px; background: #fff; }
 .co-choice label:has(input:checked) { background: #fff; border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
 .co-choice input { accent-color: var(--ink); }
-.co-choice b, .co-drop b { font: 600 15px/1.25 var(--body); letter-spacing: -.01em; }
+.co-choice b { font: 600 15px/1.25 var(--body); letter-spacing: -.01em; }
 .co-choice small { line-height: 1.45; color: var(--muted); }
 .co-cta { background: var(--ink); color: var(--paper); border: 1px solid var(--ink); }
 .co-cta:hover { background: var(--red); border-color: var(--red); color: #fff; }
-.co-back, .co-or, .co-drop em, .co-field span, .co-amount span, .co-code { font-family: var(--mono); }
+.co-back, .co-field span, .co-amount span, .co-code { font-family: var(--mono); }
 .co-demo { border: 0; border-radius: 10px; background: #f6ecd2; font: 400 12px/1.5 var(--mono); }
 .co-amount { border-radius: 12px; background: var(--ink); }
 .co-amount span { color: #9b978e; }
@@ -628,7 +621,6 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .co-qr p { color: var(--muted); }
 .co-field { border: 1px solid var(--line-2); border-radius: 12px; background: #fff; }
 .co-copy { border: 1px solid var(--line-2); border-radius: 999px; font: 500 11px/1 var(--mono); }
-.co-drop { border: 1.5px dashed var(--line-2); border-radius: 12px; background: #fff; }
 .co-badge { background: var(--paper-2); }
 .co-timeline li.now::before { border-color: var(--ink); background: var(--ink); box-shadow: 0 0 0 4px rgba(18,18,18,.12); }
 .hold-stamp span { color: #fff; border: 0; background: var(--red); }
@@ -694,3 +686,15 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 
 /* sections below the first screen are not laid out or painted until they come near (faster start) */
 .range, .rack, .find, .looks, .how, .store, .foot { content-visibility: auto; contain-intrinsic-size: auto 900px; }
+
+/* "Thanks For The Purchase" */
+.co-fx { position: fixed; top: 0; left: 0; z-index: 20; pointer-events: none; }
+.co-emotes { display: flex; gap: 10px; margin: 0; font-size: 38px; line-height: 1.1; }
+.co-emotes span { display: inline-block; animation: co-bounce 1.1s cubic-bezier(.3,1.5,.5,1) both; }
+.co-emotes span:nth-child(2) { animation-delay: .1s; }
+.co-emotes span:nth-child(3) { animation-delay: .2s; }
+.co-emotes span:nth-child(4) { animation-delay: .3s; }
+.co-thanks { background: linear-gradient(100deg, var(--ink) 30%, #e92e30 45%, #c8890a 55%, var(--ink) 70%) 0 0 / 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: co-shimmer 2.6s ease-out 2 both; }
+@keyframes co-bounce { 0% { opacity: 0; transform: translateY(14px) scale(.4) rotate(-14deg); } 60% { opacity: 1; transform: translateY(-8px) scale(1.2) rotate(8deg); } 100% { transform: none; } }
+@keyframes co-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .co-emotes span, .co-thanks { animation: none; } .co-thanks { background: none; color: var(--ink); } }

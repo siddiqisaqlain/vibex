@@ -1,4 +1,4 @@
-// "Order now" checkout: 1 Details -> 2 Pay -> 3 Payment sent (live status until the owner confirms).
+// "Order now" checkout: 1 Details -> 2 Pay -> 3 Thank-you celebration (live status until the owner confirms).
 // Payment is direct to the shop (UPI / bank / phone number); the owner verifies it in his own
 // bank app and confirms from WhatsApp. No payment gateway, no fees.
 window.VXCheckout = (() => {
@@ -8,7 +8,7 @@ window.VXCheckout = (() => {
   const isPhone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
 
-  let dlg = null, state = null, poll = null;
+  let dlg = null, state = null, poll = null, fx = null;
 
   const COPY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
 
@@ -38,6 +38,7 @@ window.VXCheckout = (() => {
 
   function shell(inner) {
     dlg.innerHTML = `<div class="co"><button type="button" class="ask-x" data-close aria-label="Close">×</button>${inner}</div>`;
+    if (fx) dlg.appendChild(fx.canvas); // a status update mustn't cut the celebration short
   }
 
   // ---------- Step 1: details ----------
@@ -90,7 +91,7 @@ window.VXCheckout = (() => {
   }
 
   // ---------- Step 2: pay ----------
-  function stepPay(tab = state.tab || "upi") {
+  function stepPay(tab = state.tab || "upi", err = "") {
     const { esc, rupees } = O();
     state.tab = tab;
     const o = state.order;
@@ -120,49 +121,120 @@ window.VXCheckout = (() => {
       <p class="co-small">Add <b class="mono">${esc(o.code)}</b> in the payment note so we can match it.</p>
       <div class="co-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === tab}">${l}</button>`).join("")}</div>
       <div class="co-pay">${body}</div>
+      <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
       <button type="button" class="order co-cta" data-paid>I've paid</button>
       <button type="button" class="co-back" data-back>← Change details</button>`);
   }
 
-  // ---------- Step 2b: proof ----------
-  function stepProof(err = "") {
-    const { esc, rupees } = O();
+  // ---------- "I've paid" ----------
+  async function markPaid(btn) {
     const o = state.order;
-    shell(`${steps(2)}
-      <form class="co-form" novalidate>
-        <h2>Share the payment</h2>
-        <p class="ask-sub">So we can find your ${rupees(o.amount)} quickly. Either one is enough.</p>
-        <label>UPI ref / UTR number<input name="utr" inputmode="numeric" maxlength="30" placeholder="12-digit number from your payment app" value="${esc(state.utr || "")}"></label>
-        <div class="co-or"><span>or</span></div>
-        <label class="co-upload"><input type="file" name="proof" accept="image/*" hidden>
-          <span class="co-drop">${state.proof ? `<img src="${state.proof}" alt="Payment screenshot"><em>Change screenshot</em>` : `<b>Upload payment screenshot</b><em>From your gallery</em>`}</span></label>
-        <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
-        <button class="order co-cta" type="submit">Send payment details</button>
-        <button type="button" class="co-back" data-topay>← Back to payment options</button>
-      </form>`);
-    const form = dlg.querySelector("form");
-    form.proof.addEventListener("change", async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      state.utr = form.utr.value;
-      state.proof = await shrink(file);
-      stepProof();
-    });
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      state.utr = form.utr.value;
-      const btn = form.querySelector(".co-cta");
-      btn.disabled = true;
-      btn.textContent = "Sending…";
-      try {
-        const res = await fetch(`/api/orders/${o.id}/paid`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ utr: state.utr, proof: state.proof }) });
-        const out = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(out.error || "Couldn't send. Please try again.");
-        stepDone(out.status);
-      } catch (ex) {
-        stepProof(ex.message);
+    btn.disabled = true;
+    btn.textContent = "One moment…";
+    try {
+      const res = await fetch(`/api/orders/${o.id}/paid`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || "Couldn't reach the shop. Please try again.");
+      stepDone(out.status);
+      if (out.status !== "cancelled") celebrate();
+    } catch (ex) {
+      stepPay(state.tab, ex.message);
+    }
+  }
+
+  // ---------- Celebration: emotes, confetti and glitter across the whole screen ----------
+  function stopFx() {
+    if (!fx) return;
+    cancelAnimationFrame(fx.raf);
+    fx.canvas.remove();
+    fx = null;
+  }
+
+  function celebrate() {
+    stopFx();
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const canvas = document.createElement("canvas");
+    canvas.className = "co-fx";
+    canvas.setAttribute("aria-hidden", "true");
+    const W = innerWidth, H = innerHeight, dpr = Math.min(devicePixelRatio || 1, 2);
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = `${W}px`; canvas.style.height = `${H}px`;
+    dlg.appendChild(canvas);
+    const ctx = canvas.getContext("2d");
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const k = Math.max(0.55, Math.min(1, (W * H) / (1400 * 900))); // fewer pieces on a phone
+
+    // Emoji and glitter are slow to draw fresh, so each is drawn once and stamped.
+    const stamp = (draw) => { const c = document.createElement("canvas"); c.width = c.height = 96; draw(c.getContext("2d")); return c; };
+    const emotes = ["🎉", "🥳", "🎊", "✨", "🛍️", "💖", "🌟", "🤩"].map((e) => stamp((x) => {
+      x.font = '72px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+      x.textAlign = "center"; x.textBaseline = "middle";
+      x.fillText(e, 48, 52);
+    }));
+    const glints = ["#f5c542", "#ffe9a8", "#ffffff", "#e92e30"].map((col) => stamp((x) => {
+      x.fillStyle = col;
+      x.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const r = i % 2 ? 7 : 46, a = (i * Math.PI) / 4;
+        x.lineTo(48 + r * Math.cos(a), 48 + r * Math.sin(a));
       }
-    });
+      x.fill();
+    }));
+    const papers = ["#e92e30", "#f5c542", "#151410", "#ffffff", "#ff8fa3"];
+
+    const parts = [];
+    const cannon = (side, n, delay) => {
+      for (let i = 0; i < n * k; i++) {
+        const angle = rnd(0.95, 1.5), speed = H * rnd(1.1, 2.2);
+        const emote = Math.random() < 0.3;
+        parts.push({
+          born: delay + rnd(0, 0.22), life: rnd(3, 4.4), x: side ? W + 10 : -10, y: H + 10,
+          vx: (side ? -1 : 1) * Math.cos(angle) * speed, vy: -Math.sin(angle) * speed, g: H * 1.15, drag: 1.1,
+          rot: rnd(0, 6.3), spin: rnd(-7, 7), size: emote ? rnd(26, 44) : rnd(7, 13),
+          img: emote ? pick(emotes) : null, col: pick(papers),
+        });
+      }
+    };
+    cannon(0, 70, 0); cannon(1, 70, 0.05); cannon(0, 40, 0.7); cannon(1, 40, 0.8);
+    for (let i = 0; i < 70 * k; i++) { // emotes raining from the top
+      parts.push({
+        born: rnd(0.1, 3.2), life: 3.4, x: rnd(0, W), y: -50, vx: rnd(-30, 30), vy: H * rnd(0.26, 0.44), g: 0, drag: 0,
+        rot: rnd(-0.4, 0.4), spin: rnd(-1.2, 1.2), size: rnd(24, 46), img: pick(emotes),
+      });
+    }
+    for (let i = 0; i < 200 * k; i++) { // glitter twinkling all over
+      parts.push({
+        born: rnd(0, 4.4), life: rnd(0.6, 1.4), x: rnd(0, W), y: rnd(0, H), vx: 0, vy: 14, g: 0, drag: 0,
+        rot: rnd(0, 0.8), spin: rnd(-1, 1), size: rnd(10, 26), img: pick(glints), twinkle: true,
+      });
+    }
+
+    const start = performance.now();
+    let last = start;
+    const frame = (now) => {
+      const t = (now - start) / 1000, dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = 0;
+      for (const p of parts) {
+        const age = t - p.born;
+        if (age > p.life) continue;
+        alive++;
+        if (age < 0) continue;
+        p.vx -= p.vx * p.drag * dt;
+        p.vy += (p.g - p.vy * p.drag) * dt;
+        p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.spin * dt;
+        ctx.globalAlpha = p.twinkle ? Math.sin((age / p.life) * Math.PI) : Math.min(1, (p.life - age) * 2);
+        const c = Math.cos(p.rot) * dpr, s = Math.sin(p.rot) * dpr;
+        ctx.setTransform(c, s, -s, c, p.x * dpr, p.y * dpr);
+        if (p.img) ctx.drawImage(p.img, -p.size / 2, -p.size / 2, p.size, p.size);
+        else { ctx.fillStyle = p.col; ctx.fillRect(-p.size / 2, (-p.size / 3) * Math.abs(Math.cos(age * 8)), p.size, (p.size * 2 / 3) * Math.abs(Math.cos(age * 8)) + 1); }
+      }
+      if (alive) fx.raf = requestAnimationFrame(frame); else stopFx();
+    };
+    fx = { canvas, raf: requestAnimationFrame(frame) };
   }
 
   // ---------- Step 3: done, with live status ----------
@@ -173,18 +245,19 @@ window.VXCheckout = (() => {
     const when = f.delivery === "ship" ? `We'll ship to ${f.city} and send tracking on WhatsApp.` : "It'll be kept aside for you at the store in Srinagar.";
     shell(`${steps(confirmed ? 4 : 3)}
       <div class="co-done ${confirmed ? "is-ok" : cancelled ? "is-bad" : ""}">
-        <span class="co-badge">${confirmed ? "✓" : cancelled ? "!" : '<i class="co-spin"></i>'}</span>
+        ${confirmed || cancelled ? `<span class="co-badge">${confirmed ? "✓" : "!"}</span>` : `<p class="co-emotes" aria-hidden="true"><span>🎉</span><span>🥳</span><span>🛍️</span><span>🎊</span></p>`}
         <p class="mono co-code">Order ${esc(o.code)}</p>
-        <h2>${confirmed ? "Order confirmed" : cancelled ? "We couldn't match your payment" : "Payment sent. The piece is held for you."}</h2>
-        <p>${confirmed ? `Vibe X received your ${rupees(o.amount)}. ${when}` : cancelled ? "Vibe X will message you on WhatsApp to sort it out." : `Vibe X is checking for your ${rupees(o.amount)}. This page updates by itself, and we'll also WhatsApp you.`}</p>
+        <h2 class="${confirmed || cancelled ? "" : "co-thanks"}">${confirmed ? "Order confirmed" : cancelled ? "We couldn't match your payment" : "Thanks For The Purchase"}</h2>
+        <p>${confirmed ? `Vibe X received your ${rupees(o.amount)}. ${when}` : cancelled ? "Vibe X will message you on WhatsApp to sort it out." : `Your piece is held for you while Vibe X checks for your ${rupees(o.amount)}. This page updates by itself, and we'll also WhatsApp you.`}</p>
         <ul class="co-timeline">
           <li class="done">Order placed</li>
-          <li class="done">Payment details sent</li>
+          <li class="done">You paid</li>
           <li class="${confirmed ? "done" : cancelled ? "bad" : "now"}">${cancelled ? "Payment not found" : "Vibe X confirms payment"}</li>
           <li class="${confirmed ? "now" : ""}">${f.delivery === "ship" ? "Shipped to you" : "Ready for pickup"}</li>
         </ul>
         <button type="button" class="btn btn-ink" data-close>Back to the rack</button>
       </div>`);
+    if (cancelled) stopFx();
     clearInterval(poll);
     if (!confirmed && !cancelled) {
       poll = setInterval(async () => {
@@ -195,22 +268,6 @@ window.VXCheckout = (() => {
         } catch { /* try again */ }
       }, 2500);
     }
-  }
-
-  function shrink(file) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const k = Math.min(1, 1400 / Math.max(img.width, img.height));
-        const c = document.createElement("canvas");
-        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(img.src);
-        resolve(c.toDataURL("image/jpeg", 0.85));
-      };
-      img.onerror = reject;
-      img.src = URL.createObjectURL(file);
-    });
   }
 
   function copyText(btn) {
@@ -231,18 +288,17 @@ window.VXCheckout = (() => {
       dlg = document.createElement("dialog");
       dlg.className = "ask-dialog co-dialog";
       document.body.appendChild(dlg);
-      dlg.addEventListener("close", () => clearInterval(poll));
+      dlg.addEventListener("close", () => { clearInterval(poll); stopFx(); });
       dlg.addEventListener("click", (e) => {
         if (e.target === dlg || e.target.closest("[data-close]")) return dlg.close();
         const t = e.target.closest("[data-tab]"); if (t) return stepPay(t.dataset.tab);
         const c = e.target.closest("[data-copy]"); if (c) return copyText(c);
-        if (e.target.closest("[data-paid]")) return stepProof();
-        if (e.target.closest("[data-topay]")) return stepPay();
+        const paid = e.target.closest("[data-paid]"); if (paid) return markPaid(paid);
         if (e.target.closest("[data-back]")) return stepDetails();
       });
     }
     clearInterval(poll);
-    state = { p, form: state && state.form ? { ...state.form } : {}, order: null, tab: "upi", utr: "", proof: null };
+    state = { p, form: state && state.form ? { ...state.form } : {}, order: null, tab: "upi" };
     stepDetails();
     dlg.showModal();
   }
