@@ -570,3 +570,6 @@ h2 { margin: 0; font: 600 48px/1 var(--font); letter-spacing: -.04em; }
 /* keep the decorative circles inside the screen */
 html, body { overflow-x: clip; }
 .hero { overflow-x: clip; overflow-y: visible; }
+
+/* "One destination." is long: the second line runs smaller so it fits beside the drop card and on phones */
+.hero h1 span { font-size: .62em; line-height: .95; }

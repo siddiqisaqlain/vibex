@@ -465,3 +465,6 @@ h2 { margin: 0; font: 900 60px/.95 var(--display); font-stretch: 120%; text-tran
   .reveal { transform: none; }
   .brands-track { animation: none; }
 }
+
+/* "One destination." is long: the second line runs smaller so it fits beside the drop card and on phones */
+.hero h1 span { font-size: .62em; line-height: .95; }
