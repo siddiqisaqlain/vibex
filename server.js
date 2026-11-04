@@ -305,8 +305,8 @@ async function handleEnquiry(req, res) {
 }
 
 // ---- Orders ("Order now") ----
-// Flow: customer fills details -> pays by UPI/bank/number -> sends payment reference or
-// screenshot -> piece goes ON HOLD -> owner checks his bank app and replies
+// Flow: customer fills details -> pays by UPI/bank/number -> taps "I've paid"
+// -> piece goes ON HOLD -> owner checks his bank app and replies
 // "confirm VX-1234" (piece becomes SOLD) or "cancel VX-1234" (piece goes back on sale).
 const ORDERS = path.join(STORE, "orders.json");
 const loadOrders = () => readJson(ORDERS, []);
@@ -382,7 +382,6 @@ async function orderPaid(req, res, id) {
   if (o.status !== "awaiting_payment") return send(res, 200, { code: o.code, status: o.status });
   const utr = String(b.utr || "").replace(/\s+/g, "").slice(0, 30);
   const proof = saveImage(b.proof, `proof-${o.id}`);
-  if (!utr && !proof) return send(res, 400, { error: "Add the payment reference number or a screenshot of the payment." });
   if (utr && !/^[A-Za-z0-9]{6,30}$/.test(utr)) return send(res, 400, { error: "That reference doesn't look right. It's usually a 12 digit number (UPI ref or UTR)." });
 
   Object.assign(o, { status: "paid", utr: utr || null, proof, paidAt: new Date().toISOString() });
@@ -399,7 +398,7 @@ async function orderPaid(req, res, id) {
     id: crypto.randomBytes(6).toString("hex"), at: new Date().toISOString(), kind: "order",
     summary: { kind: "order", ref: o.code },
     image: proof || (p && p.image) || null,
-    text: `💰 *New order ${o.code}: check the payment*\n*${o.productName}* · ${inr(o.amount)}${o.promo ? ` (${o.promo}: ${inr(o.fullPrice)} − ${inr(o.discount)})` : ""} · ${o.lot}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 ${utr ? `Payment ref: ${utr}` : "Payment screenshot above"}\n\nCheck your bank or UPI app for ${inr(o.amount)}, then reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
+    text: `💰 *New order ${o.code}: check the payment*\n*${o.productName}* · ${inr(o.amount)}${o.promo ? ` (${o.promo}: ${inr(o.fullPrice)} − ${inr(o.discount)})` : ""} · ${o.lot}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 ${utr ? `Payment ref: ${utr}` : proof ? "Payment screenshot above" : `Customer tapped "I've paid". Look for note ${o.code}`}\n\nCheck your bank or UPI app for ${inr(o.amount)}, then reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
   });
   send(res, 200, { code: o.code, status: o.status });
 }
@@ -1489,6 +1488,7 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
   if (post && route === "items") { const b = await body(); return b ? reply(billing.saveItem(b, null, newCode)) : send(res, 400, { error: "Bad request." }); }
   let im = /^items\/([\w-]{1,40})$/.exec(route);
   if (post && im) { const b = await body(); return b ? reply(billing.saveItem(b, im[1], newCode)) : send(res, 400, { error: "Bad request." }); }
+  if (post && route === "link") { const b = await body(); return b ? reply(documents.linkItem(b)) : send(res, 400, { error: "Bad request." }); }
   if (post && route === "barcodes") { const b = await body(); return b ? reply(billing.giveBarcodes(Array.isArray(b.ids) ? b.ids.slice(0, 500) : [])) : send(res, 400, { error: "Bad request." }); }
   if (get && route === "staff") return send(res, 200, staff.list());
   if (post && route === "staff") { const b = await body(); return b ? reply(staff.add(b)) : send(res, 400, { error: "Bad request." }); }
