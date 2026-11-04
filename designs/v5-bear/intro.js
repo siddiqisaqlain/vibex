@@ -16,7 +16,7 @@
     root.classList.add("vx-enter"); root.classList.remove("vx-pre");
     setTimeout(() => root.classList.remove("vx-enter"), 1700);
   };
-  const safety = setTimeout(enter, 9000);
+  const safety = setTimeout(() => { if (!document.querySelector(".vxi")) enter(); }, 9000);
 
   const force = /[?&]intro\b/.test(location.search);
   let seen = false;
@@ -104,6 +104,16 @@
   .vxi-ship span { opacity: .85; }
   @keyframes vxiDrive { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
   .vxi.leaving .vxi-ship { opacity: 0; }
+  /* after the deliveries: the intro waits for the customer (tap / click / scroll / Enter) */
+  .vxi-go { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; padding: 10px 18px; border: 1px solid rgba(18,18,18,.22); border-radius: 999px; background: rgba(255,255,255,.7); backdrop-filter: blur(6px); font: 500 11.5px 'Geist Mono', ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; color: ${INK}; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity .3s; }
+  .vxi-go.on { animation: vxiUp .7s cubic-bezier(.2,.8,.2,1) forwards, vxiNudge 2.2s ease-in-out 1s infinite; }
+  .vxi-go i { width: 8px; height: 8px; border-radius: 50%; background: ${RED}; animation: vxiBeat 1.6s ease-out infinite; }
+  .vxi-go svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  @keyframes vxiNudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  @keyframes vxiBeat { 0% { box-shadow: 0 0 0 0 rgba(226,56,44,.5); } 80%, 100% { box-shadow: 0 0 0 9px rgba(226,56,44,0); } }
+  .vxi.ready .vxi-skip { opacity: 0; pointer-events: none; }
+  .vxi.leaving .vxi-go { opacity: 0; }
+  @media (max-width: 600px) { .vxi-go { font-size: 10.5px; padding: 9px 16px; margin-top: 14px; } }
   @media (max-width: 600px) { .vxi-ship { font-size: 10px; padding: 7px 12px 7px 10px; } }
   /* orders counter: ticks up as parcels land, then flips to the headline figure with a flash */
   .vxi-count { position: relative; margin-top: 12px; font: 700 50px/1 'Schibsted Grotesk', Arial, sans-serif; letter-spacing: -.05em; color: ${INK}; font-variant-numeric: tabular-nums; white-space: nowrap; transition: opacity .25s; }
@@ -122,7 +132,7 @@
   el.setAttribute("aria-label", "Vibe X ships from Srinagar to cities across India");
   el.innerHTML = `<style>${css}</style><div class="vxi-bg"></div><canvas></canvas>
     <div class="vxi-compass" aria-hidden="true"><div class="vxi-compass-in"><i></i><span>N</span></div></div>
-    <div class="vxi-copy"><div class="vxi-logo">VIBE<span>X</span></div><div class="vxi-count" hidden><b>0</b></div><p>From Srinagar to <b>all of India</b></p><div class="vxi-ship" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 6.5h11v9h-11zM13.5 9.5h4l3 3.2v2.8h-7z"/><circle cx="6.5" cy="17" r="1.7"/><circle cx="17" cy="17" r="1.7"/></svg><b></b><span></span></div></div>
+    <div class="vxi-copy"><div class="vxi-logo">VIBE<span>X</span></div><div class="vxi-count" hidden><b>0</b></div><p>From Srinagar to <b>all of India</b></p><div class="vxi-ship" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 6.5h11v9h-11zM13.5 9.5h4l3 3.2v2.8h-7z"/><circle cx="6.5" cy="17" r="1.7"/><circle cx="17" cy="17" r="1.7"/></svg><b></b><span></span></div><div class="vxi-go" role="button" aria-label="Enter the shop"><i></i><span class="vxi-go-t">Tap to enter</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div></div>
     <button class="vxi-skip" type="button">Skip</button>`;
   document.body.prepend(el);
   document.body.classList.add("vxi-on");
@@ -192,7 +202,7 @@
     for (const [x, y] of frame) { const [a, b] = raw(x, y, 0); if (a < x0) x0 = a; if (a > x1) x1 = a; if (b < y0) y0 = b; if (b > y1) y1 = b; }
     y0 -= 40 * s;                                                  // headroom for arcs and the Srinagar tag
     const mobile = W < 700;
-    const box = { l: mobile ? 26 : 70, r: mobile ? 26 : 70, t: mobile ? 92 : 70, b: (mobile ? 150 : 170) + (orders ? (mobile ? 50 : 60) : 0) + (shipping ? 46 : 0) };
+    const box = { l: mobile ? 26 : 70, r: mobile ? 26 : 70, t: mobile ? 92 : 70, b: (mobile ? 150 : 170) + (orders ? (mobile ? 50 : 60) : 0) + (shipping ? 46 : 0) + 50 };
     const bw = W - box.l - box.r, bh = H - box.t - box.b;
     const fit = Math.min(bw / (x1 - x0), bh / (y1 - y0));
     // the dive: zoom hard into Srinagar until the white top of the model fills the screen
@@ -246,7 +256,7 @@
     if (!t0 && (built() || now - tLoad > 1600)) { t0 = now; root.dataset.vxiStart = Math.round(now); logo.style.animationPlayState = copyP.style.animationPlayState = "running"; setupCount(); shipping = setupShip(); }
     if (orders) tickCount(t0 ? now - t0 : 0);
     const ms = t0 ? now - t0 : 0;
-    if (t0 && !exitAt && ms >= HOLD_TO) leave(false);
+    if (t0 && !ready && ms >= LANDED) { ready = true; el.classList.add("ready"); setTimeout(() => go.classList.add("on"), 150); }
     const e = camera(ms, now);
     const fade = 1 - clamp01(e * 2.4);                          // routes, pins, floor clear early in the dive
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -333,6 +343,19 @@
         }
       }
     }
+    // while it waits: parcels keep leaving Srinagar, one route at a time
+    if (ms > LANDED && !exitAt) {
+      routes.forEach((r, i) => {
+        const ph = (ms - LANDED - i * 410) % 7400;
+        if (ph < 0 || ph > FLY) return;
+        const q = ease(ph / FLY), k = Math.round(q * 48);
+        ctx.globalAlpha = appear;
+        ctx.strokeStyle = RED; ctx.lineWidth = 2.6; ctx.lineCap = "round"; strokeLine(r.pts.slice(Math.max(0, k - 6), k + 1));
+        const [sx, sy, f] = P(...r.pts[k]);
+        ctx.fillStyle = "#fff"; ctx.shadowColor = RED; ctx.shadowBlur = 12;
+        ctx.beginPath(); ctx.arc(sx, sy, 2.4 * f, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+      });
+    }
     const [hsx, hsy] = P(hx, hy, 0);
     ctx.globalAlpha = appear;
     ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(hsx, hsy, 4.8, 0, 7); ctx.fill();
@@ -350,6 +373,7 @@
   function leave(fast) {
     if (exitAt) return;
     exitAt = performance.now() - (fast ? EXIT * .15 : 0);
+    unlisten();
     clearTimeout(timer);
     el.classList.add("leaving");
     clearTimeout(safety);
@@ -375,6 +399,20 @@
     copy.style.transition = "none";
     setTimeout(() => { over = true; cancelAnimationFrame(raf); el.remove(); removeEventListener("resize", resize); }, EXIT + 120);
   }
-  el.addEventListener("click", () => leave(true));
-  const timer = 0; // the hand-off is started from draw(), on the animation's own clock
+  const go = el.querySelector(".vxi-go");
+  if (matchMedia("(hover: hover) and (pointer: fine)").matches) go.querySelector(".vxi-go-t").textContent = "Click to enter";
+  let ready = false;
+  const timer = 0;
+  const enterNow = () => leave(!ready);                     // before the deliveries finish: the quick version
+  el.addEventListener("click", enterNow);
+  const onWheel = (e) => { if (e.deltaY > 6) enterNow(); };
+  let touchY = null;
+  const onTouchStart = (e) => { touchY = e.touches[0].clientY; };
+  const onTouchMove = (e) => { if (touchY !== null && touchY - e.touches[0].clientY > 40) { touchY = null; enterNow(); } };
+  const onKey = (e) => { if (["Enter", " ", "ArrowDown", "PageDown", "Escape"].includes(e.key)) { e.preventDefault(); enterNow(); } };
+  addEventListener("wheel", onWheel, { passive: true });
+  addEventListener("touchstart", onTouchStart, { passive: true });
+  addEventListener("touchmove", onTouchMove, { passive: true });
+  addEventListener("keydown", onKey);
+  const unlisten = () => { removeEventListener("wheel", onWheel); removeEventListener("touchstart", onTouchStart); removeEventListener("touchmove", onTouchMove); removeEventListener("keydown", onKey); };
 })();
