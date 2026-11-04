@@ -44,7 +44,7 @@ window.VXCheckout = (() => {
   function stepDetails(err = "") {
     const { esc } = O();
     const p = state.p, f = state.form;
-    const shipNote = PAY.shippingFee == null ? "Shipping cost is confirmed on WhatsApp before dispatch." : PAY.shippingFee === 0 ? "Free shipping." : `Shipping: ${O().rupees(PAY.shippingFee)}.`;
+    const shipNote = PAY.shippingFee == null ? "Courier charge depends on your location. We'll tell you the exact amount on WhatsApp before dispatch; if you don't want to pay it, cancel for a full refund." : PAY.shippingFee === 0 ? "Free shipping." : `Shipping: ${O().rupees(PAY.shippingFee)}.`;
     shell(`${steps(1)}${itemRow(p)}
       <form class="co-form" novalidate>
         <h2>Order now</h2>
@@ -95,7 +95,10 @@ window.VXCheckout = (() => {
     state.tab = tab;
     const o = state.order;
     const note = `${o.code} ${o.lot}`;
-    const tabs = [["upi", "UPI / QR"], ["bank", "Bank transfer"], ["number", "Pay to number"]];
+    // Only the payment options the shop has filled in (shop.json → pay).
+    const tabs = [["upi", "UPI / QR"], ["bank", "Bank transfer"], ["number", "Pay to number"]]
+      .filter(([k]) => k !== "bank" || (PAY.bank && PAY.bank.accountNumber))
+      .filter(([k]) => k !== "number" || PAY.phone);
     const field = (label, value, mono = true) =>
       `<div class="co-field"><span>${label}</span><b class="${mono ? "mono" : ""}">${esc(value)}</b><button type="button" class="co-copy" data-copy="${esc(value)}" aria-label="Copy ${label}">${COPY}<em>Copy</em></button></div>`;
     let body = "";
