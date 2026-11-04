@@ -318,12 +318,12 @@ async function orderPaid(req, res, id) {
 }
 
 const HELP = `📋 *Commands*
-*Post a product:* send a photo with a caption, e.g. _Gucci Guilty 2499 3 pcs_ or _Zara shirt 1499 size M x2_. I'll show you name, price and quantity to check, then reply *done* to put it live
+*Post a product:* just send the photo. I'll ask for anything I need (section, name, price, size) one at a time, then show you how it looks. Tap *Post it* and it's live.
+_Faster:_ put it all in the caption, e.g. _Zara shirt 1499 M L_, and it's one tap
 *Today's numbers:* _stats_
 *Sell:* _sold 4795_ (one) or _sold 4795 2_
 *More came in:* _add 4795 3_
 *Set stock:* _stock 4795 5_
-*Clothes:* I'll ask for the size before it goes live. Put it in the caption to skip that, e.g. _size M L_
 *Wrong section:* _move 4795 perfume_ (or clothes, shoes, accessory)
 *Take down:* _remove 4795_
 *Orders:* _confirm VX-1234_ or _cancel VX-1234_
@@ -553,6 +553,10 @@ async function handleMessage(req, res) {
 // One message from the owner ({ text, image: data URL }) -> { reply, buttons? }.
 // Both the /demo chat and the real WhatsApp webhook come through here.
 async function ownerMessage(body) {
+  // Several photos sent together (a WhatsApp album, or many picked at once on /demo).
+  const photos = Array.isArray(body.photos) ? body.photos.filter((x) => x && x.image).slice(0, 50) : [];
+  if (photos.length > 1) return batchMessage(photos);
+  if (photos.length === 1) body = photos[0];
   const text = String(body.text || "").slice(0, 1000);
   if (!text.trim() && !body.image) return { status: 400, error: "empty message" };
 
@@ -562,6 +566,8 @@ async function ownerMessage(body) {
   const orderReply = orderCommand(text);
   if (orderReply) return { reply: orderReply };
   if (/^(stats|report|status|aaj|today)$/i.test(text.trim())) return { reply: statsReply() };
+  const batched = !body.image && batchReply(text);
+  if (batched) return batched;
   const draft = draftReply(text, Boolean(body.image));
   if (draft) return draft;
   const parsed = parseMessage(text);
@@ -588,13 +594,25 @@ async function ownerMessage(body) {
     };
   }
 
-  // Rules always run; the AI reader (when configured) decides what the item is from the photo,
-  // and the rules fill any price/size it left empty.
-  const rules = parsed.product;
-  let listing = rules, note = null, by = "rules", sure = parsed.sure;
+  const item = await makeDraft(text, body.image, parsed);
+  const queue = loadPending();
+  // A photo sent while a batch is open joins the batch.
+  const open = queue.find((x) => x.batch);
+  if (open) { item.batch = open.batch; queue.push(item); savePending(queue); return batchNext(queue, "📸 Added that one too.\n\n"); }
+  queue.push(item);
+  savePending(queue);
+  if (queue.length > 1) return { reply: `📸 Got the next one too. I'll ask about it once “${queue[0].listing.name}” is done.` };
+  return step(queue[0], { fresh: true });
+}
+
+// One photo + caption -> a draft. Rules always run; the AI reader (when configured) decides
+// what the item is from the photo, and the rules fill any price/size it left empty.
+async function makeDraft(text, imageData, parsed = parseMessage(text)) {
+  const rules = parsed.type === "product" ? parsed.product : parseMessage("").product;
+  let listing = rules, note = null, by = "rules", sure = parsed.type === "product" ? parsed.sure : false;
   if (aiEnabled()) {
     try {
-      const ai = await classify(text, body.image);
+      const ai = await classify(text, imageData);
       listing = {
         ...rules,
         name: ai.name || rules.name,
@@ -613,22 +631,191 @@ async function ownerMessage(body) {
       console.warn(`AI reader failed, used keyword rules instead: ${e.message}`);
     }
   }
-
+  // The rules miss "m l xl" / "32 34" at the end of a caption; the answer reader gets those.
+  if (!listing.sizes) { const a = readAnswer(text); if (a.sizes) listing = { ...listing, sizes: a.sizes }; }
   const id = crypto.randomBytes(6).toString("hex");
-  const image = saveImage(body.image, id);
+  return { id, listing, note, by, image: saveImage(imageData, id), sure, guess: listing.category };
+}
+
+// ---- Many photos at once: today's whole stock in one go ----
+// The owner sends every photo together (captions optional, e.g. just "2499 M L"). The bot reads
+// them all, then asks ONE question per photo that still needs something, showing that photo,
+// and ends with a summary: Post all / Check each.
+async function batchMessage(photos) {
+  const batch = crypto.randomBytes(4).toString("hex");
+  const drafts = [];
+  for (let i = 0; i < photos.length; i += 4) { // read 4 at a time
+    const part = await Promise.all(photos.slice(i, i + 4).map((p) => makeDraft(String(p.text || "").slice(0, 1000), p.image)));
+    drafts.push(...part);
+  }
   const queue = loadPending();
-  queue.push({ id, listing, note, by, image, sure, guess: listing.category });
+  const open = queue.find((x) => x.batch);
+  for (const d of drafts) d.batch = open ? open.batch : batch;
+  queue.push(...drafts);
   savePending(queue);
-  if (queue.length > 1) return { reply: `📝 Got “${listing.name}”. I'll show it to you to check after the one above.`, buttons: DRAFT_BUTTONS };
-  return { reply: card(queue[0]), buttons: DRAFT_BUTTONS };
+  const todo = queue.filter((x) => x.batch && batchMissing(x).length).length;
+  const ready = queue.filter((x) => x.batch).length - todo;
+  const lead = `📸 Got ${drafts.length} photos${open ? " more" : ""}.${ready ? ` ${ready} ready` : ""}${ready && todo ? "," : ""}${todo ? ` ${todo} need${todo === 1 ? "s" : ""} a detail or two. Let's go 👇` : ""}\n\n`;
+  return batchNext(queue, lead);
+}
+
+// What a batch photo still needs, in the order it's asked.
+function batchMissing(item) {
+  const l = item.listing;
+  return [
+    (!l.name || l.name === "New arrival") && "name",
+    !l.price && "price",
+    needsSize(l) && "size",
+    !item.sure && "section",
+  ].filter(Boolean);
+}
+const PLURAL = { Clothing: ["piece of clothing", "clothes"], Fragrances: ["perfume", "perfumes"], Footwear: ["pair of shoes", "shoes"], Accessories: ["accessory", "accessories"] };
+const absolute = (img) => (img && siteUrl() && img.startsWith("/") ? siteUrl() + img : img);
+
+// The next batch question, or the summary when nothing is missing.
+function batchNext(queue, lead = "") {
+  const items = queue.filter((x) => x.batch);
+  if (!items.length) return null;
+  const todo = items.filter((x) => batchMissing(x).length);
+  if (!todo.length) return batchSummary(items, lead);
+  const item = todo[0];
+  const need = batchMissing(item);
+  const l = item.listing;
+  const n = items.indexOf(item) + 1;
+  const sizeHint = l.category === "Clothing" ? " M L" : "";
+  const what = `${SECTION_LABEL[l.category]}${item.sure ? "" : "?"}`;
+  let ask, buttons = ["⏭️ Skip", "🗂️ Wrong section"];
+  if (need.includes("name")) {
+    ask = `What is it, and the price?\ne.g. *Dior Sauvage 3200* or *Zara jacket 2499 M L*`;
+  } else if (need.includes("price")) {
+    ask = `*${l.name}* · ${what}\nSend the price${need.includes("size") ? " and sizes" : ""}, e.g. *2499${sizeHint}*`;
+  } else if (need.includes("size")) {
+    ask = `*${l.name}* · ${rupees(l.price)}\nWhich sizes? e.g. *M L XL* or *free size*`;
+  } else {
+    ask = `*${l.name}* · ${rupees(l.price)}\nIs it *${SECTION_LABEL[l.category]}*?`;
+    buttons = ["✅ Yes", "🗂️ Wrong section", "⏭️ Skip"];
+  }
+  item.ask = "batch";
+  savePending(queue);
+  return { reply: `${lead}🖼️ Photo ${n} of ${items.length}\n${ask}`, buttons, photo: absolute(item.image) };
+}
+
+function batchSummary(items, lead = "") {
+  const counts = {};
+  for (const x of items) counts[x.listing.category] = (counts[x.listing.category] || 0) + 1;
+  const mix = Object.entries(counts).map(([c, k]) => `${k} ${(PLURAL[c] || [c, c])[k === 1 ? 0 : 1]}`).join(" · ");
+  const lines = items.map((x, i) => `${i + 1}. ${x.listing.name} · ${rupees(x.listing.price)}${x.listing.sizes ? ` · ${x.listing.sizes}` : ""}${(x.listing.quantity || 1) > 1 ? ` · ×${x.listing.quantity}` : ""}`);
+  return {
+    reply: `${lead}✅ *${items.length} ready to post*\n${mix}\n\n${lines.join("\n")}\n\nPost them all now, or check each one first?`,
+    buttons: ["✅ Post all", "👀 Check each", "❌ Cancel all"],
+  };
+}
+
+// Reads a short batch answer: "Zara jacket 2499 m l x2", "3200", "32 34", "free size".
+function readAnswer(text) {
+  let t = ` ${String(text).trim()} `;
+  const out = {};
+  let m;
+  if ((m = /\s(?:x\s?(\d{1,3})|(\d{1,3})\s?(?:pcs?|pieces?|nos))(?=\s)/i.exec(t))) { out.quantity = Number(m[1] || m[2]); t = t.replace(m[0], " "); }
+  if ((m = /\smrp\s*[:=]?\s*(?:₹|rs\.?)?\s*([\d,]{2,9})(?=\s)/i.exec(t))) { out.mrp = Number(m[1].replace(/,/g, "")); t = t.replace(m[0], " "); }
+  // The price: a ₹/rs amount, else the LAST plain number ("Levis 501 1899" -> 1899).
+  const money = [...t.matchAll(/\s(?:(?:₹|rs\.?)\s*([\d,]{2,9})|([\d,]{3,9}))(?:\s*\/-)?(?=\s)/gi)];
+  if ((m = money.find((x) => x[1]) || money[money.length - 1])) { const n = Number((m[1] || m[2]).replace(/,/g, "")); if (n >= 10) { out.price = n; t = t.slice(0, m.index) + " " + t.slice(m.index + m[0].length); } }
+  if ((m = /\s(?:sizes?\s*[:=]?\s*)?((?:(?:xxs|xs|s|m|l|xl|xxl|xxxl|2xl|3xl|4xl|\d{2}|uk\s?\d{1,2})(?:[\s,\/&]+|$))+|free\s?size|one\s?size)\s*$/i.exec(t))) {
+    out.sizes = formatSizes(m[1]); t = t.slice(0, m.index) + " ";
+  }
+  const name = t.replace(/\s+/g, " ").replace(/^[\s,.\-–:]+|[\s,.\-–:]+$/g, "").trim();
+  if (/\p{L}{2}/u.test(name)) out.name = name;
+  return out;
+}
+
+// The owner's reply while a batch is open. Returns { reply, ... } or null (not about the batch).
+function batchReply(text) {
+  const queue = loadPending();
+  const items = queue.filter((x) => x.batch);
+  if (!items.length) return null;
+  const raw = text.trim();
+  const t = raw.replace(/^[^\p{L}\p{N}₹]+/u, "").trim();
+  const dropImage = (x) => { if (x.image) try { fs.unlinkSync(path.join(UPLOADS, path.basename(x.image))); } catch { /* gone */ } };
+  const todo = items.filter((x) => batchMissing(x).length);
+
+  if (/^cancel all$/i.test(t)) {
+    items.forEach(dropImage);
+    savePending(queue.filter((x) => !x.batch));
+    return { reply: `🗑️ Dropped all ${items.length} photos. Nothing went on the website.` };
+  }
+  if (!todo.length) {
+    if (/^post all$/i.test(t)) {
+      const live = items.map((x) => publish({ id: x.id, listing: x.listing, by: x.by, image: x.image }));
+      savePending(queue.filter((x) => !x.batch));
+      let win;
+      for (const p of live) win = celebrate(p);
+      const codes = live.map((p) => `🔢 *${p.code}* ${p.name}`).join("\n");
+      return {
+        reply: `🎉 *${live.length === 2 ? "Both are" : `All ${live.length} are`} live on your website!*\n\n${codes}\n\nWhen one sells, just send *sold* and its code, like *sold ${live[0].code}*.\n\n📈 ${win.postedToday} posted today · 🛍️ ${win.live} live${win.milestone ? `\n${win.milestone}` : ""}`,
+        celebrate: { ...win, name: `${live.length} new items`, image: live[0].image },
+      };
+    }
+    if (/^check each$/i.test(t)) {
+      for (const x of items) { delete x.batch; x.ask = null; }
+      savePending(queue);
+      return step(queue[0], { fresh: true });
+    }
+    return { ...batchSummary(items), reply: `Tap *Post all* to put them all live, or *Check each* to look at them one by one.` };
+  }
+
+  const item = todo[0];
+  const l = item.listing;
+  if (/^(post all|check each)$/i.test(t)) {
+    const again = batchNext(queue);
+    return { ...again, reply: `${todo.length} still need${todo.length === 1 ? "s" : ""} a detail first.\n\n${again.reply}` };
+  }
+  if (/^skip$/i.test(t)) {
+    dropImage(item);
+    const rest = queue.filter((x) => x !== item);
+    savePending(rest);
+    return batchNext(rest, `⏭️ Skipped that one.\n\n`) || { reply: "⏭️ Skipped. Nothing left to post." };
+  }
+  if (/^(wrong section|section)$/i.test(t)) {
+    item.ask = "batch-section";
+    savePending(queue);
+    return { reply: `🗂️ Which section is *${l.name === "New arrival" ? `photo ${items.indexOf(item) + 1}` : l.name}*?`, list: { button: "Choose section", rows: SECTION_ROWS } };
+  }
+  if (item.ask === "batch-section" || (/^yes$/i.test(t) && batchMissing(item).join() === "section")) {
+    if (/^yes$/i.test(t)) item.sure = true;
+    else if (!answer(item, "section", t)) return { reply: "🗂️ Tap one of the sections.", list: { button: "Choose section", rows: SECTION_ROWS } };
+    item.ask = "batch";
+    savePending(queue);
+    return batchNext(queue);
+  }
+  // A real command ("sold 4795", "help") isn't an answer.
+  const looks = parseMessage(raw);
+  if (looks.type !== "product") return null;
+  const a = readAnswer(t);
+  let used = false;
+  if (a.price) { l.price = a.price; used = true; }
+  if (a.mrp) { l.mrp = a.mrp; used = true; }
+  if (a.quantity) { l.quantity = a.quantity; used = true; }
+  if (a.sizes) { l.sizes = a.sizes; used = true; }
+  if (a.name && (l.name === "New arrival" || !l.name)) {
+    const named = parseMessage(a.name).product;
+    l.name = named.name !== "New arrival" ? named.name : a.name;
+    if (named.brand && !l.brand) l.brand = named.brand;
+    if (!item.sure && parseMessage(a.name).sure) { l.category = named.category; l.subcategory = named.subcategory; item.sure = true; }
+    used = true;
+  }
+  if (!used) {
+    const again = batchNext(queue);
+    return { ...again, reply: `Hmm, I didn't get that.\n\n${again.reply}` };
+  }
+  savePending(queue);
+  return batchNext(queue, "👍 Got it.\n\n");
 }
 
 // ---- Check before it goes live ----
 // Every post waits as a draft until the owner says "done". He sees name, price, quantity and
 // section, and can change any of them first. Drafts are not on the website.
-const CATEGORY_WORDS = { Clothing: "clothes", Fragrances: "perfume", Footwear: "shoes", Accessories: "accessory" };
 const SECTION_LABEL = { Clothing: "Clothes", Fragrances: "Perfume", Footwear: "Shoes", Accessories: "Accessory" };
-const DRAFT_BUTTONS = ["✅ Done", "✏️ Change", "❌ Cancel"];
 // Edit words, so a typo like "pirce 3000" or "qyt 2" still counts.
 const EDIT_WORDS = { price: "price", rate: "price", mrp: "mrp", qty: "qty", quantity: "qty", stock: "qty", pcs: "qty", name: "name", brand: "brand", size: "size", sizes: "size" };
 function editWord(w) {
@@ -646,7 +833,6 @@ function editWord(w) {
   const hit = Object.keys(EDIT_WORDS).find((k) => k.length >= 3 && dist(w, k) <= (k.length >= 5 ? 2 : 1));
   return hit ? EDIT_WORDS[hit] : null;
 }
-const HOW_TO_CHANGE = `Send what's different, e.g.\n*price 2999* · *qty 3* · *name Gucci Guilty EDT* · *size M L* · *mrp 8000*\nWrong section? Send *clothes*, *perfume*, *shoes* or *accessory*.`;
 
 // Clothes need a size before they go live (shoes and perfume don't).
 const needsSize = (l) => l.category === "Clothing" && !l.sizes;
@@ -660,99 +846,192 @@ function formatSizes(v) {
 // A bare size answer: "M", "m l xl", "32 34", "free size", "UK 9"
 const SIZE_ONLY = /^(?:(?:xxs|xs|s|m|l|xl|xxl|xxxl|2xl|3xl|4xl|\d{2}|uk\s?\d{1,2}|free|free ?size|one ?size)(?:[\s,\/&]+|$))+$/i;
 
-function card(item, changed = "") {
+// ---- Guided posting: one short question at a time, only for what's missing ----
+// Photo in -> (section? name? price? size?) -> preview -> "✅ Post it". Every answer is a tap
+// or a plain value ("2499", "M L XL", "Zara denim jacket"); the old "price 2999" style still works.
+const SECTION_ROWS = [
+  { id: "Clothes", title: "👕 Clothes" }, { id: "Shoes", title: "👟 Shoes" },
+  { id: "Perfume", title: "🧴 Perfume" }, { id: "Accessory", title: "👜 Accessory" },
+];
+const PREVIEW_BUTTONS = ["✅ Post it", "✏️ Change", "❌ Cancel"];
+const FIELDS = {
+  name: { label: "Name", ask: "🏷️ What's it called?\nType the name, e.g. *North Face Puffer Jacket*" },
+  price: { label: "Price", ask: "💰 What's the price?\nJust type the number, e.g. *2499*" },
+  qty: { label: "Quantity", ask: "📦 How many pieces do you have?", buttons: ["1", "2", "3"] },
+  size: { label: "Size", ask: "📏 Which sizes do you have?\nType them, e.g. *M L XL* or *32 34*", buttons: ["Free size"] },
+  section: { label: "Section", ask: "🗂️ Which section does it go in?", list: { button: "Choose section", rows: SECTION_ROWS } },
+  brand: { label: "Brand", ask: "✨ Which brand?\nType it, e.g. *Zara*" },
+  mrp: { label: "MRP", ask: "🏷️ What's the MRP (original price)?\nJust type the number, e.g. *6999*" },
+};
+// The first thing still missing, in the order the owner is asked.
+function missingField(item) {
   const l = item.listing;
-  const mark = (k) => (changed === k ? " ✏️" : "");
+  if (!item.sure) return "section";
+  if (!l.name || l.name === "New arrival") return "name";
+  if (!l.price) return "price";
+  if (needsSize(l)) return "size";
+  return null;
+}
+function question(item, field, lead = "") {
+  const f = FIELDS[field];
+  item.ask = field;
+  const out = { reply: `${lead}${f.ask}`, buttons: f.buttons, list: f.list };
+  if (!f.buttons && !f.list) out.buttons = ["❌ Cancel"];
+  return out;
+}
+function preview(item, lead = "") {
+  const l = item.listing;
   const section = [SECTION_LABEL[l.category], l.subcategory && l.subcategory !== "Perfume" ? l.subcategory : null].filter(Boolean).join(" › ");
   const lines = [
-    `🏷️ Name: *${l.name}*${mark("name")}`,
-    `💰 Price: ${l.price ? `*${rupees(l.price)}*` : "❗ *missing*"}${l.mrp ? ` (MRP ${rupees(l.mrp)})` : ""}${mark("price")}`,
-    `📦 Quantity: *${l.quantity || 1}*${mark("qty")}`,
-    `🗂️ Section: *${section}*${item.sure ? "" : " ❓ my guess"}${mark("section")}`,
-  ];
-  if (l.brand) lines.splice(1, 0, `✨ Brand: ${l.brand}${mark("brand")}`);
-  if (l.category === "Clothing") lines.push(`📏 Size: ${l.sizes ? `*${l.sizes}*` : "❗ *missing*"}${mark("size")}`);
-  else if (l.sizes || changed === "size") lines.push(`📏 Size: ${l.sizes || "-"}${mark("size")}`);
-  const head = changed ? "✏️ Updated. Check again:" : "📝 Check before it goes on your website:";
-  const missing = [!l.price && "the *price* (e.g. *price 2499*)", needsSize(l) && "the *size* (e.g. *M* or *M L XL*, or *free size*)"].filter(Boolean);
-  const tail = missing.length
-    ? `\n\nBefore it can go live, send ${missing.join(" and ")}.`
-    : `\n\nAll good? Reply *done* to post it.\nSomething wrong? Tap *Change* or send e.g. *price 2999*, *qty 3*.`;
-  const unsure = item.sure ? "" : `\nNot ${CATEGORY_WORDS[l.category]}? Send *clothes*, *perfume*, *shoes* or *accessory*.`;
-  return `${head}\n\n${lines.join("\n")}${tail}${unsure}${item.note ? `\n\nℹ️ ${item.note}` : ""}`;
+    `*${l.name}*`,
+    l.brand ? `✨ ${l.brand}` : null,
+    `💰 ${rupees(l.price)}${l.mrp ? ` ~MRP ${rupees(l.mrp)}~` : ""}`,
+    l.sizes ? `📏 ${l.sizes}` : null,
+    `📦 ${l.quantity || 1} ${(l.quantity || 1) > 1 ? "pieces" : "piece"}`,
+    `🗂️ ${section}`,
+  ].filter(Boolean);
+  item.ask = null;
+  return { reply: `${lead}👀 This is how it will look on your website:\n\n${lines.join("\n")}${item.note ? `\n\nℹ️ ${item.note}` : ""}\n\nPost it?`, buttons: PREVIEW_BUTTONS };
 }
+// Whatever comes next for this draft: the next question, or the preview.
+function step(item, { fresh = false, changed = false } = {}) {
+  const need = missingField(item);
+  const lead = fresh ? `📸 Got it${item.listing.name !== "New arrival" ? `: *${item.listing.name}*` : ""}!\n\n` : changed ? "✏️ Updated.\n\n" : "";
+  const out = need ? question(item, need, lead) : preview(item, lead);
+  savePending(loadPending().map((x) => (x.id === item.id ? item : x)));
+  return out;
+}
+const changeMenu = (l) => ({
+  reply: `✏️ What do you want to change on “${l.name}”?`,
+  list: { button: "Choose", rows: [
+    { id: "Name", title: "🏷️ Name", description: l.name },
+    { id: "Price", title: "💰 Price", description: l.price ? rupees(l.price) : "not set" },
+    { id: "Quantity", title: "📦 Quantity", description: String(l.quantity || 1) },
+    { id: "Size", title: "📏 Size", description: l.sizes || "not set" },
+    { id: "Section", title: "🗂️ Section", description: SECTION_LABEL[l.category] || "" },
+    { id: "Brand", title: "✨ Brand", description: l.brand || "not set" },
+    { id: "MRP", title: "🏷️ MRP", description: l.mrp ? rupees(l.mrp) : "not set" },
+  ] },
+});
+const FIELD_PICK = { name: "name", price: "price", quantity: "qty", qty: "qty", size: "size", sizes: "size", section: "section", category: "section", brand: "brand", mrp: "mrp" };
+const money = (t) => { const m = /^(?:₹|rs\.?)?\s*([\d,]{2,9})(?:\s*\/-)?$/i.exec(t.trim()); const n = m && Number(m[1].replace(/,/g, "")); return n >= 10 ? n : null; };
+// The owner's answer to the question the bot just asked. Returns true if it fitted.
+function answer(item, field, t) {
+  const l = item.listing;
+  if (field === "price") { const n = money(t); if (!n) return false; l.price = n; return true; }
+  if (field === "mrp") { const n = money(t); if (!n) return false; l.mrp = n; return true; }
+  if (field === "qty") { const m = /^(\d{1,3})(?:\s*(?:pcs?|pieces?|nos))?$/i.exec(t); if (!m || !Number(m[1])) return false; l.quantity = Number(m[1]); return true; }
+  if (field === "section") {
+    const c = categoryAnswer(t);
+    if (!c) return false;
+    l.category = c;
+    l.subcategory = findSubcategory(`${l.caption || ""} ${l.name}`, c);
+    item.sure = true;
+    return true;
+  }
+  if (field === "size") { if (t.length > 40) return false; l.sizes = formatSizes(t); return true; }
+  if (field === "name") { if (t.length < 2 || t.length > 80) return false; l.name = t; return true; }
+  if (field === "brand") { if (t.length < 2 || t.length > 40) return false; l.brand = t; return true; }
+  return false;
+}
+const NOT_UNDERSTOOD = {
+  price: "💰 I need just the number, e.g. *2499*.",
+  mrp: "🏷️ I need just the number, e.g. *6999*.",
+  qty: "📦 Send a number, e.g. *2*.",
+  section: "🗂️ Tap one of the sections below.",
+  size: "📏 Type the sizes, e.g. *M L XL*.",
+  name: "🏷️ Type a short name, e.g. *Zara Denim Jacket*.",
+  brand: "✨ Type a short brand name, e.g. *Zara*.",
+};
 
 const DONE = /^(✅\s*)?(done|ok|okay|yes|y|post|post it|go|live|send|haan|han|ha|ji|theek|thik|sahi|correct|right|👍)[.!]*$/i;
 const CANCEL = /^(❌\s*)?(cancel|no|drop|discard|delete|nahi|nah)[.!]*$/i;
 const CHANGE = /^(✏️\s*)?(change|edit|fix)[.!]*$/i;
 
-// The owner's reply while a draft is open: done / cancel / change / an edit. Returns { reply, ... } or null.
+// The owner's reply while a draft is open. Returns { reply, buttons?, list? } or null (not about the draft).
 function draftReply(text, hasImage) {
   if (hasImage) return null; // a new photo is a new post: it queues behind this one
-  const t = text.trim();
+  const raw = text.trim();
+  const t = raw.replace(/^[^\p{L}\p{N}₹]+/u, "").trim(); // "👕 Clothes" -> "Clothes"
   const queue = loadPending();
   const item = queue[0];
-  const word = /^\D+$/.test(t) ? categoryAnswer(t) : null;
   // "pirce 3,000" -> "price 3,000": fix the edit word, keep the value.
   const [first, ...rest] = t.split(/\s+/);
   const kind = rest.length ? editWord(first.replace(/[:=\-]+$/, "")) : null;
   const e = kind ? `${kind} ${rest.join(" ")}` : t;
   if (!item) {
-    if (DONE.test(t) || CANCEL.test(t) || CHANGE.test(t) || (kind && (kind === "name" || /^[₹\d,.\/-]+$/.test(rest.join(""))))) return { reply: "Nothing is waiting to be checked. Send a product photo with a caption to post it." };
+    if (DONE.test(raw) || CANCEL.test(raw) || CHANGE.test(raw) || (kind && (kind === "name" || /^[₹\d,.\/-]+$/.test(rest.join(""))))) return { reply: "Nothing is waiting right now. 📸 Send a product photo to put it on your website." };
     return null;
   }
   const l = item.listing;
-  const next = () => (queue.length ? `\n\n—\n\n${card(queue[0])}` : "");
-  const reshow = (changed) => { savePending(queue); return { reply: card(item, changed), buttons: DRAFT_BUTTONS }; };
+  const nextUp = (out) => {
+    if (!queue.length) return out;
+    const n = step(queue[0], { fresh: true });
+    return { ...n, reply: `${out.reply}\n\n—\n\n${n.reply}` };
+  };
 
-  if (DONE.test(t)) {
-    if (!l.price) return { reply: `💰 It needs a price before it goes live. Send e.g. *price 2499*.`, buttons: ["✏️ Change", "❌ Cancel"] };
-    if (needsSize(l)) return { reply: `📏 What size is “${l.name}”? Send e.g. *M*, *M L XL*, *32 34*, or *free size*.`, buttons: ["✏️ Change", "❌ Cancel"] };
+  if (DONE.test(raw)) {
+    const need = missingField(item);
+    if (need) { const out = step(item); return { ...out, reply: `Almost there! ${out.reply}` }; }
     queue.shift();
     savePending(queue);
     const product = publish({ id: item.id, listing: l, by: item.by, image: item.image });
     const win = celebrate(product);
-    return { reply: liveReply(product, win) + next(), product, celebrate: win, buttons: queue.length ? DRAFT_BUTTONS : undefined };
+    return { ...nextUp({ reply: liveReply(product, win) }), product, celebrate: win };
   }
-  if (CANCEL.test(t)) {
+  if (CANCEL.test(raw)) {
     queue.shift();
     savePending(queue);
     if (item.image) { try { fs.unlinkSync(path.join(UPLOADS, path.basename(item.image))); } catch { /* already gone */ } }
-    return { reply: `🗑️ Dropped “${l.name}”. Nothing went on the website.${next()}`, buttons: queue.length ? DRAFT_BUTTONS : undefined };
+    return nextUp({ reply: `🗑️ Dropped “${l.name}”. Nothing went on the website.` });
   }
-  if (CHANGE.test(t)) return { reply: `✏️ What should I change on “${l.name}”?\n\n${HOW_TO_CHANGE}`, buttons: ["✅ Done", "❌ Cancel"] };
-  if (word) {
-    l.category = word;
-    l.subcategory = findSubcategory(`${l.caption || ""} ${l.name}`, word);
-    item.sure = true;
-    return reshow("section");
+  if (CHANGE.test(raw)) { item.ask = null; savePending(queue); return changeMenu(l); }
+  // Picked a field from the Change menu (or typed just "price").
+  const pick = FIELD_PICK[t.toLowerCase()];
+  if (pick && !(item.ask === "name" || item.ask === "brand")) {
+    const out = question(item, pick);
+    item.fromChange = true;
+    savePending(queue);
+    return out;
   }
-  if (SIZE_ONLY.test(t) && (l.category === "Clothing" || !/^\d{2}$/.test(t))) { l.sizes = formatSizes(t); return reshow("size"); }
+  // The answer to the question just asked.
+  // ("Prince jacket" as a name is an answer, not a mistyped "price".)
+  const isEdit = kind && (["name", "brand", "size"].includes(kind) || /^[₹\d,.\/-]+$/.test(rest.join("")));
+  if (item.ask && !isEdit) {
+    const changed = Boolean(item.fromChange);
+    if (answer(item, item.ask, t)) { delete item.fromChange; return step(item, { changed }); }
+    const f = FIELDS[item.ask];
+    return { reply: `Hmm, I didn't get that. ${NOT_UNDERSTOOD[item.ask]}`, buttons: f.buttons || ["❌ Cancel"], list: f.list };
+  }
+
+  // Shortcuts that still work any time: "price 2999", "qty 3", "M L", "perfume", "2499".
+  const word = /^\D+$/.test(t) ? categoryAnswer(t) : null;
+  if (word) { answer(item, "section", t); return step(item, { changed: true }); }
+  if (SIZE_ONLY.test(t) && (l.category === "Clothing" || !/^\d{2}$/.test(t))) { l.sizes = formatSizes(t); return step(item, { changed: true }); }
   let m;
   if ((m = /^(?:price|rate|rs\.?|₹)\s*[:=\-]?\s*(?:₹|rs\.?)?\s*([\d,]{2,9})(?:\s*\/-)?$/i.exec(e)) || (m = /^(?:₹|rs\.?)?\s*([\d,]{3,9})(?:\s*\/-)?$/i.exec(e))) {
     const n = Number(m[1].replace(/,/g, ""));
-    if (n >= 10) { l.price = n; return reshow("price"); }
+    if (n >= 10) { l.price = n; return step(item, { changed: true }); }
   }
-  if ((m = /^mrp\s*[:=\-]?\s*(?:₹|rs\.?)?\s*([\d,]{2,9})$/i.exec(e))) { l.mrp = Number(m[1].replace(/,/g, "")); return reshow("price"); }
+  if ((m = /^mrp\s*[:=\-]?\s*(?:₹|rs\.?)?\s*([\d,]{2,9})$/i.exec(e))) { l.mrp = Number(m[1].replace(/,/g, "")); return step(item, { changed: true }); }
   if ((m = /^(?:qty|quantity|stock|pcs|pieces|nos)\s*[:=\-]?\s*(\d{1,3})$/i.exec(e)) || (m = /^(\d{1,3})\s*(?:pcs|pc|pieces|piece|nos|qty)$/i.exec(e)) || (m = /^[x×]\s*(\d{1,3})$/i.exec(e))) {
     const n = Number(m[1]);
-    if (n > 0) { l.quantity = n; return reshow("qty"); }
+    if (n > 0) { l.quantity = n; return step(item, { changed: true }); }
   }
-  if ((m = /^name\s*[:=\-]?\s+(.{2,80})$/i.exec(e))) { l.name = m[1].trim(); return reshow("name"); }
-  if ((m = /^brand\s*[:=\-]?\s+(.{2,40})$/i.exec(e))) { l.brand = m[1].trim(); return reshow("brand"); }
-  if ((m = /^sizes?\s*[:=\-]?\s+(.{1,40})$/i.exec(e))) {
-    l.sizes = formatSizes(m[1]);
-    return reshow("size");
-  }
-  // Looks like a new product (words and a price)? Queue it behind this one.
+  if ((m = /^name\s*[:=\-]?\s+(.{2,80})$/i.exec(e))) { l.name = m[1].trim(); return step(item, { changed: true }); }
+  if ((m = /^brand\s*[:=\-]?\s+(.{2,40})$/i.exec(e))) { l.brand = m[1].trim(); return step(item, { changed: true }); }
+  if ((m = /^sizes?\s*[:=\-]?\s+(.{1,40})$/i.exec(e))) { l.sizes = formatSizes(m[1]); return step(item, { changed: true }); }
+  // Looks like a new product typed out (words and a price)? Queue it behind this one.
   const looks = parseMessage(t);
   if (!kind && looks.type === "product" && looks.product.price && looks.product.name !== "New arrival") {
     const id = crypto.randomBytes(6).toString("hex");
     queue.push({ id, listing: looks.product, note: null, by: "rules", image: null, sure: looks.sure, guess: looks.product.category });
     savePending(queue);
-    return { reply: `📝 Got “${looks.product.name}” too. I'll show it to you after “${l.name}”.\n\nFirst, is “${l.name}” ready? Reply *done*, or *cancel* to drop it.`, buttons: DRAFT_BUTTONS };
+    return { reply: `📝 Got “${looks.product.name}” too. I'll ask about it after “${l.name}”.`, buttons: PREVIEW_BUTTONS };
   }
-  return { reply: `🤔 I didn't get that. I'm still holding “${l.name}” for you to check.\n\n${HOW_TO_CHANGE}\n\nOr reply *done* to post it, *cancel* to drop it.`, buttons: DRAFT_BUTTONS };
+  const out = preview(item, `🤔 I didn't get that. Tap a button below, or tap *Change* to fix something.\n\n`);
+  savePending(queue);
+  return out;
 }
 
 function publish({ id, listing, by, image }) {
@@ -800,10 +1079,11 @@ function celebrate(product) {
 }
 
 function liveReply(product, win) {
-  const shelf = [product.category, product.subcategory].filter(Boolean).join(" › ");
-  const bits = [product.brand, rupees(product.price), product.sizes].filter(Boolean).join(" · ");
+  const shelf = [SECTION_LABEL[product.category] || product.category, product.subcategory && product.subcategory !== "Perfume" ? product.subcategory : null].filter(Boolean).join(" › ");
+  const bits = [rupees(product.price), product.sizes, shelf].filter(Boolean).join(" · ");
   const score = [`📈 ${win.postedToday} posted today`, win.streak > 1 ? `🔥 ${win.streak}-day streak` : null, `🛍️ ${win.live} live`].filter(Boolean).join(" · ");
-  return `🎉 *LIVE on your website!*\n*${product.name}*\n${bits}\nin ${shelf}\n\n🔢 Code *${product.code}* · ${product.quantity} in stock\nWhen one sells, send *sold ${product.code}*${product.quantity > 1 ? ` (or *sold ${product.code} 2* for two)` : ""}.\nWrong section? Send *move ${product.code} ${product.category === "Fragrances" ? "clothes" : "perfume"}*.\n\n${score}${win.milestone ? `\n${win.milestone}` : ""}`;
+  const two = product.quantity > 1 ? ` (*sold ${product.code} 2* for two)` : "";
+  return `🎉 *It's live on your website!*\n*${product.name}*\n${bits}\n\n🔢 Code *${product.code}* · ${product.quantity} in stock\nWhen one sells, just send *sold ${product.code}*${two}.\n\n${score}${win.milestone ? `\n${win.milestone}` : ""}\n\n📸 Send the next photo whenever you're ready.`;
 }
 
 // ---- Numbers for the owner: the stats bar on /demo, and the "stats" chat command ----

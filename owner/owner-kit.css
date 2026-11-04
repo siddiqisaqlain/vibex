@@ -49,3 +49,4 @@
 .kit-win em { display: block; margin-top: 4px; font-style: normal; font-weight: 600; color: #ffd23f; font-size: 13px; }
 @keyframes kit-in { from { opacity: 0; transform: translate(-50%, -16px) scale(.92); } }
 @media (prefers-reduced-motion: reduce) { .kit-win, .kit-bump b.kit-num, .kit-plus { animation: none; } }
+.kit-btns button small { display: block; font-size: 11.5px; font-weight: 400; opacity: .7; color: inherit; }

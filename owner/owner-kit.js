@@ -75,15 +75,18 @@ window.OwnerKit = (() => {
   setInterval(refresh, 3000);
 
   // ---------- 2. Reply buttons ----------
-  function buttons(list) {
+  // A WhatsApp list menu shows here as one button per row (the row's id is what gets sent).
+  function buttons(list, menu) {
     document.querySelectorAll(".kit-btns").forEach((b) => b.remove());
+    if (menu && menu.rows && menu.rows.length) list = menu.rows.map((r) => ({ label: r.title, send: r.id || r.title, hint: r.description }));
     if (!list || !list.length) return;
+    list = list.map((b) => (typeof b === "string" ? { label: b, send: b } : b));
     const chat = document.getElementById("chat");
     const msg = [...chat.querySelectorAll(".msg.them")].pop();
     if (!msg) return;
     const row = document.createElement("div");
     row.className = "kit-btns";
-    row.innerHTML = list.map((b) => `<button type="button">${esc(b)}</button>`).join("");
+    row.innerHTML = list.map((b) => `<button type="button" data-send="${esc(b.send)}"${b.hint ? ` title="${esc(b.hint)}"` : ""}>${esc(b.label)}${b.hint ? ` <small>${esc(b.hint)}</small>` : ""}</button>`).join("");
     msg.after(row);
     chat.scrollTop = chat.scrollHeight;
   }
@@ -93,7 +96,7 @@ window.OwnerKit = (() => {
     const text = document.getElementById("text");
     const form = document.getElementById("form");
     b.parentElement.remove();
-    text.value = b.textContent;
+    text.value = b.dataset.send || b.textContent;
     form.requestSubmit();
   });
 
@@ -151,7 +154,7 @@ window.OwnerKit = (() => {
 
   return {
     onReply(data) {
-      buttons(data && data.buttons);
+      buttons(data && data.buttons, data && data.list);
       if (data && data.celebrate) celebrate(data.celebrate);
       refresh();
     },
