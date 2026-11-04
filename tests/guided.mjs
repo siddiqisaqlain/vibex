@@ -30,7 +30,7 @@ await new Promise((r) => graph.listen(0, "127.0.0.1", r));
 const srv = spawn(process.execPath, ["server.js"], {
   cwd: path.resolve(import.meta.dirname, ".."),
   env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", WA_TOKEN: "t", WA_PHONE_ID: "123", WA_APP_SECRET: SECRET,
-    OWNER_WHATSAPP: OWNER, WA_ALBUM_MS: "400", PUBLIC_URL: "https://shop.example", WA_GRAPH_URL: `http://127.0.0.1:${graph.address().port}`, ANTHROPIC_API_KEY: "" },
+    OWNER_WHATSAPP: OWNER, WA_ALBUM_MS: "400", DRAFT_STALE_MS: "1500", PUBLIC_URL: "https://shop.example", WA_GRAPH_URL: `http://127.0.0.1:${graph.address().port}`, ANTHROPIC_API_KEY: "" },
   stdio: ["ignore", "pipe", "pipe"],
 });
 let log = ""; srv.stdout.on("data", (d) => (log += d)); srv.stderr.on("data", (d) => (log += d));
@@ -154,6 +154,32 @@ try {
   const names = (await (await fetch(`${base}/api/products`)).json()).map((p) => p.name);
   for (const x of ["casio watch", "dior sauvage", "jacket"]) assert.ok(names.some((y) => y.toLowerCase().startsWith(x)), `${x} is live`);
   ok("Post all puts the whole batch on the website at once");
+
+  // A wrong selection left unposted, then new photos later: the bot asks before mixing them.
+  m = await owner({ type: "image", image: { id: "media6", caption: "wrong one" } });
+  await new Promise((r) => setTimeout(r, 1700)); // the owner moved on (and maybe cleared the chat)
+  sent.length = 0;
+  for (const id of ["media7", "media8"]) {
+    const raw = JSON.stringify({ entry: [{ changes: [{ value: { messages: [{ id: `wamid.g${++seq}`, from: OWNER, type: "image", image: { id, caption: "" } }] } }] }] });
+    const sig = "sha256=" + crypto.createHmac("sha256", SECRET).update(raw).digest("hex");
+    await fetch(`${base}/webhook`, { method: "POST", headers: { "Content-Type": "application/json", "X-Hub-Signature-256": sig }, body: raw });
+  }
+  for (let i = 0; i < 60 && !sent.length; i++) await new Promise((r) => setTimeout(r, 50));
+  await new Promise((r) => setTimeout(r, 300));
+  m = sent[0];
+  assert.match(body(m), /2 new photos.*1 from before/s);
+  assert.deepEqual(buttons(m), ["🆕 Just the new", "➕ Keep both"]);
+  ok("new photos while an old one waits: the bot asks before mixing them");
+
+  m = await tapButton("🆕 Just the new");
+  assert.match(body(m), /Dropped the 1 old one.*Photo 1 of 2/s);
+  ok("'Just the new' drops the old one and goes through only the new photos");
+
+  m = await text("clear");
+  assert.match(body(m), /Cleared all 2 photos/);
+  m = await text("done");
+  assert.match(body(m), /Nothing is waiting/);
+  ok("'clear' drops everything waiting");
 
   console.log(`\nall ${n} checks passed`);
 } catch (e) {

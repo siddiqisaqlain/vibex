@@ -84,7 +84,11 @@ const save = (items) => fs.writeFileSync(DB, JSON.stringify(items, null, 2));
 // until the owner answers. They are not on the website until then.
 const PENDING = path.join(STORE, "pending.json");
 const loadPending = () => { try { return JSON.parse(fs.readFileSync(PENDING, "utf8")); } catch { return []; } };
-const savePending = (list) => fs.writeFileSync(PENDING, JSON.stringify(list, null, 2));
+// touch = the owner is working on these drafts now (used to spot old, forgotten ones).
+const savePending = (list, touch = true) => {
+  if (touch) for (const x of list) x.touched = Date.now();
+  fs.writeFileSync(PENDING, JSON.stringify(list, null, 2));
+};
 
 const TYPES = {
   ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript",
@@ -326,6 +330,7 @@ _Faster:_ put it all in the caption, e.g. _Zara shirt 1499 M L_, and it's one ta
 *Set stock:* _stock 4795 5_
 *Wrong section:* _move 4795 perfume_ (or clothes, shoes, accessory)
 *Take down:* _remove 4795_
+*Start over:* _clear_ drops every photo still waiting to be posted
 *Orders:* _confirm VX-1234_ or _cancel VX-1234_
 The 4-digit code is the LOT number on the website, and I send it when you post.
 Tip: put *perfume*, *clothes*, *shoes* or *accessory* in the caption and I'll never have to ask which it is.`;
@@ -566,6 +571,8 @@ async function ownerMessage(body) {
   const orderReply = orderCommand(text);
   if (orderReply) return { reply: orderReply };
   if (/^(stats|report|status|aaj|today)$/i.test(text.trim())) return { reply: statsReply() };
+  const cleared = !body.image && (clearCommand(text) || choiceReply(text));
+  if (cleared) return cleared;
   const batched = !body.image && batchReply(text);
   if (batched) return batched;
   const draft = draftReply(text, Boolean(body.image));
@@ -596,6 +603,7 @@ async function ownerMessage(body) {
 
   const item = await makeDraft(text, body.image, parsed);
   const queue = loadPending();
+  if (forgotten(queue)) return askKeepOld(queue, [item]);
   // A photo sent while a batch is open joins the batch.
   const open = queue.find((x) => x.batch);
   if (open) { item.batch = open.batch; queue.push(item); savePending(queue); return batchNext(queue, "📸 Added that one too.\n\n"); }
@@ -637,6 +645,67 @@ async function makeDraft(text, imageData, parsed = parseMessage(text)) {
   return { id, listing, note, by, image: saveImage(imageData, id), sure, guess: listing.category };
 }
 
+// ---- Old, forgotten drafts ----
+// Photos the owner never posted (he moved on, or cleared the chat on his phone, which doesn't
+// reach us) shouldn't silently mix with new ones. If drafts have waited untouched for a while
+// when new photos come in, ask first: just the new ones, or keep both. "clear" drops them all.
+const STALE_MS = Number(process.env.DRAFT_STALE_MS) || 5 * 60e3;
+const dropDraftImage = (x) => { if (x.image) try { fs.unlinkSync(path.join(UPLOADS, path.basename(x.image))); } catch { /* gone */ } };
+const KEEP_BUTTONS = ["🆕 Just the new", "➕ Keep both"];
+function forgotten(queue) {
+  if (queue.some((x) => x.waitChoice)) return true; // still waiting for that answer
+  return queue.length > 0 && Date.now() - Math.max(...queue.map((x) => x.touched || 0)) > STALE_MS;
+}
+function askKeepOld(queue, fresh) {
+  for (const d of fresh) { d.waitChoice = true; delete d.batch; }
+  queue.push(...fresh);
+  savePending(queue, false);
+  const old = queue.filter((x) => !x.waitChoice), nw = queue.filter((x) => x.waitChoice);
+  const names = old.slice(0, 3).map((x) => x.listing.name === "New arrival" ? "a photo with no details" : x.listing.name).join(", ") + (old.length > 3 ? "…" : "");
+  return {
+    reply: `📸 Got ${nw.length === 1 ? "your new photo" : `your ${nw.length} new photos`}.\n\nYou still have *${old.length} from before* that never went live (${names}).\n\nPost just the new ${nw.length === 1 ? "one" : "ones"}, or keep the old ones too?`,
+    buttons: KEEP_BUTTONS,
+  };
+}
+// The answer to askKeepOld(). Returns null when nothing is waiting for it.
+function choiceReply(text) {
+  const queue = loadPending();
+  const nw = queue.filter((x) => x.waitChoice);
+  if (!nw.length) return null;
+  const old = queue.filter((x) => !x.waitChoice);
+  const t = text.trim().replace(/^[^\p{L}\p{N}]+/u, "").trim();
+  let list, lead = "";
+  if (/^(just the new|just new|only new|new only|new|drop old|start fresh)$/i.test(t)) {
+    old.forEach(dropDraftImage);
+    list = nw;
+    lead = `🗑️ Dropped the ${old.length} old one${old.length === 1 ? "" : "s"}.\n\n`;
+  } else if (/^(keep both|both|keep|keep all)$/i.test(t)) {
+    list = [...old, ...nw];
+  } else {
+    return { reply: `First, about the photos from before: post just the new ${nw.length === 1 ? "one" : "ones"}, or keep the old ones too?`, buttons: KEEP_BUTTONS };
+  }
+  for (const x of list) { delete x.waitChoice; x.ask = null; }
+  if (list.length > 1) {
+    const b = list.find((x) => x.batch)?.batch || crypto.randomBytes(4).toString("hex");
+    for (const x of list) x.batch = b;
+    savePending(list);
+    return batchNext(list, lead);
+  }
+  delete list[0].batch;
+  savePending(list);
+  const out = step(list[0], { fresh: true });
+  return { ...out, reply: lead + out.reply };
+}
+// "clear" / "start over": drop every photo waiting to be posted.
+function clearCommand(text) {
+  if (!/^(clear|clear all|start over|cancel all|discard all)[.!]*$/i.test(text.trim().replace(/^[^\p{L}]+/u, ""))) return null;
+  const queue = loadPending();
+  if (!queue.length) return { reply: "Nothing is waiting to be posted. 📸 Send a photo whenever you're ready." };
+  queue.forEach(dropDraftImage);
+  savePending([]);
+  return { reply: `🗑️ Cleared ${queue.length === 1 ? "the photo" : `all ${queue.length} photos`} waiting to be posted. Nothing went on the website.\n\n📸 Send new photos whenever you're ready.` };
+}
+
 // ---- Many photos at once: today's whole stock in one go ----
 // The owner sends every photo together (captions optional, e.g. just "2499 M L"). The bot reads
 // them all, then asks ONE question per photo that still needs something, showing that photo,
@@ -649,6 +718,7 @@ async function batchMessage(photos) {
     drafts.push(...part);
   }
   const queue = loadPending();
+  if (forgotten(queue)) return askKeepOld(queue, drafts);
   const open = queue.find((x) => x.batch);
   for (const d of drafts) d.batch = open ? open.batch : batch;
   queue.push(...drafts);
