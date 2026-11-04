@@ -136,7 +136,13 @@ try {
   assert.equal(sent.length, 1, `one reply for the whole album, got ${sent.length}`);
   m = sent[0];
   assert.match(body(m), /Got 3 photos\. 2 ready, 1 needs/);
-  assert.match(body(m), /Photo 1 of 3/);
+  assert.match(body(m), /Are they all \*\w+\*\?/);
+  assert.equal(buttons(m).length, 3);
+  assert.equal(buttons(m)[1], "🔀 Mixed");
+  for (const b of buttons(m)) assert.ok(b.length <= 20, b);
+  ok("an unsure batch starts with one question for all photos: Are they all …? / Mixed / Something else");
+  m = await tapButton("🔀 Mixed");
+  assert.match(body(m), /check each one.*Photo 1 of 3/s);
   assert.equal(m.interactive?.header?.type, "image", "the question shows the photo it's about");
   assert.match(m.interactive.header.image.link, /^https:\/\/shop\.example\/uploads\//);
   assert.deepEqual(buttons(m), ["⏭️ Skip", "🗂️ Wrong section"]);
@@ -172,7 +178,14 @@ try {
   ok("new photos while an old one waits: the bot asks before mixing them");
 
   m = await tapButton("🆕 Just the new");
-  assert.match(body(m), /Dropped the 1 old one.*Photo 1 of 2/s);
+  assert.match(body(m), /Dropped the 1 old one.*Are they all/s);
+  m = await tapButton("🗂️ Something else");
+  assert.deepEqual(rows(m).map((r) => r.id), ["All clothes", "All perfume", "All shoes", "All accessories", "Mixed"]);
+  m = await tapRow("All accessories", "All accessories");
+  assert.match(body(m), /All accessories.*Photo 1 of 2/s);
+  const q = JSON.parse(fs.readFileSync(path.join(dir, "pending.json"), "utf8"));
+  assert.ok(q.every((x) => x.listing.category === "Accessories" && x.sure && !x.groupAsk), "all set to Accessories");
+  ok("'Something else' -> All accessories sets the section for every photo, then per-photo questions");
   ok("'Just the new' drops the old one and goes through only the new photos");
 
   m = await text("clear");

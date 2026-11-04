@@ -256,6 +256,20 @@ function newOrderCode(orders) {
   }
 }
 
+// Discount codes from shop.json → offers, e.g. { code: "FIRST10", percent: 10, firstOrderOnly: true }.
+// The server works out the price; the checkout only shows it.
+const OFFERS = (SHOP.offers || []).filter((o) => o && o.code && o.percent > 0 && o.percent < 100);
+function applyOffer(raw, phone, orders) {
+  const want = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
+  if (!want) return null;
+  const offer = OFFERS.find((o) => o.code.toUpperCase() === want);
+  if (!offer) return { error: `“${want.slice(0, 20)}” isn't a valid code.` };
+  if (offer.firstOrderOnly && orders.some((o) => o.phone === phone && o.status !== "cancelled")) {
+    return { error: `${offer.code} is for your first order only, and this number has ordered before.` };
+  }
+  return { offer };
+}
+
 async function createOrder(req, res) {
   let b;
   try { b = JSON.parse(await readBody(req, 20 * 1024)); } catch { return send(res, 400, { error: "Something went wrong. Please try again." }); }
@@ -279,15 +293,19 @@ async function createOrder(req, res) {
     return send(res, 400, { error: "Please add your full address, city and 6 digit PIN code." });
   }
   const orders = loadOrders();
+  const promo = applyOffer(b.promo, phone, orders);
+  if (promo && promo.error) return send(res, 400, { error: promo.error });
+  const discount = promo ? Math.round((p.price * promo.offer.percent) / 100) : 0;
   const order = {
     id: crypto.randomBytes(8).toString("hex"), code: newOrderCode(orders),
-    productId: p.id, productName: p.name, lot: lotOf(p), amount: p.price,
+    productId: p.id, productName: p.name, lot: lotOf(p), amount: p.price - discount,
+    ...(promo ? { promo: promo.offer.code, discount, fullPrice: p.price } : {}),
     name, phone, delivery, address, city, pin,
     status: "awaiting_payment", createdAt: new Date().toISOString(),
   };
   orders.push(order);
   saveOrders(orders);
-  send(res, 200, { id: order.id, code: order.code, amount: order.amount, lot: order.lot });
+  send(res, 200, { id: order.id, code: order.code, amount: order.amount, lot: order.lot, promo: order.promo || null, discount });
 }
 
 async function orderPaid(req, res, id) {
@@ -316,7 +334,7 @@ async function orderPaid(req, res, id) {
     id: crypto.randomBytes(6).toString("hex"), at: new Date().toISOString(), kind: "order",
     summary: { kind: "order", ref: o.code },
     image: proof || (p && p.image) || null,
-    text: `💰 *New order ${o.code}: check the payment*\n*${o.productName}* · ${inr(o.amount)} · ${o.lot}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 ${utr ? `Payment ref: ${utr}` : "Payment screenshot above"}\n\nCheck your bank or UPI app for ${inr(o.amount)}, then reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
+    text: `💰 *New order ${o.code}: check the payment*\n*${o.productName}* · ${inr(o.amount)}${o.promo ? ` (${o.promo}: ${inr(o.fullPrice)} − ${inr(o.discount)})` : ""} · ${o.lot}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 ${utr ? `Payment ref: ${utr}` : "Payment screenshot above"}\n\nCheck your bank or UPI app for ${inr(o.amount)}, then reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
   });
   send(res, 200, { code: o.code, status: o.status });
 }
@@ -688,6 +706,7 @@ function choiceReply(text) {
   if (list.length > 1) {
     const b = list.find((x) => x.batch)?.batch || crypto.randomBytes(4).toString("hex");
     for (const x of list) x.batch = b;
+    markGroupAsk(list);
     savePending(list);
     return batchNext(list, lead);
   }
@@ -721,12 +740,62 @@ async function batchMessage(photos) {
   if (forgotten(queue)) return askKeepOld(queue, drafts);
   const open = queue.find((x) => x.batch);
   for (const d of drafts) d.batch = open ? open.batch : batch;
+  markGroupAsk(drafts);
   queue.push(...drafts);
   savePending(queue);
   const todo = queue.filter((x) => x.batch && batchMissing(x).length).length;
   const ready = queue.filter((x) => x.batch).length - todo;
   const lead = `📸 Got ${drafts.length} photos${open ? " more" : ""}.${ready ? ` ${ready} ready` : ""}${ready && todo ? "," : ""}${todo ? ` ${todo} need${todo === 1 ? "s" : ""} a detail or two. Let's go 👇` : ""}\n\n`;
   return batchNext(queue, lead);
+}
+
+// ---- One question for the whole batch: "Are they all perfume?" ----
+// Asked before the per-photo questions when the bot isn't sure what some photos are. The guess
+// is what most photos look like; one tap sets the section for all of them.
+const GROUP_WORD = { Clothing: "clothes", Fragrances: "perfume", Footwear: "shoes", Accessories: "accessories" };
+const GROUP_ROWS = Object.entries(GROUP_WORD).map(([c, w]) => ({ id: `All ${w}`, title: `All ${w}` })).concat([{ id: "Mixed", title: "🔀 Mixed, ask each" }]);
+function markGroupAsk(list) {
+  if (list.length > 1 && list.some((x) => !x.sure)) for (const x of list) x.groupAsk = true;
+}
+function groupGuess(items) {
+  const count = {};
+  for (const x of items) count[x.listing.category] = (count[x.listing.category] || 0) + (x.sure ? 2 : 1); // sure ones count double
+  return Object.entries(count).sort((a, b) => b[1] - a[1])[0][0];
+}
+function groupQuestion(items, lead = "") {
+  const guess = groupGuess(items);
+  const g = GROUP_WORD[guess];
+  return {
+    reply: `${lead}🗂️ Are they all *${g}*?\n(${items.length} photos)`,
+    buttons: [`✅ All ${g}`, "🔀 Mixed", "🗂️ Something else"],
+  };
+}
+function groupAnswer(queue, items, t) {
+  let m;
+  const word = (m = /^(?:yes,?\s*)?all\s+(.+)$/i.exec(t)) ? m[1].trim().toLowerCase() : null;
+  if (word) {
+    const cat = Object.keys(GROUP_WORD).find((c) => GROUP_WORD[c] === word) || categoryAnswer(word);
+    if (!cat) return { reply: "Which section are they all in?", list: { button: "Choose", rows: GROUP_ROWS } };
+    for (const x of items) {
+      delete x.groupAsk;
+      const l = x.listing;
+      if (l.category !== cat) { l.category = cat; l.subcategory = findSubcategory(`${l.caption || ""} ${l.name}`, cat); }
+      x.sure = true;
+    }
+    savePending(queue);
+    return batchNext(queue, `👍 All ${GROUP_WORD[cat]}.\n\n`);
+  }
+  if (/^(mixed|mix|mixed,? ask each|no)$/i.test(t)) {
+    for (const x of items) delete x.groupAsk;
+    savePending(queue);
+    return batchNext(queue, "👍 I'll check each one.\n\n");
+  }
+  if (/^(something else|other|else)$/i.test(t)) return { reply: "🗂️ Which section are they all in?", list: { button: "Choose", rows: GROUP_ROWS } };
+  if (/^(yes|y|haan|ha|ji|ok)$/i.test(t)) return groupAnswer(queue, items, `all ${GROUP_WORD[groupGuess(items)]}`);
+  const cat = categoryAnswer(t); // "perfume" on its own = all perfume
+  if (cat) return groupAnswer(queue, items, `all ${GROUP_WORD[cat]}`);
+  const q = groupQuestion(items);
+  return { ...q, reply: `First, one quick question for all ${items.length} photos.\n\n${q.reply}` };
 }
 
 // What a batch photo still needs, in the order it's asked.
@@ -746,6 +815,7 @@ const absolute = (img) => (img && siteUrl() && img.startsWith("/") ? siteUrl() +
 function batchNext(queue, lead = "") {
   const items = queue.filter((x) => x.batch);
   if (!items.length) return null;
+  if (items.some((x) => x.groupAsk)) return groupQuestion(items, lead);
   const todo = items.filter((x) => batchMissing(x).length);
   if (!todo.length) return batchSummary(items, lead);
   const item = todo[0];
@@ -756,7 +826,12 @@ function batchNext(queue, lead = "") {
   const what = `${SECTION_LABEL[l.category]}${item.sure ? "" : "?"}`;
   let ask, buttons = ["⏭️ Skip", "🗂️ Wrong section"];
   if (need.includes("name")) {
-    ask = `What is it, and the price?\ne.g. *Dior Sauvage 3200* or *Zara jacket 2499 M L*`;
+    // Examples fit the section once it's known (e.g. after "All perfume").
+    const EG = { Clothing: ["Zara jacket", " 2499 M L"], Fragrances: ["Dior Sauvage", " 3200"], Footwear: ["Nike Air Max", " 4500 UK 9"], Accessories: ["Casio watch", " 1800"] };
+    const eg = item.sure ? EG[l.category] : null;
+    const wantPrice = need.includes("price");
+    const egText = eg ? `*${eg[0]}${wantPrice ? eg[1] : ""}*` : wantPrice ? "*Dior Sauvage 3200* or *Zara jacket 2499 M L*" : "*Dior Sauvage* or *Zara jacket*";
+    ask = `${wantPrice ? "What is it, and the price?" : `What is it? (${rupees(l.price)})`}\ne.g. ${egText}`;
   } else if (need.includes("price")) {
     ask = `*${l.name}* · ${what}\nSend the price${need.includes("size") ? " and sizes" : ""}, e.g. *2499${sizeHint}*`;
   } else if (need.includes("size")) {
@@ -806,6 +881,7 @@ function batchReply(text) {
   if (!items.length) return null;
   const raw = text.trim();
   const t = raw.replace(/^[^\p{L}\p{N}₹]+/u, "").trim();
+  if (items.some((x) => x.groupAsk)) return groupAnswer(queue, items, t);
   const dropImage = (x) => { if (x.image) try { fs.unlinkSync(path.join(UPLOADS, path.basename(x.image))); } catch { /* gone */ } };
   const todo = items.filter((x) => batchMissing(x).length);
 
@@ -1156,6 +1232,16 @@ function liveReply(product, win) {
   return `🎉 *It's live on your website!*\n*${product.name}*\n${bits}\n\n🔢 Code *${product.code}* · ${product.quantity} in stock\nWhen one sells, just send *sold ${product.code}*${two}.\n\n${score}${win.milestone ? `\n${win.milestone}` : ""}\n\n📸 Send the next photo whenever you're ready.`;
 }
 
+// ---- Real recent sales for the shop's "just sold" note (public: item and time only, no buyer) ----
+function recentSales() {
+  const byId = new Map(load().map((p) => [p.id, p]));
+  const since = Date.now() - 72 * 3600e3;
+  return loadActivity()
+    .filter((a) => a.type === "sold" && new Date(a.at) > since && byId.has(a.id))
+    .slice(-10).reverse()
+    .map((a) => { const p = byId.get(a.id); return { id: p.id, name: p.name, image: p.image || null, qty: a.qty || 1, at: a.at }; });
+}
+
 // ---- Numbers for the owner: the stats bar on /demo, and the "stats" chat command ----
 function stats() {
   const items = load();
@@ -1215,6 +1301,7 @@ http
     const p = decodeURIComponent(url.pathname);
     try {
       if (req.method === "GET" && p === "/api/products") return send(res, 200, load());
+      if (req.method === "GET" && p === "/api/recent-sales") return send(res, 200, recentSales());
       if (p === "/webhook" && (req.method === "GET" || req.method === "POST")) return await whatsappWebhook(req, res, url);
       if (req.method === "POST" && p === "/api/enquiry") return await handleEnquiry(req, res);
       if (req.method === "POST" && p === "/api/orders") return await createOrder(req, res);

@@ -34,11 +34,16 @@ a { color: inherit; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(31,138,76,.55); } 70% { box-shadow: 0 0 0 8px rgba(31,138,76,0); } 100% { box-shadow: 0 0 0 0 rgba(31,138,76,0); } }
 
 /* ticker */
-.ticker { background: var(--orange); color: var(--ink); overflow: hidden; white-space: nowrap; border-bottom: 2px solid var(--ink); }
-.ticker-track { display: inline-flex; padding: 7px 0; font: 600 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; animation: slide 38s linear infinite; }
-.ticker-track span { padding: 0 22px; }
-.ticker-track span::after { content: "✦"; margin-left: 44px; }
-@keyframes slide { to { transform: translateX(-50%); } }
+/* Top banner: a slim red bar with a soft drop shadow. The messages sit side by side in one strip
+   that glides left one message at a time (like a slider), then loops seamlessly. */
+.ticker { position: relative; z-index: 5; background: #e92e30; color: #fff; overflow: hidden; box-shadow: 0 3px 10px rgba(160, 24, 26, .28); }
+.ticker-track { display: flex; will-change: transform; }
+.ticker-track.glide { transition: transform .8s cubic-bezier(.65, 0, .35, 1); }
+.ticker-track span { flex: 0 0 100%; box-sizing: border-box; padding: 8px 16px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font: 700 12.5px/1.25 "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; letter-spacing: .2em; text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(110, 10, 12, .35); -webkit-font-smoothing: antialiased; }
+@media (max-width: 480px) { .ticker-track span { font-size: 11px; letter-spacing: .14em; padding: 8px 12px; } }
+@media (prefers-reduced-motion: reduce) { .ticker-track.glide { transition: none; } }
 
 /* header */
 .top { position: sticky; top: 0; z-index: 20; background: rgba(236,230,216,.92); backdrop-filter: blur(10px); border-bottom: 2px solid var(--ink); }
@@ -461,3 +466,13 @@ body.menu-open { overflow: hidden; }
 .consent a { color: inherit; text-decoration: underline; }
 
 @media (max-width: 767px) { .hero h1 em { -webkit-text-stroke-width: 1.5px; } }
+
+/* real-stock badges, stacked top-right on the photo */
+.badges { position: absolute; top: 10px; right: 10px; z-index: 2; pointer-events: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.badges .badge { position: static; }
+.badge-low { background: var(--ink); color: var(--paper); }
+@media (max-width: 520px) { .badges { top: 8px; right: 8px; gap: 4px; } }
+
+/* Discount code note under the field */
+.co-promo { margin: -4px 0 10px; font: 600 13px/1.3 var(--mono); color: #b3261e; }
+.co-promo.ok { color: var(--green); }

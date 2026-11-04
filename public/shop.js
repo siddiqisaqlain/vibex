@@ -49,13 +49,34 @@
     return `<div class="media ${p.image ? "" : "art-bg"} ${extraClass}">${pic}<a class="cover" href="/p/${encodeURIComponent(p.id)}" aria-label="${esc(p.name)}"></a>`;
   }
 
+  // Real sales from the last 72 hours (/api/recent-sales): drive "Last one", "Sold 3h ago" and the toast.
+  let sales = [];
+  const soldAt = (p) => sales.find((s) => s.id === p.id)?.at;
+  const agoAt = (at) => {
+    const m = Math.floor((Date.now() - new Date(at)) / 60e3);
+    if (m < 2) return "just now";
+    if (m < 60) return `${m} min ago`;
+    const h = Math.floor(m / 60);
+    return h < 24 ? `${h}h ago` : h < 48 ? "yesterday" : `${Math.floor(h / 24)}d ago`;
+  };
+  // Badges only say what is true right now: fresh posts and real stock counts.
+  function badges(p) {
+    const out = [];
+    if (isNew(p)) out.push(`<span class="badge">${hoursOld(p) < 24 ? "New today" : "Just in"}</span>`);
+    if (p.status === "available") {
+      if (p.quantity >= 2 && p.quantity <= 3) out.push(`<span class="badge badge-low">Only ${p.quantity} left</span>`);
+      else if (p.quantity === 1 && soldAt(p)) out.push(`<span class="badge badge-low">Last one</span>`);
+    }
+    return out.length ? `<div class="badges">${out.join("")}</div>` : "";
+  }
+
   function card(p, eager) {
     const off = offPct(p);
     return `
       <article class="card${p.status === "sold" ? " sold" : ""}" data-id="${esc(p.id)}" data-cat="${esc(p.category)}">
         ${media(p, "", eager)}
           <span class="lot">${lot(p)}</span>
-          ${isNew(p) ? `<span class="badge">Just in</span>` : ""}
+          ${badges(p)}
           <div class="tag">
             <b>${p.price ? rupees(p.price) : "Ask"}</b>
             ${off ? `<s>${rupees(p.mrp)}</s><span class="off">−${off}%</span>` : ""}
@@ -66,7 +87,7 @@
         <div class="info">
           ${p.brand ? `<span class="brand">${esc(p.brand)}</span>` : ""}
           <h3 class="name"><a href="/p/${encodeURIComponent(p.id)}">${esc(p.name)}</a></h3>
-          <span class="meta">${[p.subcategory, p.sizes, p.quantity > 1 && p.status !== "sold" ? `${p.quantity} left` : null, ago(p)].filter(Boolean).map(esc).join(" · ")}</span>
+          <span class="meta">${[p.subcategory, p.sizes, p.quantity > 1 && p.status !== "sold" ? `${p.quantity} left` : null, p.status === "sold" && soldAt(p) ? `sold ${agoAt(soldAt(p))}` : ago(p)].filter(Boolean).map(esc).join(" · ")}</span>
           ${window.VXOrder.button(p)}
         </div>
       </article>`;
@@ -112,8 +133,27 @@
     const row = live.map((b) => `<span>${esc(b)}</span>`).join("");
     $("brands").innerHTML = row + row + row;
     $("brands").parentElement.hidden = live.length < 3;
-    const t = ((S.claims && S.claims.ticker) || []).map((x) => `<span>${esc(x)}</span>`).join("");
-    $("ticker").innerHTML = t + t + t + t;
+    // Top banner: one message at a time. The strip glides left by one message every few seconds;
+    // a copy of the first message at the end lets it loop without a jump.
+    const msgs = (S.claims && S.claims.ticker) || [];
+    const bar = $("ticker");
+    bar.parentElement.hidden = !msgs.length;
+    bar.innerHTML = [...msgs, ...msgs.slice(0, 1)].map((x) => `<span>${esc(x)}</span>`).join("");
+    clearInterval(bar._spin);
+    if (msgs.length > 1) {
+      let i = 0;
+      bar._spin = setInterval(() => {
+        if (document.hidden) return;
+        i += 1;
+        bar.classList.add("glide");
+        bar.style.transform = `translateX(-${i * 100}%)`;
+        if (i === msgs.length) setTimeout(() => { // reached the copy: snap back to the real first one, unseen
+          bar.classList.remove("glide");
+          bar.style.transform = "translateX(0)";
+          i = 0;
+        }, 850);
+      }, 4000);
+    }
   }
 
   function renderFilters() {
@@ -248,6 +288,39 @@
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     $("toast").hidden = true;
   });
+
+  // ---- "Just sold" note: only real sales (the owner's "sold" or a confirmed order), no buyer details ----
+  const SEEN_KEY = "vx-sales-seen";
+  let seen = new Set();
+  try { seen = new Set(JSON.parse(sessionStorage.getItem(SEEN_KEY) || "[]")); } catch { /* private mode */ }
+  let shownThisVisit = 0;
+  const saleKey = (s) => `${s.id}@${s.at}`;
+  function showSale() {
+    const t = $("toast");
+    if (!t.hidden || shownThisVisit >= 3) return; // never cover another note; at most 3 a visit
+    const s = sales.find((x) => !seen.has(saleKey(x)));
+    if (!s) return;
+    seen.add(saleKey(s));
+    try { sessionStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch { /* fine */ }
+    shownThisVisit++;
+    const fresh = Date.now() - new Date(s.at) < 3600e3;
+    toast(`<b>🛍️ Sold</b><span>Someone ${fresh ? "just " : ""}bought ${esc(s.name)}${s.qty > 1 ? ` (×${s.qty})` : ""}${agoAt(s.at) === "just now" ? "" : ` · ${agoAt(s.at)}`}</span>`);
+  }
+  let salesJson = "";
+  async function refreshSales() {
+    try {
+      const res = await fetch("/api/recent-sales", { cache: "no-store" });
+      if (!res.ok) return;
+      const json = await res.text();
+      if (json === salesJson) return;
+      salesJson = json;
+      sales = JSON.parse(json);
+      if (products.length) renderGrid();
+    } catch { /* server restarting */ }
+  }
+  refreshSales().then(() => setTimeout(showSale, 6000));
+  setInterval(refreshSales, 15000);
+  setInterval(showSale, 30000);
 
   // Phones pause background tabs; catch up the moment the page is shown again.
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });

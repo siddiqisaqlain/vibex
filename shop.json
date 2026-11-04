@@ -66,10 +66,21 @@
       }
     ],
     "ticker": [
-      "New drops posted daily",
-      "100% original",
-      "Pan-India shipping",
-      "Srinagar, Kashmir"
-    ]
-  }
+      "Express delivery across 15K+ pincodes in India",
+      "Trusted by 2 lakh+ customers across India",
+      "Get 10% off with code FIRST10",
+      "100% original world brands",
+      "New drops posted every day"
+    ],
+    "_tickerNote": "Banner lines given by the agency on 2026-11-04 (customer count and delivery reach not yet confirmed in writing by the owner)."
+  },
+  "offers": [
+    {
+      "_note": "Discount codes the checkout accepts. The banner advertises FIRST10, so keep it here while that line is up.",
+      "code": "FIRST10",
+      "percent": 10,
+      "firstOrderOnly": true,
+      "label": "10% off your first order"
+    }
+  ]
 }
