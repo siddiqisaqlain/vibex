@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vibe X · The Surplus Store, Srinagar</title>
+<meta name="description" content="Original world-brand surplus clothing, footwear and fragrances. Srinagar, Kashmir. Pan-India shipping.">
+<meta name="theme-color" content="#e92e30">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/shop.css">
+</head>
+<body class="home">
+<script src="/intro.js"></script>
+
+<div class="ticker" aria-hidden="true"><div class="ticker-track" id="ticker"></div></div>
+
+<header class="top">
+  <div class="wrap top-row">
+    <button class="menu-btn" type="button" aria-expanded="false" aria-controls="menu" aria-label="Open menu"><span></span><span></span></button>
+    <a class="logo" href="/" aria-label="Vibe X home">VIBE<span>X</span></a>
+    <nav class="nav" aria-label="Main">
+      <a href="#rack" data-jump="New">New in</a>
+      <a href="#rack" data-jump="Clothing">Clothing</a>
+      <a href="#rack" data-jump="Fragrances">Fragrances</a>
+      <a href="#rack" data-jump="Footwear">Footwear</a>
+      <a href="#visit">Our store</a>
+    </nav>
+    <div class="icons">
+      <a class="icon" id="wa-top" target="_blank" rel="noopener" aria-label="WhatsApp us">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5l1.3-4.2A8.5 8.5 0 1 1 8 19.3z"/><path d="M9 8.5c0 3.5 3 6.5 6.5 6.5l1-1.6-2-1-1 .8a5 5 0 0 1-2.7-2.7l.8-1-1-2z"/></svg>
+      </a>
+      <a class="icon" id="ig-top" target="_blank" rel="noopener" aria-label="Instagram">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r=".6"/></svg>
+      </a>
+    </div>
+  </div>
+</header>
+<div class="menu" id="menu" hidden>
+  <a href="#rack" data-jump="New">New in</a>
+  <a href="#rack" data-jump="Clothing">Clothing</a>
+  <a href="#rack" data-jump="Fragrances">Fragrances</a>
+  <a href="#rack" data-jump="Footwear">Footwear</a>
+  <a href="#visit">Visit our store</a>
+  <a href="/returns">Returns and refunds</a>
+  <a id="ig-menu" target="_blank" rel="noopener">Instagram ↗</a>
+</div>
+
+<main>
+  <nav class="cat-tabs" id="cat-tabs" aria-label="Shop by category"></nav>
+
+  <section class="slider" id="slider" aria-roledescription="carousel" aria-label="Featured">
+    <div class="slides" id="slides"></div>
+    <div class="slider-dots" id="slider-dots"></div>
+  </section>
+
+  <section class="trust wrap" id="stats" aria-label="Why Vibe X"></section>
+
+  <section class="range wrap" aria-labelledby="range-h">
+    <h2 class="sec-h" id="range-h">Shop our range</h2>
+    <div class="range-row" id="range"></div>
+  </section>
+
+  <section class="rack wrap" id="rack">
+    <div class="rack-head">
+      <h2 class="sec-h">Fresh off the truck</h2>
+      <p class="live-note"><span class="dot"></span>Live from the store. Posted on WhatsApp, listed here in seconds.</p>
+    </div>
+    <div class="tabs" id="filters" role="tablist" aria-label="Category"></div>
+    <div class="subs" id="subs" hidden></div>
+    <div class="active-filters" id="active" hidden></div>
+    <div id="grid"></div>
+    <p class="empty" id="empty" hidden>Nothing here right now. New stock lands most days.</p>
+    <div class="more-wrap"><button class="more" id="more" type="button" hidden>Load more</button><span class="count" id="count"></span></div>
+  </section>
+
+  <section class="shop-by wrap" aria-label="Shop by size and price">
+    <div class="panel" id="by-size">
+      <h2 class="sec-h">Shop by size</h2>
+      <div class="pills" id="sizes"></div>
+    </div>
+    <div class="panel" id="by-price">
+      <h2 class="sec-h">Shop by price</h2>
+      <div class="pills" id="prices"></div>
+    </div>
+  </section>
+
+  <section class="panel brands-panel wrap-in" id="by-brand" hidden>
+    <h2 class="sec-h">Shop by brand</h2>
+    <div class="pills pills-scroll" id="brands"></div>
+  </section>
+
+  <section class="looks wrap" id="looks-sec" aria-labelledby="looks-h" hidden>
+    <h2 class="sec-h" id="looks-h">Just landed</h2>
+    <div class="looks-grid" id="looks"></div>
+  </section>
+
+  <section class="how wrap" aria-label="How to order">
+    <h2 class="sec-h">How it works</h2>
+    <ol>
+      <li><span>01</span><b>Spot it here</b><p>Every piece is real stock in our Srinagar store, posted the moment it's unpacked.</p></li>
+      <li><span>02</span><b>Order or enquire</b><p>Pay by UPI in a minute, or message us on WhatsApp about the exact piece.</p></li>
+      <li><span>03</span><b>Wear it</b><p>Pick it up from the store, or get it shipped anywhere in India.</p></li>
+    </ol>
+  </section>
+
+  <section class="store wrap" id="visit" aria-labelledby="store-h">
+    <h2 class="sec-h" id="store-h">Our store</h2>
+    <div class="store-card">
+      <div class="store-pic" id="store-pic" aria-hidden="true"></div>
+      <div class="store-info">
+        <p class="store-tag">Flagship · Srinagar</p>
+        <h3>Vibe X, The Surplus Store</h3>
+        <p id="store-addr"></p>
+        <p class="store-line"><b>Call / WhatsApp</b> <a id="store-phone"></a></p>
+        <p class="store-line"><b>New stock</b> unpacked most days</p>
+        <div class="store-cta">
+          <a class="btn btn-red" id="map-visit" target="_blank" rel="noopener">Get directions</a>
+          <a class="btn btn-line" id="ig-visit" target="_blank" rel="noopener">@vibex.india</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-grid">
+    <div class="foot-brand">
+      <div class="logo logo-foot">VIBE<span>X</span></div>
+      <p>World brands. One destination. Original surplus from the labels you know, at a fraction of retail.</p>
+    </div>
+    <div>
+      <h4>Shop</h4>
+      <a href="#rack" data-jump="New">New in</a><a href="#rack" data-jump="Clothing">Clothing</a><a href="#rack" data-jump="Fragrances">Fragrances</a><a href="#rack" data-jump="Footwear">Footwear</a>
+    </div>
+    <div>
+      <h4>Quick links</h4>
+      <a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a>
+    </div>
+    <div>
+      <h4>Get in touch</h4>
+      <a id="wa-foot" target="_blank" rel="noopener">WhatsApp</a><a id="ig-foot" target="_blank" rel="noopener">Instagram</a><a id="map-foot" target="_blank" rel="noopener">Directions</a>
+    </div>
+  </div>
+  <div class="wrap foot-base">
+    <p class="foot-biz" id="foot-biz"></p>
+    <span>© 2026 Vibe X</span>
+  </div>
+</footer>
+
+<nav class="dock" id="dock" aria-label="Quick">
+  <a href="#top-of-page" class="on" data-dock="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg><span>Home</span></a>
+  <a href="#rack" data-jump="All"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg><span>Shop</span></a>
+  <a href="#rack" data-jump="New"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.4 5.6 6.1.5-4.6 4 1.4 6-5.3-3.2L6.7 19l1.4-6-4.6-4 6.1-.5z"/></svg><span>New in</span></a>
+  <a id="wa-dock" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5l1.3-4.2A8.5 8.5 0 1 1 8 19.3z"/></svg><span>WhatsApp</span></a>
+  <a href="#visit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg><span>Store</span></a>
+</nav>
+
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="/config.js"></script>
+<script src="/art.js"></script>
+<script src="/order.js"></script>
+<script src="/vendor/qrcode.js"></script>
+<script src="/checkout.js"></script>
+<script src="/menu.js"></script>
+<script src="/shop.js"></script>
+<script src="/motion.js"></script>
+</body>
+</html>

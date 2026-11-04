@@ -21,7 +21,7 @@ const ROOT = __dirname;
 // DESIGN picks a saved design instead of the current one in public/:
 //   public/ = current (surplus price-tag style); saved: v1 first surplus, v2 dark minimal,
 //   v3 colourful, v4 surplus look on the v2 layout, v5 department-store look (all in designs/)
-const DESIGNS = { v1: "v1-surplus", v2: "v2-dark", v3: "v3-colour", v4: "v4-mix", v5: "v5-bear" };
+const DESIGNS = { v1: "v1-surplus", v2: "v2-dark", v3: "v3-colour", v4: "v4-mix", v5: "v5-bear", v5c: "v5-classic" };
 const PUBLIC = DESIGNS[process.env.DESIGN] ? path.join(ROOT, "designs", DESIGNS[process.env.DESIGN]) : path.join(ROOT, "public");
 // Which page frame the active design uses for product, policy and 404 pages ("v1" or "v2").
 const SHELL = (() => { try { return JSON.parse(fs.readFileSync(path.join(PUBLIC, "design.json"), "utf8")).shell; } catch { return "v2"; } })();
