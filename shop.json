@@ -118,6 +118,7 @@
     "youtube": "@vibe X",
     "terms": "1. Goods once sold will not be taken back or exchanged",
     "logo": "",
-    "_billNote": "headerLine, email, youtube and terms are copied from his myBillBook bill 7650. logo: put the image in public/ and set the path, e.g. /logo.png. terms prints on counter bills only; website-order bills point to the website returns policy instead."
+    "_billNote": "headerLine, email, youtube and terms are copied from his myBillBook bill 7650. logo: put the image in public/ and set the path, e.g. /logo.png. terms prints on counter bills only; website-order bills point to the website returns policy instead.",
+    "lowStockAt": 1
   }
 }

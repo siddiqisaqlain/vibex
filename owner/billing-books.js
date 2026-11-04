@@ -89,6 +89,8 @@
       <p class="sub">${esc([p.phone, p.gstin, p.address].filter(Boolean).join(" · "))}${p.creditLimit ? ` · Limit ${inr(p.creditLimit)}` : ""}</p>
       <div class="summary"><div>Balance<span style="display:block;font-size:17px">${bal(balance)}</span></div></div>
       ${remind ? `<a class="tbtn" href="${remind}" target="_blank" rel="noopener">Send WhatsApp reminder</a>` : ""}
+      <button class="tbtn" id="shareLedger">${p.shareToken ? "Stop sharing ledger" : "Share ledger link"}</button>
+      ${p.shareToken ? `<p class="sub">Anyone with this link can see this ledger: <a href="/l/${p.shareToken}" target="_blank" rel="noopener">${esc(location.origin)}/l/${p.shareToken}</a></p>` : ""}
       <details class="form" open><summary>${direction === "in" ? "Record payment received" : "Record payment made"}</summary>
         <div class="row2"><input id="payAmt" type="number" min="1" placeholder="Amount ₹"><input id="payDay" type="date" value="${today()}" max="${today()}"></div>
         ${modePick("payMode")}
@@ -100,6 +102,7 @@
         <td class="n">${/^Payment/.test(r.kind) ? `<button class="tbtn danger" data-paycancel="${r.id}">Cancel</button>` : r.kind === "Sale" ? `<a class="tbtn" href="/bill/${r.id}?o" target="_blank" rel="noopener">View</a>` : ""}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">No entries yet.</td></tr>`}
       </tbody></table></div>`;
     $("back").onclick = () => { open = null; parties(); };
+    $("shareLedger").onclick = async () => { await api(`/api/billing/parties/${id}/share`, { method: "POST", body: JSON.stringify({ on: !p.shareToken }) }); ledger(id); };
     $("paySave").onclick = async () => {
       try {
         await api("/api/billing/payments", { method: "POST", body: JSON.stringify({ direction, partyId: id, amount: $("payAmt").value, day: $("payDay").value, mode: modeOf("payMode"), note: $("payNote").value }) });
@@ -122,6 +125,7 @@
       <details class="form" open><summary>New purchase</summary>
         <div class="row2"><select id="buySup"><option value="">Supplier…</option>${sup.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select><input id="buyBill" placeholder="Supplier's bill no."></div>
         <input id="buyDay" type="date" value="${today()}" max="${today()}" style="margin-top:8px">
+        <label class="sub" style="display:block;margin-top:8px">Scan the supplier's bill (photo)<input type="file" id="buyScan" accept="image/jpeg,image/png,image/webp"></label><div class="sub" id="buyScanMsg"></div>
         <input type="search" id="buyQ" placeholder="Type code or name to add an item…" style="margin-top:8px" autocomplete="off">
         <div class="results" id="buyHits" style="max-height:200px"></div>
         <div id="buyLines"></div>
@@ -135,6 +139,18 @@
         <td class="n">${x.status === "cancelled" ? `<span class="sub">Cancelled</span>` : `<button class="tbtn danger" data-pucancel="${x.id}">Cancel</button>`}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">No purchases yet.</td></tr>`}
       </tbody></table></div>`;
     paintBuy();
+    $("buyScan").onchange = async (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      $("buyScanMsg").textContent = "Reading the bill…";
+      try {
+        const b = await window.VX.scanBill(file);
+        if (b.billNumber) $("buyBill").value = b.billNumber;
+        const missed = [];
+        for (const l of b.lines) { if (l.productId && !buy.some((x) => x.productId === l.productId)) buy.push({ productId: l.productId, name: l.matched, qty: l.qty, cost: l.cost, gstRate: l.gstRate }); else if (!l.productId) missed.push(l.name); }
+        paintBuy();
+        $("buyScanMsg").textContent = `Check every line before saving.${missed.length ? ` Not in your stock list: ${missed.join(", ")}.` : ""}`;
+      } catch (err) { $("buyScanMsg").textContent = err.message; }
+    };
     $("buyQ").oninput = () => {
       const q = $("buyQ").value.trim().toLowerCase();
       const hits = q ? stockList.filter((p) => `${p.code} ${p.name}`.toLowerCase().includes(q)).slice(0, 6) : [];
@@ -210,5 +226,5 @@
     };
   }
 
-  window.VX.tabs = { home, parties, purchases, expenses, cash };
+  Object.assign(window.VX.tabs, { home, parties, purchases, expenses, cash });
 })();

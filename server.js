@@ -12,7 +12,7 @@ const path = require("path");
 const crypto = require("crypto");
 try { process.loadEnvFile(path.join(__dirname, ".env")); } catch { /* no .env: keyword rules only */ }
 const { parseMessage, categoryAnswer, findSubcategory } = require("./lib/parse");
-const { classify, aiEnabled, MODEL } = require("./lib/classify");
+const { classify, aiEnabled, MODEL, readPurchaseBill } = require("./lib/classify");
 const wa = require("./lib/whatsapp");
 const createBilling = require("./lib/billing");
 const { readJson, writeJson, dailyBackup } = require("./lib/jsonstore");
@@ -129,8 +129,15 @@ const invoicePage = require("./lib/invoice-page");
 const stockImport = require("./lib/import-mybillbook");
 const books = require("./lib/books")({ STORE, SHOP, billing, load, save, logActivity });
 billing.hooks.partyFor = books.customerFor;
+const documents = require("./lib/documents")({ STORE, billing, books, load, save, logActivity });
+const reports = require("./lib/reports")({ SHOP, billing, books, documents, load });
+const staff = require("./lib/staff")({ STORE });
+// Bill settings saved from the portal sit on top of shop.json.
+Object.assign(SHOP.billing, books.getSetting("billSettings") || {});
+if (books.getSetting("gstin")) SHOP.business.gstin = books.getSetting("gstin");
+billing.hooks.canCancel = (inv) => (documents.hasReturn("invoiceId", inv.id) ? `Bill ${inv.number} has a return against it. Cancel the return first.` : null);
 // The books get a dated copy every day, kept 30 days on the same disk.
-const BOOK_FILES = ["products.json", "invoices.json", "parties.json", "payments.json", "purchases.json", "expenses.json", "books.json", "orders.json"];
+const BOOK_FILES = ["staff.json", "products.json", "invoices.json", "parties.json", "payments.json", "purchases.json", "expenses.json", "books.json", "orders.json", "returns.json", "docs.json"];
 if (LIVE) { dailyBackup(STORE, BOOK_FILES); setInterval(() => dailyBackup(STORE, BOOK_FILES), 3600e3).unref(); }
 // Bill links in WhatsApp replies. Locally there's no public address, so it's a path.
 const billUrl = (inv) => `${process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || ""}`.replace(/\/$/, "") + `/bill/${inv.id}`;
@@ -402,6 +409,7 @@ const HELP = `📋 *Commands*
 _Faster:_ put it all in the caption, e.g. _Zara shirt 1499 M L_, and it's one tap
 *Today's numbers:* _stats_
 *Today's bills:* _bills_
+*Running low:* _low_
 *Put an imported item on the website:* send its photo with the code as the caption, e.g. _4795_
 *Sell:* _sold 4795_ (one) or _sold 4795 2_
 *More came in:* _add 4795 3_
@@ -701,6 +709,7 @@ async function ownerMessage(body) {
   if (orderReply) return { reply: orderReply };
   if (/^(stats|report|status|aaj|today)$/i.test(text.trim())) return { reply: statsReply() };
   if (/^(bills?|sales|hisab|hisaab)$/i.test(text.trim())) return { reply: billsReply() };
+  if (/^(low|low stock|kam)$/i.test(text.trim())) return { reply: reports.lowText() };
   const cleared = !body.image && (clearCommand(text) || choiceReply(text));
   if (cleared) return cleared;
   const batched = !body.image && batchReply(text);
@@ -1441,12 +1450,78 @@ function statsReply() {
   return `📊 *Your shop right now*\n\n${shop.join("\n")}${sec ? `\n\n${sec}` : ""}\n\n*Today*\n${today.join("\n")}`;
 }
 
+// The ledger link a party can open. Same numbers as the shop sees, read-only.
+function ledgerPage({ party, rows, balance }) {
+  const sign = party.type === "supplier" ? -1 : 1, b = balance * sign;
+  const body = rows.slice().reverse().map((r) => `<tr><td>${escHtml(r.day)}</td><td>${escHtml(r.kind)}<small>${escHtml(r.ref)}</small></td><td class="n">${r.amount * sign > 0 ? "+" : "−"}${inr(Math.abs(r.amount))}</td><td class="n">${inr(r.balance * sign)}</td></tr>`).join("");
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Statement · ${escHtml(SHOP.name)}</title>
+<style>body{margin:0;background:#f3f1ec;color:#16130f;font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}.s{max-width:720px;margin:16px auto;background:#fff;padding:20px;border-radius:8px}h1{font-size:20px;margin:0}.b{font-size:24px;font-weight:800;margin:12px 0}table{width:100%;border-collapse:collapse}th,td{padding:8px 6px;border-bottom:1px solid #e3ded5;text-align:left;vertical-align:top}th{font-size:12px;color:#6b665e}.n{text-align:right;white-space:nowrap}small{display:block;color:#6b665e;font-size:12px}p{color:#6b665e;margin:2px 0}</style></head>
+<body><div class="s"><h1>${escHtml(party.name)}</h1><p>Statement from ${escHtml(SHOP.business?.legalName || SHOP.name)}</p>
+<div class="b">${b > 0 ? `Balance due: ${inr(b)}` : b < 0 ? `Credit: ${inr(-b)}` : "All settled"}</div>
+<table><thead><tr><th>Date</th><th>Entry</th><th class="n">Amount</th><th class="n">Balance</th></tr></thead><tbody>${body || `<tr><td colspan="4">No entries yet.</td></tr>`}</tbody></table>
+${b > 0 && SHOP.pay?.upiId ? `<p style="margin-top:12px">Pay on UPI: ${escHtml(SHOP.pay.upiId)}</p>` : ""}</div></body></html>`;
+}
+
+// Evening WhatsApp: items that sold today and are now running low. Once a day, around 8 pm.
+function lowStockDigest() {
+  const now = new Date(), hour = Number(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", hour12: false }));
+  const day = shopDay(now);
+  if (hour < 20 || books.getSetting("lowDigestDay") === day) return;
+  books.setSetting("lowDigestDay", day);
+  const byId = new Map(load().map((p) => [p.id, p.code]));
+  const sold = new Set(loadActivity().filter((a) => a.type === "sold" && shopDay(a.at) === day).map((a) => byId.get(a.id)));
+  const text = reports.lowText({ onlyToday: true, soldToday: sold });
+  if (text) sendToOwner({ id: crypto.randomBytes(6).toString("hex"), at: now.toISOString(), kind: "low-stock", summary: { kind: "low stock", ref: "today" }, text });
+}
+if (LIVE) setInterval(() => { try { lowStockDigest(); } catch (e) { console.warn("low stock digest:", e.message); } }, 10 * 60e3).unref();
+
 // ---- Billing portal API (owner key) ----
-async function billingApi(req, res, route, url) {
+// Staff logins never receive cost prices.
+const noCost = (p) => { const c = { ...p }; delete c.cost; delete c.supplierId; return c; };
+const billForStaff = (x) => ({ ...x, lines: x.lines.map(({ cost, ...l }) => l) });
+const BILL_FIELDS = ["headerLine", "terms", "email", "youtube", "theme"];
+async function billingApi(req, res, route, url, who = { role: "owner" }) {
   const body = async () => { try { return JSON.parse((await readBody(req, 64 * 1024)) || "{}"); } catch { return null; } };
   const reply = (r) => (r.error ? send(res, 409, { error: r.error }) : send(res, 200, r));
   const post = req.method === "POST", get = req.method === "GET";
-  if (get && route === "products") return send(res, 200, load());
+  if (get && route === "me") return send(res, 200, { role: who.role, name: who.name });
+  if (get && route === "products") return send(res, 200, who.role === "staff" ? load().map(noCost) : load());
+  if (post && route === "items") { const b = await body(); return b ? reply(billing.saveItem(b, null, newCode)) : send(res, 400, { error: "Bad request." }); }
+  let im = /^items\/([\w-]{1,40})$/.exec(route);
+  if (post && im) { const b = await body(); return b ? reply(billing.saveItem(b, im[1], newCode)) : send(res, 400, { error: "Bad request." }); }
+  if (post && route === "barcodes") { const b = await body(); return b ? reply(billing.giveBarcodes(Array.isArray(b.ids) ? b.ids.slice(0, 500) : [])) : send(res, 400, { error: "Bad request." }); }
+  if (get && route === "staff") return send(res, 200, staff.list());
+  if (post && route === "staff") { const b = await body(); return b ? reply(staff.add(b)) : send(res, 400, { error: "Bad request." }); }
+  im = /^staff\/([a-f0-9]{16})\/remove$/.exec(route);
+  if (post && im) return reply(staff.remove(im[1]));
+  if (get && route === "settings") return send(res, 200, { ...Object.fromEntries(BILL_FIELDS.map((k) => [k, SHOP.billing[k] ?? ""])), logo: SHOP.billing.logo || "", gstin: SHOP.business.gstin || "", ai: aiEnabled() });
+  if (post && route === "settings") {
+    let b; try { b = JSON.parse((await readBody(req, 4 * 1024 * 1024)) || "{}"); } catch { return send(res, 400, { error: "Bad request." }); }
+    const next = { ...(books.getSetting("billSettings") || {}) };
+    for (const k of BILL_FIELDS) if (typeof b[k] === "string") next[k] = b[k].trim().slice(0, 300);
+    if (b.logoData) { const saved = saveImage(b.logoData, `logo-${Date.now()}`); if (!saved) return send(res, 400, { error: "The logo must be a JPEG, PNG or WebP image." }); next.logo = saved; }
+    if (typeof b.gstin === "string") {
+      const g = b.gstin.trim().toUpperCase();
+      if (g && !/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/.test(g)) return send(res, 409, { error: "That GSTIN doesn't look right (15 characters)." });
+      books.setSetting("gstin", g); SHOP.business.gstin = g;
+    }
+    books.setSetting("billSettings", next);
+    Object.assign(SHOP.billing, next);
+    return send(res, 200, { ok: true });
+  }
+  if (post && route === "purchases/scan") {
+    if (!aiEnabled()) return send(res, 503, { error: "Bill scanning needs an Anthropic API key on the server. Enter this bill by hand for now." });
+    let b; try { b = JSON.parse(await readBody(req, 10 * 1024 * 1024)); } catch { return send(res, 400, { error: "That photo is too large." }); }
+    try {
+      const bill = await readPurchaseBill(b.image);
+      const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const items = load();
+      bill.lines = bill.lines.map((l) => { const m = items.find((p) => norm(p.name) === norm(l.name)); return { ...l, productId: m?.id || null, matched: m?.name || null }; });
+      return send(res, 200, bill);
+    } catch (e) { return send(res, 502, { error: `Couldn't read that bill (${e.message}). Enter it by hand.` }); }
+  }
+  im = /^parties\/([a-f0-9]{16})\/share$/.exec(route);
+  if (post && im) { const b = await body(); return reply(books.shareLedger(im[1], b?.on !== false)); }
   // Importing the myBillBook stock file. Preview unless apply=1; a copy is kept before applying.
   if (post && route === "import") {
     let csv;
@@ -1460,7 +1535,7 @@ async function billingApi(req, res, route, url) {
     return send(res, 200, { preview: false, report: r.report });
   }
   if (get && route === "dashboard") return send(res, 200, books.dashboard());
-  if (get && route === "parties") return send(res, 200, books.partyList());
+  if (get && route === "parties") return send(res, 200, who.role === "staff" ? books.partyList().map(({ shareToken, ...p }) => p) : books.partyList());
   if (post && route === "parties") { const b = await body(); return b ? reply(books.saveParty(b)) : send(res, 400, { error: "Bad request." }); }
   let m = /^parties\/([a-f0-9]{16})(\/ledger)?$/.exec(route);
   if (m && get && m[2]) return reply(books.ledger(m[1]));
@@ -1471,6 +1546,31 @@ async function billingApi(req, res, route, url) {
   if (post && route === "purchases") { const b = await body(); return b ? reply(books.addPurchase(b)) : send(res, 400, { error: "Bad request." }); }
   if (get && route === "expenses") return send(res, 200, { list: books.expenses.all().slice(-500).reverse(), types: books.EXPENSE_TYPES });
   if (post && route === "expenses") { const b = await body(); return b ? reply(books.addExpense(b)) : send(res, 400, { error: "Bad request." }); }
+  if (get && route === "returns") return send(res, 200, documents.returns.all().slice(-500).reverse());
+  if (post && route === "returns") {
+    const b = await body();
+    if (!b) return send(res, 400, { error: "Bad request." });
+    const run = { sale_return: documents.saleReturn, purchase_return: documents.purchaseReturn, credit_note: (x) => documents.note("credit_note", x), debit_note: (x) => documents.note("debit_note", x) }[b.kind];
+    return run ? reply(run(b)) : send(res, 400, { error: "Pick a type." });
+  }
+  if (get && route === "docs") return send(res, 200, documents.docs.all().slice(-500).reverse());
+  if (post && route === "dispatch") { const b = await body(); return b ? reply(documents.dispatchNote(b)) : send(res, 400, { error: "Bad request." }); }
+  if (post && route === "docs") { const b = await body(); return b ? reply(documents.saveDoc(b)) : send(res, 400, { error: "Bad request." }); }
+  let dm = /^(docs|returns)\/([a-f0-9]{16})\/(cancel|convert)$/.exec(route);
+  if (dm && post) {
+    if (dm[1] === "returns") return dm[3] === "cancel" ? reply(documents.cancelReturn(dm[2])) : send(res, 404, { error: "not found" });
+    const b = (await body()) || {};
+    return reply(dm[3] === "cancel" ? documents.cancelDoc(dm[2]) : documents.convertDoc(dm[2], b));
+  }
+  if (get && route === "reports") return send(res, 200, reports.LIST);
+  dm = /^reports\/([a-z0-9]+)(\.csv)?$/.exec(route);
+  if (dm && get) {
+    const rep = reports.run(dm[1], url.searchParams.get("from") || undefined, url.searchParams.get("to") || undefined);
+    if (!rep) return send(res, 404, { error: "No such report." });
+    if (!dm[2]) return send(res, 200, rep);
+    res.writeHead(200, { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="vibex-${dm[1]}.csv"`, "Cache-Control": "no-store" });
+    return res.end(reports.csv(rep));
+  }
   if (get && route === "cash") return send(res, 200, books.cashbook());
   if (post && route === "cash/opening") { const b = await body(); return b ? reply(books.setOpening(b)) : send(res, 400, { error: "Bad request." }); }
   m = /^(payments|purchases|expenses)\/([a-f0-9]{16})\/cancel$/.exec(route);
@@ -1478,6 +1578,7 @@ async function billingApi(req, res, route, url) {
   if (get && route === "profit") return send(res, 200, books.profit(url.searchParams.get("from") || "0000-01-01", url.searchParams.get("to") || "9999-12-31"));
   if (req.method === "GET" && route === "invoices") {
     const list = billing.loadInvoices();
+    if (who.role === "staff") return send(res, 200, { invoices: list.slice(-100).reverse().map(billForStaff), today: { bills: 0, total: 0, pieces: 0, byPayment: {} }, gst: billing.gstOn() });
     return send(res, 200, { invoices: list.slice(-500).reverse(), today: billing.today(), gst: billing.gstOn() });
   }
   if (req.method === "POST" && route === "invoices") {
@@ -1490,12 +1591,12 @@ async function billingApi(req, res, route, url) {
       if (!partyId) return send(res, 409, { error: "A credit bill needs the customer's name and mobile, so it can go in their ledger." });
       const total = (b.lines || []).reduce((n, l) => n + Number(l.price || 0) * Number(l.qty || 0) - Number(l.disc || 0), 0)
         + (b.charges || []).reduce((n, c) => n + Number(c.amount || 0), 0);
-      const over = !b.overLimit && books.creditCheck(partyId, total);
+      const over = (who.role === "staff" || !b.overLimit) && books.creditCheck(partyId, total);
       if (over) return send(res, 409, { error: over, overLimit: true });
     }
-    const r = billing.sell(b.lines, { source: "counter", customer: b.customer, payment: b.payment, note: b.note, partyId, charges: b.charges, allowShort: b.allowShort === true });
+    const r = billing.sell(b.lines, { source: "counter", customer: b.customer, payment: b.payment, note: b.note, partyId, charges: b.charges, allowShort: b.allowShort === true, by: who.role === "staff" ? who.name : undefined });
     if (r.error) return send(res, 409, { error: r.error });
-    return send(res, 200, { invoice: r.invoice, url: `/bill/${r.invoice.id}` });
+    return send(res, 200, { invoice: who.role === "staff" ? billForStaff(r.invoice) : r.invoice, url: `/bill/${r.invoice.id}` });
   }
   const cm = /^invoices\/([a-f0-9]{16})\/cancel$/.exec(route);
   if (req.method === "POST" && cm) {
@@ -1536,7 +1637,20 @@ http
         const o = loadOrders().find((x) => x.id === om[1]);
         return o ? send(res, 200, { code: o.code, status: o.status }) : send(res, 404, { error: "not found" });
       }
-      const ownerOnly = p.startsWith("/api/billing/") || p === "/demo" || p === "/demo.html" || p === "/api/inbox" || p === "/api/message" || p === "/api/reset" || p === "/api/stats";
+      if (req.method === "POST" && p === "/api/billing/login") {
+        let b; try { b = JSON.parse(await readBody(req, 1024)); } catch { return send(res, 400, { error: "Bad request." }); }
+        const r = staff.login(b, req.socket.remoteAddress || "?");
+        return r.error ? send(res, r.status, { error: r.error }) : send(res, 200, r);
+      }
+      // Owner key, or a staff login limited to the counter (lib/staff.js).
+      if (p.startsWith("/api/billing/")) {
+        const route = p.slice("/api/billing/".length);
+        const who = isOwner(req, url) ? { role: "owner", name: "Owner" } : staff.who(req.headers["x-session"]);
+        if (!who) return send(res, 401, { error: "Please log in." });
+        if (who.role === "staff" && !staff.allowed(req.method, route)) return send(res, 403, { error: "Only the owner can do that." });
+        return await billingApi(req, res, route, url, who);
+      }
+      const ownerOnly = p === "/demo" || p === "/demo.html" || p === "/api/inbox" || p === "/api/message" || p === "/api/reset" || p === "/api/stats";
       if (ownerOnly && !isOwner(req, url)) {
         return p.startsWith("/api/") ? send(res, 401, { error: "Owner key required." }) : notFoundPage(res);
       }
@@ -1546,7 +1660,6 @@ http
       }
       if (req.method === "POST" && p === "/api/message") return await handleMessage(req, res);
       if (req.method === "GET" && p === "/api/stats") return send(res, 200, stats());
-      if (p.startsWith("/api/billing/")) return await billingApi(req, res, p.slice("/api/billing/".length), url);
       // Owner screen add-ons (stats bars, reply buttons, celebration), shared by every design.
       if (p === "/owner-kit.js" || p === "/owner-kit.css") return serveFile(res, path.join(ROOT, "owner"), p.slice(1));
       if (req.method === "POST" && p === "/api/reset") {
@@ -1561,18 +1674,31 @@ http
         savePending([]);
         fs.writeFileSync(ACTIVITY, "[]");
         // The demo reset clears the books too. The live shop's accounts are never reset.
-        if (!LIVE) for (const f of ["invoices", "parties", "payments", "purchases", "expenses", "books"]) fs.rmSync(path.join(STORE, `${f}.json`), { force: true });
+        if (!LIVE) for (const f of ["invoices", "parties", "payments", "purchases", "expenses", "books", "returns", "docs"]) fs.rmSync(path.join(STORE, `${f}.json`), { force: true });
         for (const f of fs.readdirSync(UPLOADS)) fs.unlinkSync(path.join(UPLOADS, f));
         return send(res, 200, { ok: true });
       }
       // The portal page itself is harmless without the key: every call it makes needs it.
       if (p === "/billing") return serveFile(res, path.join(ROOT, "owner"), "billing.html");
-      if (p === "/billing-books.js") return serveFile(res, path.join(ROOT, "owner"), "billing-books.js");
+      if (p === "/billing-books.js" || p === "/billing-docs.js" || p === "/billing-more.js") return serveFile(res, path.join(ROOT, "owner"), p.slice(1));
+      if (p === "/billing-code128.js") return serveFile(res, path.join(ROOT, "owner"), "code128.js");
+      if (p === "/billing/labels") return serveFile(res, path.join(ROOT, "owner"), "labels.html");
+      const lm = /^\/l\/([a-f0-9]{32})$/.exec(p);
+      if (lm && req.method === "GET") {
+        const l = books.sharedLedger(lm[1]);
+        return l ? send(res, 200, ledgerPage(l), "text/html; charset=utf-8") : notFoundPage(res);
+      }
       const bm = /^\/bill\/([a-f0-9]{16})$/.exec(p);
       if (bm && req.method === "GET") {
         const inv = billing.loadInvoices().find((x) => x.id === bm[1]);
         if (!inv) return notFoundPage(res);
-        return send(res, 200, invoicePage(inv, SHOP, { thermal: url.searchParams.get("size") === "80", owner: url.searchParams.has("o") }), "text/html; charset=utf-8");
+        return send(res, 200, invoicePage(inv, SHOP, { thermal: url.searchParams.get("size") === "80", owner: url.searchParams.has("o"), url: `${siteUrl() || `http://${req.headers.host}`}/bill/${inv.id}` }), "text/html; charset=utf-8");
+      }
+      const dv = /^\/doc\/([a-f0-9]{16})$/.exec(p);
+      if (dv && req.method === "GET") {
+        const d = documents.printable(dv[1]);
+        if (!d) return notFoundPage(res);
+        return send(res, 200, invoicePage(d.doc, SHOP, { thermal: url.searchParams.get("size") === "80", owner: url.searchParams.has("o"), title: d.title, labels: d.labels }), "text/html; charset=utf-8");
       }
       if (p.startsWith("/seed-photos/")) return serveFile(res, SEED_PHOTOS, p.slice("/seed-photos/".length));
       if (p.startsWith("/uploads/")) return serveFile(res, UPLOADS, p.slice("/uploads/".length));

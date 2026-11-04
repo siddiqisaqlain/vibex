@@ -27,6 +27,11 @@
   .form summary{font-weight:700;cursor:pointer}
   .row3{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
   .owed-in{color:var(--green)}.owed-out{color:var(--red)}
+  .repGrid{display:grid;grid-template-columns:200px minmax(0,1fr);gap:18px}
+  .repGrid h3{margin:10px 0 4px}.repBtn{display:block;width:100%;text-align:left;border:0;background:none;padding:6px 8px;border-radius:6px;cursor:pointer}
+  .repBtn.on{background:var(--ink);color:#fff}.repHead{display:flex;justify-content:space-between;align-items:center;gap:8px}.repHead h2{margin:6px 0;font-size:18px}
+  .repDates{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;align-items:center}.repDates input{width:150px}
+  @media (max-width:760px){.repGrid{grid-template-columns:minmax(0,1fr)}}
   tr.click{cursor:pointer}tr.click:hover td{background:var(--bg)}
   nav button{border:0;background:transparent;padding:9px 14px;border-radius:8px 8px 0 0;font-weight:700;color:var(--mute);cursor:pointer}
   nav button.on{background:var(--card);color:var(--ink)}
@@ -105,10 +110,12 @@
 </header>
 
 <div id="lock" class="lock hide">
-  <h2 style="margin-top:0">Owner key</h2>
-  <p class="sub">Enter the shop's owner key to open billing.</p>
-  <input type="text" id="keyIn" autocomplete="off">
-  <button class="big" id="keyGo">Open</button>
+  <h2 style="margin-top:0">Staff login</h2>
+  <div class="row2"><input type="text" id="staffName" placeholder="Name" autocomplete="off"><input type="password" id="staffPin" inputmode="numeric" placeholder="PIN" autocomplete="off"></div>
+  <button class="big" id="staffGo">Log in</button>
+  <details style="margin-top:14px"><summary class="sub">Owner</summary>
+    <input type="password" id="keyIn" placeholder="Owner key" autocomplete="off" style="margin-top:8px">
+    <button class="big" id="keyGo">Open</button></details>
   <div class="err" id="keyErr"></div>
 </div>
 
@@ -118,13 +125,21 @@
   <button data-tab="new" class="on">New bill</button>
   <button data-tab="bills">Bills</button>
   <button data-tab="parties">Parties</button>
+  <button data-tab="docs">Quotes &amp; Challans</button>
+  <button data-tab="returns">Returns</button>
   <button data-tab="purchases">Purchases</button>
   <button data-tab="expenses">Expenses</button>
   <button data-tab="cash">Cash &amp; Bank</button>
   <button data-tab="stock">Stock</button>
+  <button data-tab="reports">Reports</button>
+  <button data-tab="settings">Settings</button>
 </nav>
 <main>
   <section class="panel hide" id="tab-home"></section>
+  <section class="panel hide" id="tab-docs"></section>
+  <section class="panel hide" id="tab-returns"></section>
+  <section class="panel hide" id="tab-reports"></section>
+  <section class="panel hide" id="tab-settings"></section>
   <section class="panel hide" id="tab-parties"></section>
   <section class="panel hide" id="tab-purchases"></section>
   <section class="panel hide" id="tab-expenses"></section>
@@ -170,9 +185,11 @@
   <section class="panel hide" id="tab-stock">
     <input type="search" id="sq" placeholder="Search stock or scan a barcode…" autocomplete="off">
     <label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="sCheck"> Only items that need checking</label>
+    <div class="repDates" id="stockTools"><button class="tbtn" id="addItem">Add item</button><button class="tbtn" id="printLabels">Print labels for ticked items</button><label class="sub">Labels each <input type="number" id="lblCount" value="1" min="1" max="200" style="width:64px"></label></div>
+    <div id="itemBox"></div>
     <p class="sub">Changes here show on the website and in WhatsApp straight away. Use it for new stock coming in and stock counts. Sales go through <b>New bill</b>.</p>
     <div class="scroll"><table>
-      <thead><tr><th>Code</th><th>Item</th><th class="n">Price ₹</th><th class="n">In stock</th></tr></thead>
+      <thead><tr><th></th><th>Code</th><th>Item</th><th class="n">Price ₹</th><th class="n">In stock</th><th></th></tr></thead>
       <tbody id="stockRows"></tbody>
     </table></div>
   </section>
@@ -185,13 +202,14 @@
   const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
   const u = new URL(location.href);
   let KEY = u.searchParams.get("key") || store.get("vx-owner-key") || "";
+  let SESSION = store.get("vx-session") || "", ROLE = "owner";
   if (u.searchParams.get("key")) { store.set("vx-owner-key", KEY); u.searchParams.delete("key"); history.replaceState(null, "", u.pathname + u.search); }
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const inr = (n) => (n < 0 ? "−" : "") + "₹" + Math.abs(Number(n || 0)).toLocaleString("en-IN", { maximumFractionDigits: 2 });
   const api = async (path, opts = {}) => {
-    const r = await fetch(path, { ...opts, cache: "no-store", headers: { "Content-Type": "application/json", "x-owner-key": KEY, ...(opts.headers || {}) } });
+    const r = await fetch(path, { ...opts, cache: "no-store", headers: { "Content-Type": "application/json", "x-owner-key": KEY, "x-session": SESSION, ...(opts.headers || {}) } });
     const j = await r.json().catch(() => ({}));
     if (r.status === 401) { showLock("That key didn't work."); throw new Error("key"); }
     if (!r.ok) throw new Error(j.error || "Something went wrong.");
@@ -200,6 +218,14 @@
   const toast = (msg) => { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3200); };
 
   function showLock(msg) { $("app").classList.add("hide"); $("lock").classList.remove("hide"); $("keyErr").textContent = msg || ""; }
+  $("staffGo").onclick = async () => {
+    $("keyErr").textContent = "";
+    const r = await fetch("/api/billing/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: $("staffName").value, pin: $("staffPin").value }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { $("keyErr").textContent = j.error || "Couldn't log in."; return; }
+    SESSION = j.token; KEY = ""; store.set("vx-session", SESSION); store.set("vx-owner-key", ""); $("staffPin").value = "";
+    $("lock").classList.add("hide"); start();
+  };
   $("keyGo").onclick = () => { KEY = $("keyIn").value.trim(); store.set("vx-owner-key", KEY); $("lock").classList.add("hide"); start(); };
 
   // ---- Live data: the same products.json the website and WhatsApp use ----
@@ -229,7 +255,7 @@
   // ---- Tabs ----
   document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
     document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("on", x === b));
-    ["home", "new", "bills", "parties", "purchases", "expenses", "cash", "stock"].forEach((t) => $("tab-" + t).classList.toggle("hide", t !== b.dataset.tab));
+    ["home", "new", "bills", "docs", "returns", "parties", "purchases", "expenses", "cash", "stock", "reports", "settings"].forEach((t) => $("tab-" + t).classList.toggle("hide", t !== b.dataset.tab));
     if (b.dataset.tab === "new") $("q").focus();
     const load = window.VX.tabs && window.VX.tabs[b.dataset.tab];
     if (load) load().catch((e) => toast(e.message));
@@ -364,7 +390,7 @@
       <td><span class="src ${x.source}">${SRC[x.source] || x.source}</span><div class="sub">${PAY[x.payment] || ""}</div></td>
       <td class="n"><b>${inr(x.total)}</b></td>
       <td class="n"><a class="tbtn" href="/bill/${x.id}?o" target="_blank" rel="noopener">View</a>
-        ${x.status === "cancelled" ? `<span class="sub">Cancelled</span>` : `<button class="tbtn danger" data-cancel="${x.id}">Cancel</button>`}</td>
+        ${x.status === "cancelled" ? `<span class="sub">Cancelled</span>` : ROLE === "staff" ? "" : `<button class="tbtn danger" data-cancel="${x.id}">Cancel</button>`}</td>
     </tr>`).join("") : `<tr><td colspan="7" class="empty">No bills yet.</td></tr>`;
     $("billRows").querySelectorAll("[data-cancel]").forEach((b) => b.onclick = async () => {
       // Two taps: first arms it, second cancels (no pop-up).
@@ -379,17 +405,25 @@
 
   // ---- Stock ----
   let editing = null; // don't redraw the row being typed in
+  const picks = new Set(); // items ticked for labels
+  $("addItem").onclick = () => window.VX.itemForm(null);
+  $("printLabels").onclick = () => window.VX.printLabels([...picks]).catch((e) => toast(e.message));
   function renderStock() {
     const q = $("sq").value.trim().toLowerCase();
     const check = $("sCheck").checked;
     const list = products.filter((p) => (!check || p.needsCount || p.needsName || !p.price) && (!q || `${p.code} ${p.barcode || ""} ${p.name} ${p.brand || ""} ${p.category || ""}`.toLowerCase().includes(q)))
       .sort((a, b) => String(a.name).localeCompare(String(b.name))).slice(0, 300);
     $("stockRows").innerHTML = list.length ? list.map((p) => `<tr>
+      <td><input type="checkbox" data-pick="${esc(p.id)}" ${picks.has(p.id) ? "checked" : ""} aria-label="Pick ${esc(p.name)}"></td>
       <td><b>${esc(p.code)}</b></td>
       <td><div class="name">${esc(p.name)}</div><div class="sub">${esc([p.barcode, p.category, p.sizes].filter(Boolean).join(" · "))} ${stockPill(p)}${p.hidden ? ` <span class="pill low">Not on website</span>` : ""}${p.needsCount ? ` <span class="pill out">Count this</span>` : ""}${p.needsName ? ` <span class="pill out">Needs a name</span>` : ""}</div></td>
       <td class="n"><input type="number" class="rate" min="1" value="${esc(p.price || "")}" data-price="${esc(p.id)}"></td>
       <td><div class="stockQty"><button class="tbtn" data-step="-1" data-id="${esc(p.id)}">−</button><input type="number" min="0" value="${stockOf(p)}" data-qty="${esc(p.id)}"><button class="tbtn" data-step="1" data-id="${esc(p.id)}">+</button></div></td>
-    </tr>`).join("") : `<tr><td colspan="4" class="empty">No items.</td></tr>`;
+      <td class="n">${ROLE === "staff" ? "" : `<button class="tbtn" data-edit="${esc(p.id)}">Edit</button>`}</td>
+    </tr>`).join("") : `<tr><td colspan="6" class="empty">No items.</td></tr>`;
+    $("stockRows").querySelectorAll("[data-pick]").forEach((c) => (c.onchange = () => { if (c.checked) picks.add(c.dataset.pick); else picks.delete(c.dataset.pick); }));
+    $("stockRows").querySelectorAll("[data-edit]").forEach((b) => (b.onclick = () => window.VX.itemForm(byId().get(b.dataset.edit))));
+    if (ROLE === "staff") $("stockRows").querySelectorAll("[data-step],[data-qty],[data-price]").forEach((el) => (el.disabled = true));
     const push = async (id, body) => {
       try { await api("/api/billing/stock", { method: "POST", body: JSON.stringify({ productId: id, ...body }) }); toast("Saved. Website updated."); }
       catch (e) { toast(e.message); }
@@ -408,10 +442,27 @@
     if (!editing) renderStock();
   }
 
-  window.VX = { api, esc, inr, toast };
+  // A file only the owner may fetch: the key goes in a header, so a plain link won't do.
+  const download = async (path, name) => {
+    const r = await fetch(path, { headers: { "x-owner-key": KEY, "x-session": SESSION }, cache: "no-store" });
+    if (!r.ok) throw new Error("Couldn't download that.");
+    const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
+  window.VX = { api, esc, inr, toast, download, tabs: {}, reload: async () => { await refresh(); render(); } };
 
   async function start() {
-    try { await api("/api/billing/invoices"); } catch { return; }
+    let me;
+    try { me = await api("/api/billing/me"); } catch { return; }
+    ROLE = me.role;
+    // Staff see the counter only. The server refuses the rest anyway.
+    if (ROLE === "staff") {
+      const open = ["new", "bills", "stock"];
+      document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("hide", !open.includes(b.dataset.tab)));
+      document.getElementById("stockTools").classList.add("hide");
+      $("sync").parentElement.insertAdjacentHTML("afterend", `<div class="live">${esc(me.name)} · <button class="x" id="logout" style="color:#fff">Log out</button></div>`);
+      $("logout").onclick = () => { store.set("vx-session", ""); location.reload(); };
+    }
     $("app").classList.remove("hide");
     await refresh(); render();
     $("q").focus(); // ready for the first scan
@@ -422,5 +473,7 @@
 })();
 </script>
 <script src="/billing-books.js"></script>
+<script src="/billing-docs.js"></script>
+<script src="/billing-more.js"></script>
 </body>
 </html>
