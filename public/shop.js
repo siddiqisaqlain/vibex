@@ -9,7 +9,7 @@
     Accessories: ["Accessories", "Caps, bags and the small things."],
   };
   const NEW_HOURS = 48;
-  const BASE_BRANDS = ["The North Face", "Patagonia", "Carhartt", "Columbia", "Levi's", "Ralph Lauren", "Lattafa", "Tommy Hilfiger"];
+  // Only brands actually on the rack scroll by (naming brands the shop doesn't stock would mislead).
 
   let products = [];
   let filter = "All";
@@ -20,6 +20,13 @@
   for (const [id, url] of [["ig-top", S.instagram], ["ig-visit", S.instagram], ["map-hero", S.maps], ["map-visit", S.maps]]) $(id).href = url;
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  // Homepage numbers: only the ones the owner confirmed (shop.json → claims.stats).
+  const stats = (S.claims && S.claims.stats) || [];
+  $("stats").innerHTML = stats.map((x) => `<div><b>${esc(x.big)}</b><span>${esc(x.small)}</span></div>`).join("");
+  $("stats").hidden = !stats.length;
+  // Seller details in the footer (E-Commerce Rules: name, address, contact), shown once filled in.
+  const B = S.business || {};
+  $("foot-biz").innerHTML = [B.legalName, B.address, B.phone, B.email, B.gstin && `GSTIN ${B.gstin}`].filter(Boolean).map(esc).join(" · ");
   const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN");
   const hash = (s) => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
   const lot = (p) => "LOT " + (p.code || String(hash(p.id) % 9000 + 1000));
@@ -67,7 +74,20 @@
 
   function renderFeature(animate) {
     const p = products.filter((x) => x.status === "available").sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-    if (!p) { $("feature").innerHTML = ""; return; }
+    if (!p) {
+      // Empty rack (e.g. a fresh start): a calm placeholder instead of a blank space.
+      featuredId = null;
+      $("feature").innerHTML = `
+        <div class="feature-card feature-empty">
+          <div class="feature-head"><span>Latest drop</span><span class="live"><span class="dot"></span>coming soon</span></div>
+          <div class="feature-body">
+            <h3>New pieces land here first.</h3>
+            <p>The moment a piece is posted, it shows up on this card and on the rack below.</p>
+            <a class="btn btn-ink" href="${esc(S.instagram)}" target="_blank" rel="noopener">Follow @${esc(S.igHandle)} ↗</a>
+          </div>
+        </div>`;
+      return;
+    }
     const changed = p.id !== featuredId;
     featuredId = p.id;
     const off = offPct(p);
@@ -89,11 +109,10 @@
 
   function renderMarquees() {
     const live = [...new Set(products.map((p) => p.brand).filter(Boolean))];
-    const brands = [...new Set([...live, ...BASE_BRANDS])];
-    const row = brands.map((b) => `<span>${esc(b)}</span>`).join("");
-    $("brands").innerHTML = row + row;
-    const t = ["New drops posted daily", "100% original", "Pan-India shipping", "100,000+ orders delivered", "Srinagar, Kashmir"]
-      .map((x) => `<span>${x}</span>`).join("");
+    const row = live.map((b) => `<span>${esc(b)}</span>`).join("");
+    $("brands").innerHTML = row + row + row;
+    $("brands").parentElement.hidden = live.length < 3;
+    const t = ((S.claims && S.claims.ticker) || []).map((x) => `<span>${esc(x)}</span>`).join("");
     $("ticker").innerHTML = t + t + t + t;
   }
 

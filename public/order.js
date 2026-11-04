@@ -32,7 +32,9 @@ window.VXOrder = (() => {
     if (p.status === "sold") return `<span class="order is-sold">Sold out</span>`;
     const enquire = `<button type="button" class="enq" data-ask="${esc(p.id)}">${WA}Enquire</button>`;
     if (p.status === "hold") return `<span class="order is-hold">On hold</span>${enquire}`;
-    const order = p.price
+    // Online ordering stays off until the shop's real payment details are in shop.json.
+    const order = S.orderingOpen === false ? ""
+      : p.price
       ? `<button type="button" class="order order-now" data-order="${esc(p.id)}">${BAG}Order now</button>`
       : `<span class="order is-sold">Price on request</span>`;
     let extra = "";
@@ -66,6 +68,7 @@ window.VXOrder = (() => {
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
         <p class="ask-err" role="alert" hidden></p>
         <button class="order ask-send" type="submit">${WA}Send enquiry</button>
+        <p class="consent">We use your name and number only to reply about this piece. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
       </form>`;
     const form = dialog.querySelector("form");
     form.addEventListener("submit", async (e) => {

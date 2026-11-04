@@ -30,6 +30,10 @@ const DATA = path.join(ROOT, "data"); // seed.json + seed-photos/ ship with the 
 // disk (DATA_DIR=/var/data), so nothing is lost on restart or redeploy. Locally: data/.
 const STORE = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : DATA;
 const LIVE = Boolean(process.env.DATA_DIR); // a real shop: the demo reset is switched off
+// The shop's details (name, contact, payment, policy windows, homepage claims): shop.json.
+const SHOP = JSON.parse(fs.readFileSync(path.join(ROOT, "shop.json"), "utf8"));
+// Online ordering needs real payment details; with demo ones it stays off on the live shop.
+const ORDERING_OPEN = !(LIVE && SHOP.pay?.demo);
 const UPLOADS = path.join(STORE, "uploads");
 const DB = path.join(STORE, "products.json");
 const SEED = path.join(DATA, "seed.json");
@@ -252,6 +256,7 @@ async function createOrder(req, res) {
   let b;
   try { b = JSON.parse(await readBody(req, 20 * 1024)); } catch { return send(res, 400, { error: "Something went wrong. Please try again." }); }
   if (b.website) return send(res, 200, { ok: true });
+  if (!ORDERING_OPEN) return send(res, 403, { error: "Online ordering opens soon. Tap Enquire and we'll reply on WhatsApp." });
   if (tooMany(req.socket.remoteAddress || "?")) return send(res, 429, { error: "Too many attempts. Please wait a few minutes." });
   const p = load().find((x) => x.id === String(b.productId || ""));
   if (!p) return send(res, 404, { error: "This piece is no longer listed." });
@@ -455,7 +460,7 @@ ${head}
 <div class="menu" id="menu" hidden><a href="/#rack">New drops</a><a href="/#faq">Questions</a><a href="/#visit">Visit the store</a><a href="/returns">Returns and refunds</a><a id="ig-menu" target="_blank" rel="noopener">Instagram <i class="ph ph-arrow-up-right" aria-hidden="true"></i></a></div>
 <div id="main">${body}</div>
 <footer class="foot"><div class="wrap"><div class="foot-top"><a class="logo logo-big" href="/">Vibe<span>X</span></a>
-<nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/#visit">Contact</a></nav></div>
+<nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a></nav></div>
 <p class="foot-note">© 2026 Vibe X · The Surplus Room, Srinagar, Kashmir</p></div></footer>
 <div class="toast" id="toast" role="status" hidden></div>
 <script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}<script src="/ui.js"></script>
@@ -479,7 +484,7 @@ ${head}
 <main class="wrap">${body}</main>
 <footer class="foot"><div class="wrap"><div class="foot-mark">VIBE<span>X</span></div>
 <div class="foot-row mono"><span>© Vibe X · The Surplus Room</span><span>World brands, one destination</span></div>
-<nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/#visit">Contact</a></nav></div></footer>
+<nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a></nav></div></footer>
 </body></html>`;
 }
 
@@ -495,11 +500,13 @@ function notFoundPage(res) {
   send(res, 404, frame({ title: "Page not found · Vibe X", head: '<meta name="robots" content="noindex">', body }), "text/html; charset=utf-8");
 }
 
-const { LEGAL } = require("./lib/legal");
+const legal = require("./lib/legal");
 function legalPage(res, key) {
-  const page = LEGAL[key];
-  const inner = `<p class="${SHELL === "v1" ? "label" : "eyebrow"}">Vibe X policies</p><h1>${escHtml(page.title)}</h1>
-      <p class="draft">Draft for Vibe X to review. Nothing here is final until the shop confirms it.</p>${page.html}`;
+  const page = legal.pages(SHOP)[key];
+  const todo = legal.missing(SHOP);
+  const banner = todo.length ? `<p class="draft">This page is being finalised. Still to add: ${escHtml(todo.join(", "))}.</p>` : "";
+  const inner = `<p class="${SHELL === "v1" ? "label" : "eyebrow"}">Vibe X ${key === "contact" ? "" : "policies"}</p><h1>${escHtml(page.title)}</h1>
+      ${banner}${page.html}`;
   const frame = SHELL === "v1" ? v1Shell : pageShell;
   send(res, 200, frame({
     title: `${page.title} · Vibe X`,
@@ -862,8 +869,11 @@ http
       // Owner screen add-ons (stats bars, reply buttons, celebration), shared by every design.
       if (p === "/owner-kit.js" || p === "/owner-kit.css") return serveFile(res, path.join(ROOT, "owner"), p.slice(1));
       if (req.method === "POST" && p === "/api/reset") {
-        if (LIVE) return send(res, 403, { error: "Reset is switched off on the live shop, so real products and orders can't be wiped." });
-        writeSeed();
+        let rb = {};
+        try { rb = JSON.parse((await readBody(req, 1024)) || "{}"); } catch { /* no body */ }
+        if (LIVE && rb.confirm !== "DELETE ALL PRODUCTS AND ORDERS")
+          return send(res, 403, { error: "Reset is switched off on the live shop, so real products and orders can't be wiped." });
+        if (LIVE) fs.writeFileSync(DB, "[]"); else writeSeed();
         ensureCodes();
         saveInbox([]);
         saveOrders([]);
@@ -874,12 +884,17 @@ http
       }
       if (p.startsWith("/seed-photos/")) return serveFile(res, SEED_PHOTOS, p.slice("/seed-photos/".length));
       if (p.startsWith("/uploads/")) return serveFile(res, UPLOADS, p.slice("/uploads/".length));
+      if (p === "/config.js") {
+        const pub = { ...SHOP, orderingOpen: ORDERING_OPEN };
+        res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
+        return res.end(`window.SHOP = ${JSON.stringify(pub).replace(/</g, "\\u003c")};\n`);
+      }
       if (p === "/" ) return serveFile(res, PUBLIC, "index.html");
       if (p === "/demo") return serveFile(res, PUBLIC, "demo.html");
       const pm = /^\/p\/([\w-]{1,40})$/.exec(p);
       if (pm) return productPage(req, res, pm[1]);
-      const legal = { "/returns": "returns", "/terms": "terms", "/privacy": "privacy" }[p];
-      if (legal) return legalPage(res, legal);
+      const legalKey = { "/returns": "returns", "/terms": "terms", "/privacy": "privacy", "/contact": "contact" }[p];
+      if (legalKey) return legalPage(res, legalKey);
       if (!path.extname(p)) return notFoundPage(res);
       return serveFile(res, PUBLIC, p.slice(1));
     } catch (e) {
@@ -891,6 +906,9 @@ http
     console.log(aiEnabled() ? `Photo reading: ON (${MODEL})` : "Photo reading: OFF (no ANTHROPIC_API_KEY in .env), using keyword rules");
     console.log(wa.enabled() ? `WhatsApp: ON (owner ${wa.owners().map((n) => n.slice(0, 4) + "…").join(", ")})` : "WhatsApp: OFF (set WA_TOKEN, WA_PHONE_ID, WA_APP_SECRET, WA_VERIFY_TOKEN, OWNER_WHATSAPP)");
     setTimeout(() => wa.ensureSubscriptions(siteUrl() && `${siteUrl()}/webhook`), 20e3);
+    const todo = legal.missing(SHOP);
+    console.log(todo.length ? `Shop details still missing: ${todo.join(", ")}` : "Shop details: complete");
+    console.log(`Online ordering: ${ORDERING_OPEN ? "ON" : "OFF until real payment details are in shop.json"}`);
     console.log(LIVE ? `Data: ${STORE} (persistent disk; reset off)` : "Data: data/ (demo; not kept on free hosting restarts)");
     console.log(process.env.OWNER_KEY ? "Owner key: ON (open /demo?key=YOUR_KEY)" : "Owner key: OFF (fine locally; set OWNER_KEY on a public server)");
   });

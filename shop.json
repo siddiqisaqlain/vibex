@@ -1,0 +1,59 @@
+{
+  "_read_me": "All of the shop's details, in one place. The website, checkout and policy pages read this file. Fill every empty field before launch; the site lists what is still missing on the policy pages.",
+
+  "name": "Vibe X",
+  "tagline": "The Surplus Room",
+  "city": "Srinagar, Kashmir",
+  "whatsapp": "",
+  "instagram": "https://www.instagram.com/vibex.india/",
+  "igHandle": "vibex.india",
+  "maps": "https://maps.app.goo.gl/E9e1sXQU3FwTs4yN7",
+
+  "business": {
+    "_note": "Shown in the footer and on the Contact page (Consumer Protection (E-Commerce) Rules, 2020).",
+    "legalName": "",
+    "address": "",
+    "phone": "",
+    "email": "",
+    "gstin": "",
+    "grievanceOfficer": { "name": "", "phone": "", "email": "" }
+  },
+
+  "policy": {
+    "_note": "Set confirmed to true only after the owner has read and agreed the Returns, Terms and Privacy pages.",
+    "confirmed": false,
+    "damageReportHours": 48,
+    "changeOfMindDays": 3,
+    "refundWorkingDays": 5,
+    "dispatchWorkingDays": 2,
+    "deliveryDays": "3 to 7",
+    "shippingFee": null
+  },
+
+  "pay": {
+    "_note": "DEMO VALUES, deliberately invalid. While demo is true, online ordering is switched off on the live shop (customers can still Enquire). Put the shop's real details here, then set demo to false.",
+    "demo": true,
+    "payee": "Vibe X",
+    "upiId": "vibex.demo@notreal",
+    "qrImage": "",
+    "phone": "+91 00000 00000",
+    "bank": {
+      "accountName": "VIBE X (DEMO)",
+      "accountNumber": "000000000000",
+      "ifsc": "DEMO0000000",
+      "bankName": "Demo Bank, Srinagar"
+    },
+    "shippingFee": null
+  },
+
+  "claims": {
+    "_note": "Homepage numbers. Only list what the owner has confirmed is true (misleading claims break the Consumer Protection Act). Add e.g. {\"big\":\"100,000+\",\"small\":\"orders delivered\"} once confirmed.",
+    "stats": [
+      { "big": "Pan-India", "small": "shipping" },
+      { "big": "100%", "small": "original, guaranteed" },
+      { "big": "Srinagar", "small": "store you can visit" },
+      { "big": "Daily", "small": "new drops" }
+    ],
+    "ticker": ["New drops posted daily", "100% original", "Pan-India shipping", "Srinagar, Kashmir"]
+  }
+}

@@ -64,6 +64,7 @@ window.VXCheckout = (() => {
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
         <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
         <button class="order co-cta" type="submit">Continue to payment · ${O().rupees(p.price)}</button>
+        <p class="consent">We use your name and number only for this order and its delivery. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
       </form>`);
     const form = dlg.querySelector("form");
     form.addEventListener("change", (e) => {

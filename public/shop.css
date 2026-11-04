@@ -452,3 +452,10 @@ body.menu-open { overflow: hidden; }
 .foot-links a:hover { color: var(--orange); }
 
 .top { z-index: 20; }
+.foot-biz { margin-top: 14px; font-size: 11px; letter-spacing: .06em; color: #a9a392; line-height: 1.6; }
+.foot-biz:empty { display: none; }
+.feature-empty .feature-body { padding: 28px 22px; }
+.feature-empty h3 { font-family: Archivo, sans-serif; font-stretch: 112%; font-weight: 800; font-size: 26px; line-height: 1.05; text-transform: uppercase; margin: 0 0 10px; }
+.feature-empty p { margin: 0 0 18px; color: #5c574c; }
+.consent { margin: 10px 0 0; font-size: 11px; line-height: 1.5; color: #6d685c; text-align: center; }
+.consent a { color: inherit; text-decoration: underline; }
