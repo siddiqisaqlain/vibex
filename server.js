@@ -112,6 +112,15 @@ function tidyListing(l) {
   for (const p of items) if (!p.description && seed[p.id]) { p.description = seed[p.id]; n++; }
   if (n) { fs.writeFileSync(DB, JSON.stringify(items, null, 2)); console.log(`Added ${n} product description(s)`); }
 })();
+// Once at start-up: real names, read off the bottles, for items posted as just "Zara".
+// Only touches that exact name, so a name the owner sets later is never overwritten.
+(() => {
+  const names = require("./lib/renames.json");
+  const items = load();
+  let n = 0;
+  for (const p of items) if (p.name === "Zara" && names[p.id]) { p.name = names[p.id]; p.brand = p.brand || "Zara"; n++; }
+  if (n) { fs.writeFileSync(DB, JSON.stringify(items, null, 2)); console.log(`Renamed ${n} product(s)`); }
+})();
 const save = (items) => writeJson(DB, items);
 // What customers may see. Cost prices and the shop's own notes never leave the server, and
 // hidden items (imported, waiting for a photo) aren't on sale yet.
