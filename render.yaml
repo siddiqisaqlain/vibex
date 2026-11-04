@@ -3,13 +3,19 @@ services:
   - type: web
     name: vibex
     runtime: node
-    plan: free
+    plan: starter             # paid (~$7/mo): never sleeps; needed for the disk below
+    disk:                     # products, photos and orders live here and survive restarts
+      name: vibex-data
+      mountPath: /var/data
+      sizeGB: 1
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/products
     envVars:
       - key: NODE_VERSION
         value: "22"
+      - key: DATA_DIR           # the disk above; also switches off the demo reset
+        value: /var/data
       - key: OWNER_KEY          # unlocks /demo?key=... and the owner controls
         generateValue: true
       - key: ANTHROPIC_API_KEY  # optional: lets AI read product photos

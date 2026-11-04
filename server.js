@@ -25,9 +25,13 @@ const DESIGNS = { v1: "v1-surplus", v2: "v2-dark", v3: "v3-colour", v4: "v4-mix"
 const PUBLIC = DESIGNS[process.env.DESIGN] ? path.join(ROOT, "designs", DESIGNS[process.env.DESIGN]) : path.join(ROOT, "public");
 // Which page frame the active design uses for product, policy and 404 pages ("v1" or "v2").
 const SHELL = (() => { try { return JSON.parse(fs.readFileSync(path.join(PUBLIC, "design.json"), "utf8")).shell; } catch { return "v2"; } })();
-const DATA = path.join(ROOT, "data");
-const UPLOADS = path.join(DATA, "uploads");
-const DB = path.join(DATA, "products.json");
+const DATA = path.join(ROOT, "data"); // seed.json + seed-photos/ ship with the code (read-only)
+// Live files (products, photos, orders, messages) go in STORE. On Render that's a persistent
+// disk (DATA_DIR=/var/data), so nothing is lost on restart or redeploy. Locally: data/.
+const STORE = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : DATA;
+const LIVE = Boolean(process.env.DATA_DIR); // a real shop: the demo reset is switched off
+const UPLOADS = path.join(STORE, "uploads");
+const DB = path.join(STORE, "products.json");
 const SEED = path.join(DATA, "seed.json");
 
 fs.mkdirSync(UPLOADS, { recursive: true });
@@ -73,7 +77,7 @@ const save = (items) => fs.writeFileSync(DB, JSON.stringify(items, null, 2));
 
 // Posts the bot wasn't sure about ("Gucci 2499": clothes or perfume?) wait here, oldest first,
 // until the owner answers. They are not on the website until then.
-const PENDING = path.join(DATA, "pending.json");
+const PENDING = path.join(STORE, "pending.json");
 const loadPending = () => { try { return JSON.parse(fs.readFileSync(PENDING, "utf8")); } catch { return []; } };
 const savePending = (list) => fs.writeFileSync(PENDING, JSON.stringify(list, null, 2));
 
@@ -139,7 +143,7 @@ function findTarget(items, query, wantStatus) {
 // The website posts here; the owner gets the product photo plus the customer's name and
 // number. In the demo it lands in the fake WhatsApp chat via /api/inbox. In version 2,
 // sendToOwner() also sends it to the owner's real WhatsApp through the Cloud API.
-const INBOX = path.join(DATA, "inbox.json");
+const INBOX = path.join(STORE, "inbox.json");
 const loadInbox = () => { try { return JSON.parse(fs.readFileSync(INBOX, "utf8")); } catch { return []; } };
 const saveInbox = (m) => fs.writeFileSync(INBOX, JSON.stringify(m.slice(-200), null, 2));
 
@@ -193,7 +197,7 @@ async function whatsappWebhook(req, res, url) {
   if (!wa.enabled()) return console.warn("WhatsApp webhook called but WA_* / OWNER_WHATSAPP settings are missing");
   let payload;
   try { payload = JSON.parse(raw); } catch { return; }
-  wa.handleWebhook(payload, { ownerMessage, shopName: SHOP_NAME, shopKey: "vibex", shopUrl: siteUrl() || "our website", choiceFile: path.join(DATA, "wa-shop.json") },
+  wa.handleWebhook(payload, { ownerMessage, shopName: SHOP_NAME, shopKey: "vibex", shopUrl: siteUrl() || "our website", choiceFile: path.join(STORE, "wa-shop.json") },
     raw, req.headers["x-hub-signature-256"]);
 }
 
@@ -229,7 +233,7 @@ async function handleEnquiry(req, res) {
 // Flow: customer fills details -> pays by UPI/bank/number -> sends payment reference or
 // screenshot -> piece goes ON HOLD -> owner checks his bank app and replies
 // "confirm VX-1234" (piece becomes SOLD) or "cancel VX-1234" (piece goes back on sale).
-const ORDERS = path.join(DATA, "orders.json");
+const ORDERS = path.join(STORE, "orders.json");
 const loadOrders = () => { try { return JSON.parse(fs.readFileSync(ORDERS, "utf8")); } catch { return []; } };
 const saveOrders = (o) => fs.writeFileSync(ORDERS, JSON.stringify(o, null, 2));
 const lotOf = (p) => "LOT " + (p.code || hashLot(p.id));
@@ -753,7 +757,7 @@ function publish({ id, listing, by, image }) {
 }
 
 // ---- Activity log: posts and sales, for streaks, "today" counts and the stats bar ----
-const ACTIVITY = path.join(DATA, "activity.json");
+const ACTIVITY = path.join(STORE, "activity.json");
 const loadActivity = () => { try { return JSON.parse(fs.readFileSync(ACTIVITY, "utf8")); } catch { return []; } };
 function logActivity(ev) {
   const list = loadActivity();
@@ -855,6 +859,7 @@ http
       // Owner screen add-ons (stats bars, reply buttons, celebration), shared by every design.
       if (p === "/owner-kit.js" || p === "/owner-kit.css") return serveFile(res, path.join(ROOT, "owner"), p.slice(1));
       if (req.method === "POST" && p === "/api/reset") {
+        if (LIVE) return send(res, 403, { error: "Reset is switched off on the live shop, so real products and orders can't be wiped." });
         writeSeed();
         ensureCodes();
         saveInbox([]);
@@ -883,5 +888,6 @@ http
     console.log(aiEnabled() ? `Photo reading: ON (${MODEL})` : "Photo reading: OFF (no ANTHROPIC_API_KEY in .env), using keyword rules");
     console.log(wa.enabled() ? `WhatsApp: ON (owner ${wa.owners().map((n) => n.slice(0, 4) + "…").join(", ")})` : "WhatsApp: OFF (set WA_TOKEN, WA_PHONE_ID, WA_APP_SECRET, WA_VERIFY_TOKEN, OWNER_WHATSAPP)");
     setTimeout(() => wa.ensureSubscriptions(siteUrl() && `${siteUrl()}/webhook`), 20e3);
+    console.log(LIVE ? `Data: ${STORE} (persistent disk; reset off)` : "Data: data/ (demo; not kept on free hosting restarts)");
     console.log(process.env.OWNER_KEY ? "Owner key: ON (open /demo?key=YOUR_KEY)" : "Owner key: OFF (fine locally; set OWNER_KEY on a public server)");
   });
