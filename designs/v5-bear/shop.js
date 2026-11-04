@@ -120,7 +120,8 @@
   function renderHeroStats() {
     const live = products.filter((p) => p.status === "available");
     const labels = new Set(live.map((p) => p.brand).filter(Boolean)).size;
-    const rows = [[live.length, "pieces on the rail"], [products.filter(isNew).length, "new in 48 hours"], [labels, "labels in stock"]].filter(([n]) => n > 0);
+    const fresh = products.filter(isNew).length;
+    const rows = [[live.length, live.length === 1 ? "piece on the rail" : "pieces on the rail"], [fresh, "new in 48 hours"], [labels, labels === 1 ? "label in stock" : "labels in stock"]].filter(([n]) => n > 0);
     $("hero-stats").innerHTML = rows.map(([n, l]) => `<div><dt>${n}</dt><dd>${l}</dd></div>`).join("");
   }
 
