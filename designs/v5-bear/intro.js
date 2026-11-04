@@ -14,7 +14,7 @@
   const enter = () => {
     if (root.classList.contains("vx-enter")) return;
     root.classList.add("vx-enter"); root.classList.remove("vx-pre");
-    setTimeout(() => root.classList.remove("vx-enter"), 2600);
+    setTimeout(() => root.classList.remove("vx-enter"), 1700);
   };
   const safety = setTimeout(enter, 9000);
 
@@ -47,10 +47,10 @@
   const RED = "#e92e30", INK = "#1a1a1a";
 
   // ---- timeline (ms) ----
-  const SWEEP_AT = 450, SWEEP = 2100;
-  const LAUNCH_AT = 850, STEP = 80, FLY = 950;
-  const HOLD_TO = LAUNCH_AT + (CITIES.length - 1) * STEP + FLY + 600;
-  const EXIT = 1150; // the dive / hand-off
+  const SWEEP_AT = 250, SWEEP = 1500;
+  const LAUNCH_AT = 450, STEP = 55, FLY = 750;
+  const HOLD_TO = LAUNCH_AT + (CITIES.length - 1) * STEP + FLY + 380;   // ~2.5 s
+  const EXIT = 820; // the dive / hand-off
 
   // ---- geometry, centred on the middle of the mainland ----
   const CX = 300, CY = 350;
@@ -83,9 +83,9 @@
   .vxi-bg { position: absolute; inset: 0; background: radial-gradient(110% 80% at 50% 42%, #ffffff 0%, #f4f4f4 62%, #ebebeb 100%); transition: opacity .55s ease; }
   .vxi canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   .vxi-copy { position: absolute; left: 0; right: 0; bottom: calc(8vh + env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
-  .vxi-logo { font: 900 34px/1 Montserrat, Arial, sans-serif; color: ${INK}; letter-spacing: .02em; white-space: nowrap; transform-origin: 0 0; opacity: 0; transform: translateY(14px); animation: vxiUp .9s cubic-bezier(.2,.8,.2,1) 1.2s forwards; }
+  .vxi-logo { font: 900 34px/1 Montserrat, Arial, sans-serif; color: ${INK}; letter-spacing: .02em; white-space: nowrap; transform-origin: 0 0; opacity: 0; transform: translateY(14px); animation: vxiUp .8s cubic-bezier(.2,.8,.2,1) .6s forwards; }
   .vxi-logo span { color: ${RED}; margin-left: 3px; }
-  .vxi-copy p { margin: 12px 0 0; font: 500 12.5px/1.4 Roboto, Arial, sans-serif; text-transform: uppercase; letter-spacing: .18em; color: #6f6f6f; opacity: 0; transform: translateY(10px); animation: vxiUp .9s cubic-bezier(.2,.8,.2,1) 1.45s forwards; transition: opacity .3s; }
+  .vxi-copy p { margin: 12px 0 0; font: 500 12.5px/1.4 Roboto, Arial, sans-serif; text-transform: uppercase; letter-spacing: .18em; color: #6f6f6f; opacity: 0; transform: translateY(10px); animation: vxiUp .8s cubic-bezier(.2,.8,.2,1) .8s forwards; transition: opacity .25s; }
   .vxi-copy p b { color: ${RED}; font-weight: 700; }
   @keyframes vxiUp { to { opacity: 1; transform: none; } }
   .vxi-skip, .vxi-compass { transition: opacity .3s; }
@@ -192,7 +192,7 @@
     const fade = 1 - clamp01(e * 2.4);                          // routes, pins, floor clear early in the dive
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    const slab = ease(clamp01(ms / 700));
+    const slab = ease(clamp01(ms / 450));
     const appear = slab * fade;
     const T = 10;
 
@@ -229,7 +229,7 @@
 
     // Srinagar: a beam of light and rings breathing outward
     const hx = SRINAGAR[0] - CX, hy = SRINAGAR[1] - CY;
-    const [bx0, by0] = P(hx, hy, 0), [bx1, by1] = P(hx, hy, 110 * ease(clamp01((ms - 200) / 900)));
+    const [bx0, by0] = P(hx, hy, 0), [bx1, by1] = P(hx, hy, 110 * ease(clamp01((ms - 100) / 700)));
     const beam = ctx.createLinearGradient(bx0, by0, bx1, by1);
     beam.addColorStop(0, "rgba(233,46,48,.55)"); beam.addColorStop(1, "rgba(233,46,48,0)");
     ctx.strokeStyle = beam; ctx.lineWidth = 5; ctx.lineCap = "round";
@@ -257,10 +257,10 @@
         ctx.beginPath(); ctx.arc(sx, sy, 2.6 * f, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
       } else {
         const since = ms - r.at - FLY;
-        const rip = clamp01(since / 1000);
+        const rip = clamp01(since / 800);
         if (rip < 1) { ring(r.x, r.y, 4 + rip * 20); ctx.strokeStyle = `rgba(233,46,48,${.8 * (1 - rip) * appear})`; ctx.lineWidth = 1.3; ctx.stroke(); }
         ring(r.x, r.y, 3.4); ctx.fillStyle = RED; ctx.fill();
-        const rise = ease(clamp01(since / 520));
+        const rise = ease(clamp01(since / 380));
         if (r.tag) tag(r.x, r.y, r.name, 28 * rise, false, rise * appear, r.tag);
         else {
           const [gx, gy] = P(r.x, r.y, 0), [tx, ty] = P(r.x, r.y, 10 * rise);
@@ -273,7 +273,7 @@
     ctx.globalAlpha = appear;
     ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(hsx, hsy, 4.8, 0, 7); ctx.fill();
     ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(hsx, hsy, 1.8, 0, 7); ctx.fill();
-    const homeRise = ease(clamp01((ms - 250) / 750));
+    const homeRise = ease(clamp01((ms - 120) / 550));
     tag(hx, hy, "Srinagar · Vibe X", 48 * homeRise, true, homeRise * appear * (1 - e));
     ctx.globalAlpha = 1;
 
@@ -291,11 +291,11 @@
     clearTimeout(safety);
     // once the dive has whited the screen out, lift the layer: the page underneath is white too,
     // so the only things that move are the page's own arrivals (banner opening, header, pills)
-    const lift = Math.max(0, EXIT * .52 - (performance.now() - exitAt));
+    const lift = Math.max(0, EXIT * .38 - (performance.now() - exitAt));
     setTimeout(() => {
       document.body.classList.remove("vxi-on");
       enter();
-      el.style.transition = "opacity .5s ease";
+      el.style.transition = "opacity .42s ease";
       el.style.opacity = "0";
     }, lift);
     // the VIBE X mark flies into the header logo
@@ -303,10 +303,10 @@
     if (target) {
       const a = logo.getBoundingClientRect(), b = target.getBoundingClientRect();
       logo.style.animation = "none"; logo.style.opacity = "1";
-      logo.style.transition = "transform .95s cubic-bezier(.65,0,.25,1)";
+      logo.style.transition = "transform .72s cubic-bezier(.65,0,.25,1)";
       logo.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${b.width / a.width})`;
       target.style.opacity = "0";
-      setTimeout(() => { target.style.transition = "none"; target.style.opacity = ""; logo.style.opacity = "0"; }, 960);
+      setTimeout(() => { target.style.transition = "none"; target.style.opacity = ""; logo.style.opacity = "0"; }, 730);
     }
     copy.style.transition = "none";
     setTimeout(() => { over = true; cancelAnimationFrame(raf); el.remove(); removeEventListener("resize", resize); }, EXIT + 120);

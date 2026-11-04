@@ -616,35 +616,37 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 @media (prefers-reduced-motion: reduce) { .slide-copy > * { opacity: 1; transform: none; } .slide-pics img { animation: none; } }
 
 /* ===== entrance: the page arrives in step with the opening map's hand-off (intro.js sets the classes) =====
-   .vx-pre = waiting under the map; .vx-enter = arriving (lifted again once it has played). */
-.vx-pre .ticker { transform: translateY(-100%); opacity: 0; }
+   .vx-pre = waiting under the map; .vx-enter = arriving (lifted again once it has played).
+   The banner does not open from a box: the camera dives through the map and the photo comes into
+   focus already full width, settling from a slight zoom and blur, moving the same way as the dive. */
+.vx-pre .ticker { transform: translateY(-100%); }
 .vx-pre .top .logo { opacity: 0; }
-.vx-pre .top .nav a, .vx-pre .top .icon, .vx-pre .top .menu-btn { opacity: 0; transform: translateY(-10px); }
-.vx-pre .cat-tab { opacity: 0; transform: translateY(16px) scale(.9); }
-.vx-pre .slider { clip-path: inset(24% 28% 22% 28% round 28px); }
-.vx-pre .slide-pics { transform: scale(1.28); }
-.vx-pre .slide-copy > *, .vx-pre .slider-dots { opacity: 0 !important; transform: translateY(22px) !important; }
+.vx-pre .top .nav a, .vx-pre .top .icon, .vx-pre .top .menu-btn { opacity: 0; transform: translateY(-8px); }
+.vx-pre .cat-tab { opacity: 0; transform: translateY(12px); }
+.vx-pre .slider { opacity: 0; }
+.vx-pre .slide-pics { transform: scale(1.22); filter: blur(12px); }
+.vx-pre .slide-copy > *, .vx-pre .slider-dots { opacity: 0 !important; transform: translateY(18px) !important; }
 .vx-pre .trust { opacity: 0; }
 
-.vx-enter .ticker { transition: transform .7s cubic-bezier(.2,.8,.2,1) .55s, opacity .5s ease .55s; }
-.vx-enter .top .logo { transition: opacity .6s ease .3s; }
-.vx-enter .top .nav a, .vx-enter .top .icon, .vx-enter .top .menu-btn { transition: opacity .6s ease, transform .7s cubic-bezier(.2,.8,.2,1); }
-.vx-enter .top .nav a:nth-child(1), .vx-enter .top .icon:nth-child(1), .vx-enter .top .menu-btn { transition-delay: .5s; }
-.vx-enter .top .nav a:nth-child(2), .vx-enter .top .icon:nth-child(2) { transition-delay: .56s; }
-.vx-enter .top .nav a:nth-child(3) { transition-delay: .62s; }
-.vx-enter .top .nav a:nth-child(4) { transition-delay: .68s; }
-.vx-enter .top .nav a:nth-child(5) { transition-delay: .74s; }
-.vx-enter .cat-tab { transition: opacity .55s ease, transform .7s cubic-bezier(.2,1.3,.4,1); }
-.vx-enter .cat-tab:nth-child(1) { transition-delay: .62s; } .vx-enter .cat-tab:nth-child(2) { transition-delay: .68s; }
-.vx-enter .cat-tab:nth-child(3) { transition-delay: .74s; } .vx-enter .cat-tab:nth-child(4) { transition-delay: .80s; }
-.vx-enter .cat-tab:nth-child(5) { transition-delay: .86s; } .vx-enter .cat-tab:nth-child(6) { transition-delay: .92s; }
-.vx-enter .cat-tab:nth-child(7) { transition-delay: .98s; }
-.vx-enter .slider { transition: clip-path 1.25s cubic-bezier(.7,0,.2,1) .05s; }
-.vx-enter .slide-pics { transition: transform 1.6s cubic-bezier(.3,0,.2,1) .05s; }
-.vx-enter .slide.on .slide-copy > * { transition: opacity .7s ease, transform .9s cubic-bezier(.2,.8,.2,1); }
-.vx-enter .slide.on .slide-copy > :nth-child(1) { transition-delay: .85s; }
-.vx-enter .slide.on .slide-copy > :nth-child(2) { transition-delay: .97s; }
-.vx-enter .slide.on .slide-copy > :nth-child(3) { transition-delay: 1.09s; }
-.vx-enter .slide.on .slide-copy > :nth-child(4) { transition-delay: 1.21s; }
-.vx-enter .slider-dots { transition: opacity .6s ease 1.2s; }
-.vx-enter .trust { transition: opacity .8s ease 1s; }
+.vx-enter .ticker { transition: transform .55s cubic-bezier(.2,.8,.2,1) .2s; }
+.vx-enter .top .logo { transition: opacity .45s ease .15s; }
+.vx-enter .top .nav a, .vx-enter .top .icon, .vx-enter .top .menu-btn { transition: opacity .45s ease, transform .55s cubic-bezier(.2,.8,.2,1); }
+.vx-enter .top .nav a:nth-child(1), .vx-enter .top .icon:nth-child(1), .vx-enter .top .menu-btn { transition-delay: .18s; }
+.vx-enter .top .nav a:nth-child(2), .vx-enter .top .icon:nth-child(2) { transition-delay: .22s; }
+.vx-enter .top .nav a:nth-child(3) { transition-delay: .26s; }
+.vx-enter .top .nav a:nth-child(4) { transition-delay: .30s; }
+.vx-enter .top .nav a:nth-child(5) { transition-delay: .34s; }
+.vx-enter .cat-tab { transition: opacity .45s ease, transform .55s cubic-bezier(.2,.8,.2,1); }
+.vx-enter .cat-tab:nth-child(1) { transition-delay: .24s; } .vx-enter .cat-tab:nth-child(2) { transition-delay: .28s; }
+.vx-enter .cat-tab:nth-child(3) { transition-delay: .32s; } .vx-enter .cat-tab:nth-child(4) { transition-delay: .36s; }
+.vx-enter .cat-tab:nth-child(5) { transition-delay: .40s; } .vx-enter .cat-tab:nth-child(6) { transition-delay: .44s; }
+.vx-enter .cat-tab:nth-child(7) { transition-delay: .48s; }
+.vx-enter .slider { transition: opacity .38s ease; }
+.vx-enter .slide-pics { transition: transform 1.15s cubic-bezier(.16,1,.3,1), filter .7s ease; }
+.vx-enter .slide.on .slide-copy > * { transition: opacity .55s ease, transform .7s cubic-bezier(.2,.8,.2,1); }
+.vx-enter .slide.on .slide-copy > :nth-child(1) { transition-delay: .32s; }
+.vx-enter .slide.on .slide-copy > :nth-child(2) { transition-delay: .40s; }
+.vx-enter .slide.on .slide-copy > :nth-child(3) { transition-delay: .48s; }
+.vx-enter .slide.on .slide-copy > :nth-child(4) { transition-delay: .56s; }
+.vx-enter .slider-dots { transition: opacity .45s ease .6s; }
+.vx-enter .trust { transition: opacity .6s ease .45s; }
