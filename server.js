@@ -14,6 +14,8 @@ try { process.loadEnvFile(path.join(__dirname, ".env")); } catch { /* no .env: k
 const { parseMessage, categoryAnswer, findSubcategory } = require("./lib/parse");
 const { classify, aiEnabled, MODEL } = require("./lib/classify");
 const wa = require("./lib/whatsapp");
+const createBilling = require("./lib/billing");
+const { readJson, writeJson, dailyBackup } = require("./lib/jsonstore");
 const SHOP_NAME = "Vibe X";
 
 const PORT = Number(process.env.PORT) || 4300;
@@ -102,7 +104,13 @@ function tidyListing(l) {
   for (const p of items) { const before = `${p.name}|${p.sizes}`; tidyListing(p); if (`${p.name}|${p.sizes}` !== before) n++; }
   if (n) { fs.writeFileSync(DB, JSON.stringify(items, null, 2)); console.log(`Tidied ${n} product name(s): bottle size moved to the size field`); }
 })();
-const save = (items) => fs.writeFileSync(DB, JSON.stringify(items, null, 2));
+const save = (items) => writeJson(DB, items);
+// What customers may see. Cost prices and the shop's own notes never leave the server, and
+// hidden items (imported, waiting for a photo) aren't on sale yet.
+const PRIVATE_FIELDS = ["cost", "purchasePrice", "supplierId", "hsn", "gstRate", "reorderAt", "barcode", "importKey", "needsCount", "needsName"];
+const isPublic = (p) => !p.hidden;
+const forCustomers = (p) => { const c = { ...p }; for (const k of PRIVATE_FIELDS) delete c[k]; return c; };
+const publicProducts = () => load().filter(isPublic).map(forCustomers);
 
 // Posts the bot wasn't sure about ("Gucci 2499": clothes or perfume?) wait here, oldest first,
 // until the owner answers. They are not on the website until then.
@@ -113,6 +121,32 @@ const savePending = (list, touch = true) => {
   if (touch) for (const x of list) x.touched = Date.now();
   fs.writeFileSync(PENDING, JSON.stringify(list, null, 2));
 };
+
+// Billing: every sale (portal, WhatsApp, website order) goes through billing.sell(), which
+// takes the stock and writes the invoice together. See lib/billing.js.
+const billing = createBilling({ STORE, SHOP, load, save, logActivity });
+const invoicePage = require("./lib/invoice-page");
+const stockImport = require("./lib/import-mybillbook");
+const books = require("./lib/books")({ STORE, SHOP, billing, load, save, logActivity });
+billing.hooks.partyFor = books.customerFor;
+// The books get a dated copy every day, kept 30 days on the same disk.
+const BOOK_FILES = ["products.json", "invoices.json", "parties.json", "payments.json", "purchases.json", "expenses.json", "books.json", "orders.json"];
+if (LIVE) { dailyBackup(STORE, BOOK_FILES); setInterval(() => dailyBackup(STORE, BOOK_FILES), 3600e3).unref(); }
+// Bill links in WhatsApp replies. Locally there's no public address, so it's a path.
+const billUrl = (inv) => `${process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || ""}`.replace(/\/$/, "") + `/bill/${inv.id}`;
+const PAY_LABEL = { cash: "Cash", upi: "UPI", card: "Card", credit: "Credit" };
+// "bills" in the chat: today's bills from every channel (counter, WhatsApp, website).
+function billsReply() {
+  const day = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const t = day(Date.now());
+  const list = billing.loadInvoices().filter((x) => day(x.at) === t);
+  if (!list.length) return "🧾 No bills yet today.";
+  const sum = billing.today();
+  const where = { counter: "🏬", whatsapp: "💬", website: "🌐" };
+  const lines = list.slice(-15).map((x) => `${where[x.source] || ""} ${x.number.split("/").pop()} · ${inr(x.total)} · ${x.lines.map((l) => `${l.qty > 1 ? l.qty + "× " : ""}${l.name}`).join(", ").slice(0, 60)}${x.status === "cancelled" ? " ❌" : ""}`);
+  const pay = Object.entries(sum.byPayment).map(([k, v]) => `${PAY_LABEL[k] || k} ${inr(v)}`).join(" · ");
+  return `🧾 *Today's bills: ${sum.bills}* · *${inr(sum.total)}*\n${pay}\n\n${lines.join("\n")}${list.length > 15 ? `\n…and ${list.length - 15} earlier` : ""}\n\n🏬 counter · 💬 WhatsApp · 🌐 website`;
+}
 
 const TYPES = {
   ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript",
@@ -241,7 +275,7 @@ async function handleEnquiry(req, res) {
   const ip = req.socket.remoteAddress || "?";
   if (tooMany(ip)) return send(res, 429, { error: "Too many messages. Please wait a few minutes." });
 
-  const p = load().find((x) => x.id === String(body.productId || ""));
+  const p = load().filter(isPublic).find((x) => x.id === String(body.productId || ""));
   if (!p) return send(res, 404, { error: "This piece is no longer listed." });
   const name = String(body.name || "").replace(/\s+/g, " ").trim().slice(0, 60);
   const phone = normalisePhone(body.phone);
@@ -268,8 +302,8 @@ async function handleEnquiry(req, res) {
 // screenshot -> piece goes ON HOLD -> owner checks his bank app and replies
 // "confirm VX-1234" (piece becomes SOLD) or "cancel VX-1234" (piece goes back on sale).
 const ORDERS = path.join(STORE, "orders.json");
-const loadOrders = () => { try { return JSON.parse(fs.readFileSync(ORDERS, "utf8")); } catch { return []; } };
-const saveOrders = (o) => fs.writeFileSync(ORDERS, JSON.stringify(o, null, 2));
+const loadOrders = () => readJson(ORDERS, []);
+const saveOrders = (o) => writeJson(ORDERS, o);
 const lotOf = (p) => "LOT " + (p.code || hashLot(p.id));
 const inr = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
@@ -300,7 +334,7 @@ async function createOrder(req, res) {
   if (b.website) return send(res, 200, { ok: true });
   if (!ORDERING_OPEN) return send(res, 403, { error: "Online ordering opens soon. Tap Enquire and we'll reply on WhatsApp." });
   if (tooMany(req.socket.remoteAddress || "?")) return send(res, 429, { error: "Too many attempts. Please wait a few minutes." });
-  const p = load().find((x) => x.id === String(b.productId || ""));
+  const p = load().filter(isPublic).find((x) => x.id === String(b.productId || ""));
   if (!p) return send(res, 404, { error: "This piece is no longer listed." });
   if (p.status === "sold") return send(res, 409, { error: "Sorry, this piece has just sold." });
   if (p.status === "hold") return send(res, 409, { error: "Someone is paying for this piece right now. Tap Enquire and we'll tell you if it frees up." });
@@ -367,6 +401,8 @@ const HELP = `📋 *Commands*
 *Post a product:* just send the photo. I'll ask for anything I need (section, name, price, size) one at a time, then show you how it looks. Tap *Post it* and it's live.
 _Faster:_ put it all in the caption, e.g. _Zara shirt 1499 M L_, and it's one tap
 *Today's numbers:* _stats_
+*Today's bills:* _bills_
+*Put an imported item on the website:* send its photo with the code as the caption, e.g. _4795_
 *Sell:* _sold 4795_ (one) or _sold 4795 2_
 *More came in:* _add 4795 3_
 *Set stock:* _stock 4795 5_
@@ -393,11 +429,19 @@ function stockCommand(text) {
     return `↪️ Moved “${p.name}” (#${p.code}) to *${[p.category, p.subcategory].filter(Boolean).join(" › ")}* on the website.`;
   }
   const before = p.quantity || (p.status === "sold" ? 0 : 1);
-  let after;
   if (c.action === "sold") {
+    // Same path as the billing portal: stock comes off and a bill is written in one go.
     if (p.status === "sold" || before === 0) return `“${p.name}” (#${p.code}) is already sold out. Send *add ${p.code} 1* if more came in.`;
-    after = Math.max(0, before - c.qty);
-  } else if (c.action === "add") {
+    const r = billing.sell([{ productId: p.id, qty: c.qty }], { source: "whatsapp", clamp: true });
+    if (r.error) return `⚠️ ${r.error}`;
+    const n = r.invoice.lines[0].qty;
+    const after = billing.stockOf(r.products.find((x) => x.id === p.id));
+    const left = after === 0 ? "*SOLD OUT* on the website." : `*${after}* left on the website.`;
+    const over = c.qty > n ? ` (you had only ${n}, so it's now sold out)` : "";
+    return `🏷️ Sold ${n} × “${p.name}” (#${p.code})${over}. ${left}\n🧾 Bill ${r.invoice.number} · ${inr(r.invoice.total)}: ${billUrl(r.invoice)}`;
+  }
+  let after;
+  if (c.action === "add") {
     after = before + c.qty;
   } else {
     after = c.qty;
@@ -407,12 +451,6 @@ function stockCommand(text) {
   else if (p.status === "sold") p.status = "available";
   save(items);
   const left = after === 0 ? "*SOLD OUT* on the website." : `*${after}* left on the website.`;
-  if (c.action === "sold") {
-    const n = Math.min(c.qty, before);
-    if (n > 0) logActivity({ type: "sold", id: p.id, qty: n, amount: (p.price || 0) * n });
-    const over = c.qty > before ? ` (you had only ${before}, so it's now sold out)` : "";
-    return `🏷️ Sold ${Math.min(c.qty, before)} × “${p.name}” (#${p.code})${over}. ${left}`;
-  }
   if (c.action === "add") return `📦 Added ${c.qty} × “${p.name}” (#${p.code}). ${left}`;
   return `📦 Stock for “${p.name}” (#${p.code}) set to ${after}. ${left}`;
 }
@@ -429,23 +467,29 @@ function orderCommand(text) {
   const p = items.find((x) => x.id === o.productId);
   const hello = (msg) => `https://wa.me/91${o.phone}?text=${encodeURIComponent(msg)}`;
   if (/^(cancel|reject)/i.test(m[1])) {
+    if (o.status === "cancelled") return `${o.code} is already cancelled.`;
+    // Already confirmed = already billed: cancelling the bill puts the piece back on sale.
+    if (o.invoice) { const r = billing.cancel(o.invoice, `Order ${o.code} cancelled`); if (!r.error) o.invoice = null; }
     o.status = "cancelled";
     if (p && p.status === "hold" && p.holdFor === o.code) { p.status = "available"; delete p.holdFor; save(items); }
     saveOrders(orders);
     return `❌ ${o.code} cancelled. “${o.productName}” is back on sale.\nTell the customer: ${hello(`Hi ${o.name}, Vibe X here. We couldn't find your payment for order ${o.code}. Could you send the payment screenshot?`)}`;
   }
   if (o.status === "confirmed") return `${o.code} is already confirmed.`;
+  if (o.status === "cancelled") return `${o.code} was cancelled. Ask the customer to order again.`;
+  // Same path as the billing portal: stock comes off and the bill is written in one go.
+  const sale = billing.sell([{ productId: o.productId, qty: 1, price: o.amount }], {
+    source: "website", order: o.code, holdFor: o.code, payment: "upi",
+    customer: { name: o.name, phone: o.phone, address: o.delivery === "ship" ? `${o.address}, ${o.city} ${o.pin}` : "" },
+  });
+  if (sale.error) return `⚠️ Can't confirm ${o.code}: ${sale.error}\nIf the customer has paid, refund them and send *cancel ${o.code}*.`;
   o.status = "confirmed";
   o.confirmedAt = new Date().toISOString();
-  logActivity({ type: "sold", id: o.productId, qty: 1, amount: o.amount, order: o.code });
-  if (p) {
-    if (p.quantity > 1) p.quantity -= 1;
-    else { p.status = "sold"; delete p.holdFor; }
-    save(items);
-  }
+  o.invoice = sale.invoice.id;
   saveOrders(orders);
   const next = o.delivery === "ship" ? "Pack it for shipping" : "Keep it aside for pickup";
-  return `✅ ${o.code} confirmed. “${o.productName}” marked ${p && p.status === "sold" ? "SOLD" : `sold (${p ? p.quantity : 0} left)`}.\n${next}. The customer's screen already shows it's confirmed.\nMessage them: ${hello(`Hi ${o.name}, Vibe X here. Payment received for ${o.code} (${o.productName}). ${o.delivery === "ship" ? "We'll share tracking once it ships." : "It's ready for pickup at the store."}`)}`;
+  const after = sale.products.find((x) => x.id === o.productId);
+  return `✅ ${o.code} confirmed. “${o.productName}” marked ${after.status === "sold" ? "SOLD" : `sold (${after.quantity} left)`}.\n🧾 Bill ${sale.invoice.number}: ${billUrl(sale.invoice)}\n${next}. The customer's screen already shows it's confirmed.\nMessage them: ${hello(`Hi ${o.name}, Vibe X here. Payment received for ${o.code} (${o.productName}). ${o.delivery === "ship" ? "We'll share tracking once it ships." : "It's ready for pickup at the store."}`)}`;
 }
 
 // ---- Owner key ----
@@ -596,7 +640,7 @@ function sendConfig(res) {
 }
 
 function productMeta(req, id) {
-  const p = load().find((x) => x.id === id);
+  const p = load().filter(isPublic).find((x) => x.id === id);
   // Hosts like Render sit behind HTTPS and pass the real scheme in x-forwarded-proto.
   const proto = String(req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
   const origin = (process.env.PUBLIC_URL || `${proto}://${req.headers.host}`).replace(/\/$/, "");
@@ -645,12 +689,18 @@ async function ownerMessage(body) {
   const text = String(body.text || "").slice(0, 1000);
   if (!text.trim() && !body.image) return { status: 400, error: "empty message" };
 
+  // A photo with an imported item's code: that item goes on the website.
+  if (body.image) {
+    const live = photoForImported(text, body.image);
+    if (live) return live;
+  }
   const items = load();
   const stockReply = stockCommand(text);
   if (stockReply) return { reply: stockReply };
   const orderReply = orderCommand(text);
   if (orderReply) return { reply: orderReply };
   if (/^(stats|report|status|aaj|today)$/i.test(text.trim())) return { reply: statsReply() };
+  if (/^(bills?|sales|hisab|hisaab)$/i.test(text.trim())) return { reply: billsReply() };
   const cleared = !body.image && (clearCommand(text) || choiceReply(text));
   if (cleared) return cleared;
   const batched = !body.image && batchReply(text);
@@ -667,18 +717,20 @@ async function ownerMessage(body) {
       save(items.filter((p) => p.id !== target.id));
       return { reply: `🗑️ Removed “${target.name}” from the website.` };
     }
-    if (parsed.action === "sold" && target.status !== "sold") logActivity({ type: "sold", id: target.id, qty: 1, amount: target.price || 0 });
-    if (parsed.action === "sold" && target.quantity > 1) {
-      target.quantity -= 1;
-      save(items);
-      return { reply: `🏷️ One “${target.name}” sold. ${target.quantity} left on the website.\nReply *sold ${target.name.split(" ")[0].toLowerCase()}* again for the next one.` };
+    if (parsed.action === "sold") {
+      if (target.status === "sold") return { reply: `“${target.name}” (#${target.code}) is already sold out.` };
+      const r = billing.sell([{ productId: target.id, qty: 1 }], { source: "whatsapp" });
+      if (r.error) return { reply: `⚠️ ${r.error}` };
+      const left = billing.stockOf(r.products.find((x) => x.id === target.id));
+      const bill = `🧾 Bill ${r.invoice.number} · ${inr(r.invoice.total)}: ${billUrl(r.invoice)}`;
+      return { reply: left > 0
+        ? `🏷️ One “${target.name}” sold. ${left} left on the website.\n${bill}\nReply *sold ${target.name.split(" ")[0].toLowerCase()}* again for the next one.`
+        : `🏷️ Marked “${target.name}” as SOLD.\n${bill}` };
     }
-    target.status = parsed.action === "sold" ? "sold" : "available";
+    target.status = "available";
     if (parsed.action === "restock" && !target.quantity) target.quantity = 1;
     save(items);
-    return {
-      reply: parsed.action === "sold" ? `🏷️ Marked “${target.name}” as SOLD.` : `✅ “${target.name}” is back in stock.`,
-    };
+    return { reply: `✅ “${target.name}” is back in stock.` };
   }
 
   const item = await makeDraft(text, body.image, parsed);
@@ -695,6 +747,26 @@ async function ownerMessage(body) {
 
 // One photo + caption -> a draft. Rules always run; the AI reader (when configured) decides
 // what the item is from the photo, and the rules fill any price/size it left empty.
+// Imported items wait off the website until they have a photo. The caption is the item's
+// 4-digit code or its barcode, on its own.
+function photoForImported(text, image) {
+  const key = String(text || "").trim().replace(/^#/, "");
+  if (!/^\d{4,13}$/.test(key)) return null;
+  const items = load();
+  const p = items.find((x) => x.hidden && (x.code === key || x.barcode === key));
+  if (!p) return null;
+  if (!p.price) return { reply: `“${p.name}” (#${p.code}) has no selling price yet, so it can't go on the website. Add it in the Stock tab, then send the photo again.` };
+  if (p.needsName) return { reply: `Item #${p.code} needs a proper name before it can go on the website.` };
+  const saved = saveImage(image, p.id);
+  if (!saved) return { reply: "I couldn't read that photo. Please send it again." };
+  p.image = saved;
+  delete p.hidden;
+  save(items);
+  const win = celebrate(p);
+  const left = billing.stockOf(p);
+  return { reply: `🎉 *“${p.name}” is on your website!*\n🔢 Code *${p.code}* · ${left > 0 ? `${left} in stock` : "shows as sold out: send *add " + p.code + " 1* when you have stock"}\n📈 ${win.postedToday} posted today · 🛍️ ${win.live} live` };
+}
+
 async function makeDraft(text, imageData, parsed = parseMessage(text)) {
   const rules = parsed.type === "product" ? parsed.product : parseMessage("").product;
   let listing = rules, note = null, by = "rules", sure = parsed.type === "product" ? parsed.sure : false;
@@ -1286,7 +1358,7 @@ function celebrate(product) {
   const acts = loadActivity();
   const today = shopDay(Date.now());
   const postedToday = acts.filter((a) => a.type === "post" && shopDay(a.at) === today).length;
-  const live = load().filter((p) => p.status !== "sold").length;
+  const live = load().filter((p) => isPublic(p) && p.status !== "sold").length;
   const streak = streakDays(acts);
   let milestone = null;
   if ([5, 10, 20, 30, 50].includes(postedToday)) milestone = `🔥 ${postedToday} drops today. You're on fire!`;
@@ -1306,7 +1378,7 @@ function liveReply(product, win) {
 
 // ---- Real recent sales for the shop's "just sold" note (public: item and time only, no buyer) ----
 function recentSales() {
-  const byId = new Map(load().map((p) => [p.id, p]));
+  const byId = new Map(load().filter(isPublic).map((p) => [p.id, p]));
   const since = Date.now() - 72 * 3600e3;
   return loadActivity()
     .filter((a) => a.type === "sold" && new Date(a.at) > since && byId.has(a.id))
@@ -1316,7 +1388,7 @@ function recentSales() {
 
 // ---- Numbers for the owner: the stats bar on /demo, and the "stats" chat command ----
 function stats() {
-  const items = load();
+  const items = load().filter(isPublic);
   const orders = loadOrders();
   const inbox = loadInbox();
   const acts = loadActivity();
@@ -1332,8 +1404,10 @@ function stats() {
     units: onSale.reduce((n, p) => n + units(p), 0),
     stockValue: onSale.reduce((n, p) => n + (p.price || 0) * units(p), 0),
     postedToday: acts.filter((a) => a.type === "post" && isToday(a.at)).length,
-    soldToday: soldToday.reduce((n, a) => n + (a.qty || 1), 0),
-    salesToday: soldToday.reduce((n, a) => n + (a.amount || 0), 0),
+    // From the bills, so a cancelled bill comes off again.
+    soldToday: billing.today().pieces,
+    salesToday: billing.today().total,
+    billsToday: billing.today().bills,
     ordersToCheck: orders.filter((o) => o.status === "paid").length,
     enquiriesToday: inbox.filter((m) => m.kind === "enquiry" && isToday(m.at)).length,
     drafts: loadPending().length,
@@ -1367,12 +1441,91 @@ function statsReply() {
   return `📊 *Your shop right now*\n\n${shop.join("\n")}${sec ? `\n\n${sec}` : ""}\n\n*Today*\n${today.join("\n")}`;
 }
 
+// ---- Billing portal API (owner key) ----
+async function billingApi(req, res, route, url) {
+  const body = async () => { try { return JSON.parse((await readBody(req, 64 * 1024)) || "{}"); } catch { return null; } };
+  const reply = (r) => (r.error ? send(res, 409, { error: r.error }) : send(res, 200, r));
+  const post = req.method === "POST", get = req.method === "GET";
+  if (get && route === "products") return send(res, 200, load());
+  // Importing the myBillBook stock file. Preview unless apply=1; a copy is kept before applying.
+  if (post && route === "import") {
+    let csv;
+    try { csv = await readBody(req, 5 * 1024 * 1024); } catch { return send(res, 413, { error: "File too large." }); }
+    const before = load();
+    const r = stockImport.plan(String(csv), before, { newCode, refreshStock: url.searchParams.get("refreshStock") === "1" });
+    if (r.error) return send(res, 400, { error: r.error });
+    if (url.searchParams.get("apply") !== "1") return send(res, 200, { preview: true, report: r.report });
+    writeJson(path.join(STORE, `products-before-import-${Date.now()}.json`), before);
+    save(r.items);
+    return send(res, 200, { preview: false, report: r.report });
+  }
+  if (get && route === "dashboard") return send(res, 200, books.dashboard());
+  if (get && route === "parties") return send(res, 200, books.partyList());
+  if (post && route === "parties") { const b = await body(); return b ? reply(books.saveParty(b)) : send(res, 400, { error: "Bad request." }); }
+  let m = /^parties\/([a-f0-9]{16})(\/ledger)?$/.exec(route);
+  if (m && get && m[2]) return reply(books.ledger(m[1]));
+  if (m && post && !m[2]) { const b = await body(); return b ? reply(books.saveParty(b, m[1])) : send(res, 400, { error: "Bad request." }); }
+  if (get && route === "payments") return send(res, 200, books.payments.all().slice(-500).reverse());
+  if (post && route === "payments") { const b = await body(); return b ? reply(books.addPayment(b)) : send(res, 400, { error: "Bad request." }); }
+  if (get && route === "purchases") return send(res, 200, books.purchases.all().slice(-500).reverse());
+  if (post && route === "purchases") { const b = await body(); return b ? reply(books.addPurchase(b)) : send(res, 400, { error: "Bad request." }); }
+  if (get && route === "expenses") return send(res, 200, { list: books.expenses.all().slice(-500).reverse(), types: books.EXPENSE_TYPES });
+  if (post && route === "expenses") { const b = await body(); return b ? reply(books.addExpense(b)) : send(res, 400, { error: "Bad request." }); }
+  if (get && route === "cash") return send(res, 200, books.cashbook());
+  if (post && route === "cash/opening") { const b = await body(); return b ? reply(books.setOpening(b)) : send(res, 400, { error: "Bad request." }); }
+  m = /^(payments|purchases|expenses)\/([a-f0-9]{16})\/cancel$/.exec(route);
+  if (m && post) return reply({ payments: books.cancelPayment, purchases: books.cancelPurchase, expenses: books.cancelExpense }[m[1]](m[2]));
+  if (get && route === "profit") return send(res, 200, books.profit(url.searchParams.get("from") || "0000-01-01", url.searchParams.get("to") || "9999-12-31"));
+  if (req.method === "GET" && route === "invoices") {
+    const list = billing.loadInvoices();
+    return send(res, 200, { invoices: list.slice(-500).reverse(), today: billing.today(), gst: billing.gstOn() });
+  }
+  if (req.method === "POST" && route === "invoices") {
+    const b = await body();
+    if (!b) return send(res, 400, { error: "Bad request." });
+    let partyId = b.partyId || null;
+    if (b.payment === "credit") {
+      // Credit needs someone to owe it: a saved party, or a bill with a mobile number.
+      partyId = partyId || books.customerFor(b.customer || {});
+      if (!partyId) return send(res, 409, { error: "A credit bill needs the customer's name and mobile, so it can go in their ledger." });
+      const total = (b.lines || []).reduce((n, l) => n + Number(l.price || 0) * Number(l.qty || 0) - Number(l.disc || 0), 0)
+        + (b.charges || []).reduce((n, c) => n + Number(c.amount || 0), 0);
+      const over = !b.overLimit && books.creditCheck(partyId, total);
+      if (over) return send(res, 409, { error: over, overLimit: true });
+    }
+    const r = billing.sell(b.lines, { source: "counter", customer: b.customer, payment: b.payment, note: b.note, partyId, charges: b.charges, allowShort: b.allowShort === true });
+    if (r.error) return send(res, 409, { error: r.error });
+    return send(res, 200, { invoice: r.invoice, url: `/bill/${r.invoice.id}` });
+  }
+  const cm = /^invoices\/([a-f0-9]{16})\/cancel$/.exec(route);
+  if (req.method === "POST" && cm) {
+    const b = (await body()) || {};
+    const r = billing.cancel(cm[1], b.reason);
+    if (r.error) return send(res, 409, { error: r.error });
+    // A cancelled website-order bill cancels the order too, so both stay in step.
+    if (r.invoice.order) {
+      const orders = loadOrders();
+      const o = orders.find((x) => x.code === r.invoice.order);
+      if (o && o.status !== "cancelled") { o.status = "cancelled"; o.invoice = null; saveOrders(orders); }
+    }
+    return send(res, 200, { invoice: r.invoice });
+  }
+  if (req.method === "POST" && route === "stock") {
+    const b = await body();
+    if (!b) return send(res, 400, { error: "Bad request." });
+    const r = billing.adjust(String(b.productId || ""), { quantity: b.quantity, price: b.price });
+    if (r.error) return send(res, 409, { error: r.error });
+    return send(res, 200, r);
+  }
+  return send(res, 404, { error: "not found" });
+}
+
 http
   .createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const p = decodeURIComponent(url.pathname);
     try {
-      if (req.method === "GET" && p === "/api/products") return send(res, 200, load());
+      if (req.method === "GET" && p === "/api/products") return send(res, 200, publicProducts());
       if (req.method === "GET" && p === "/api/recent-sales") return send(res, 200, recentSales());
       if (p === "/webhook" && (req.method === "GET" || req.method === "POST")) return await whatsappWebhook(req, res, url);
       if (req.method === "POST" && p === "/api/enquiry") return await handleEnquiry(req, res);
@@ -1383,7 +1536,7 @@ http
         const o = loadOrders().find((x) => x.id === om[1]);
         return o ? send(res, 200, { code: o.code, status: o.status }) : send(res, 404, { error: "not found" });
       }
-      const ownerOnly = p === "/demo" || p === "/demo.html" || p === "/api/inbox" || p === "/api/message" || p === "/api/reset" || p === "/api/stats";
+      const ownerOnly = p.startsWith("/api/billing/") || p === "/demo" || p === "/demo.html" || p === "/api/inbox" || p === "/api/message" || p === "/api/reset" || p === "/api/stats";
       if (ownerOnly && !isOwner(req, url)) {
         return p.startsWith("/api/") ? send(res, 401, { error: "Owner key required." }) : notFoundPage(res);
       }
@@ -1393,6 +1546,7 @@ http
       }
       if (req.method === "POST" && p === "/api/message") return await handleMessage(req, res);
       if (req.method === "GET" && p === "/api/stats") return send(res, 200, stats());
+      if (p.startsWith("/api/billing/")) return await billingApi(req, res, p.slice("/api/billing/".length), url);
       // Owner screen add-ons (stats bars, reply buttons, celebration), shared by every design.
       if (p === "/owner-kit.js" || p === "/owner-kit.css") return serveFile(res, path.join(ROOT, "owner"), p.slice(1));
       if (req.method === "POST" && p === "/api/reset") {
@@ -1406,8 +1560,19 @@ http
         saveOrders([]);
         savePending([]);
         fs.writeFileSync(ACTIVITY, "[]");
+        // The demo reset clears the books too. The live shop's accounts are never reset.
+        if (!LIVE) for (const f of ["invoices", "parties", "payments", "purchases", "expenses", "books"]) fs.rmSync(path.join(STORE, `${f}.json`), { force: true });
         for (const f of fs.readdirSync(UPLOADS)) fs.unlinkSync(path.join(UPLOADS, f));
         return send(res, 200, { ok: true });
+      }
+      // The portal page itself is harmless without the key: every call it makes needs it.
+      if (p === "/billing") return serveFile(res, path.join(ROOT, "owner"), "billing.html");
+      if (p === "/billing-books.js") return serveFile(res, path.join(ROOT, "owner"), "billing-books.js");
+      const bm = /^\/bill\/([a-f0-9]{16})$/.exec(p);
+      if (bm && req.method === "GET") {
+        const inv = billing.loadInvoices().find((x) => x.id === bm[1]);
+        if (!inv) return notFoundPage(res);
+        return send(res, 200, invoicePage(inv, SHOP, { thermal: url.searchParams.get("size") === "80", owner: url.searchParams.has("o") }), "text/html; charset=utf-8");
       }
       if (p.startsWith("/seed-photos/")) return serveFile(res, SEED_PHOTOS, p.slice("/seed-photos/".length));
       if (p.startsWith("/uploads/")) return serveFile(res, UPLOADS, p.slice("/uploads/".length));

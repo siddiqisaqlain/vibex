@@ -7,3 +7,6 @@ data/orders.json
 data/pending.json
 data/activity.json
 data/wa-shop.json
+
+# Owner myBillBook exports: customer details, never commit
+data/mybillbook-export/

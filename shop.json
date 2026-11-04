@@ -93,5 +93,31 @@
       "firstOrderOnly": true,
       "label": "10% off your first order"
     }
-  ]
+  ],
+  "billing": {
+    "_note": "Bills from the billing portal (/billing), WhatsApp 'sold' and confirmed website orders. Vibe X is NOT GST-registered (owner confirmed 2026-11-05), so business.gstin stays empty, no GST is charged and bills say so. GST on suppliers' bills is added to cost price. If he registers: fill business.gstin and tax invoices switch on, using the rates below (have a CA check them). gstLimit: Rs 40 lakh goods turnover, the figure most sources give for J&K; a CA should confirm. It does not cover inter-state sales.",
+    "gst": {
+      "Clothing": {
+        "upTo": 2500,
+        "low": 5,
+        "high": 18
+      },
+      "Footwear": {
+        "upTo": 2500,
+        "low": 5,
+        "high": 18
+      },
+      "Fragrances": 18,
+      "default": 18
+    },
+    "hsn": {},
+    "gstLimit": 4000000,
+    "nextNumber": 7651,
+    "headerLine": "We only deal in 100% original products 🙏 Efficient delivery across India 🇮🇳",
+    "email": "vibexdotindia@gmail.com",
+    "youtube": "@vibe X",
+    "terms": "1. Goods once sold will not be taken back or exchanged",
+    "logo": "",
+    "_billNote": "headerLine, email, youtube and terms are copied from his myBillBook bill 7650. logo: put the image in public/ and set the path, e.g. /logo.png. terms prints on counter bills only; website-order bills point to the website returns policy instead."
+  }
 }

@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Vibe X Billing</title>
+<style>
+  :root{--ink:#16130f;--mute:#6b665e;--line:#e5e0d7;--bg:#f5f3ee;--card:#fff;--red:#e92e30;--green:#1f8a4c;--amber:#b7791f}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  button,input,select{font:inherit;color:inherit}
+  header{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:17px;margin:0;font-weight:800;letter-spacing:-.01em}
+  header h1 span{color:var(--red)}
+  .live{font-size:12px;opacity:.8;display:flex;align-items:center;gap:6px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#4ade80}
+  .dot.off{background:#f87171}
+  .todayBox{margin-left:auto;font-size:13px;text-align:right}
+  .todayBox b{font-size:16px}
+  nav{display:flex;gap:4px;padding:10px 16px 0;max-width:1200px;margin:0 auto;overflow-x:auto}
+  nav button{flex:none}
+  h3{font-size:14px;margin:18px 0 8px}
+  select,input[type=date]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  input:not([type]){width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  .form{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0}
+  .form summary{font-weight:700;cursor:pointer}
+  .row3{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .owed-in{color:var(--green)}.owed-out{color:var(--red)}
+  tr.click{cursor:pointer}tr.click:hover td{background:var(--bg)}
+  nav button{border:0;background:transparent;padding:9px 14px;border-radius:8px 8px 0 0;font-weight:700;color:var(--mute);cursor:pointer}
+  nav button.on{background:var(--card);color:var(--ink)}
+  main{max-width:1200px;margin:0 auto;padding:0 16px 40px}
+  .panel{background:var(--card);border-radius:0 10px 10px 10px;padding:16px}
+  .hide{display:none!important}
+  .grid{display:grid;grid-template-columns:1fr 400px;gap:16px}
+  .grid>*{min-width:0}
+  @media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}.cart{position:static;order:-1}}
+  .item .price,.item .pill{flex:none}
+  input[type=search],input[type=text],input[type=tel],input[type=number]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  input:focus{outline:2px solid var(--ink);outline-offset:-1px}
+  .results{margin-top:10px;display:flex;flex-direction:column;gap:6px;max-height:62vh;overflow:auto}
+  .item{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;text-align:left;width:100%}
+  .item:hover{border-color:var(--ink)}
+  .item[disabled]{opacity:.45;cursor:not-allowed}
+  .thumb{width:44px;height:44px;border-radius:6px;background:#eee center/cover;flex:none}
+  .grow{flex:1;min-width:0}
+  .name{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sub{font-size:12px;color:var(--mute)}
+  .price{font-weight:700;white-space:nowrap}
+  .pill{font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;background:#eef7f1;color:var(--green);white-space:nowrap}
+  .pill.low{background:#fdf5e6;color:var(--amber)}
+  .pill.out{background:#fdecec;color:var(--red)}
+  .cart{border:1px solid var(--line);border-radius:10px;padding:12px;align-self:start;position:sticky;top:64px}
+  .cart h2{margin:0 0 8px;font-size:15px}
+  .line{display:grid;grid-template-columns:1fr auto;gap:4px 8px;padding:8px 0;border-bottom:1px solid var(--line)}
+  .line.bad{background:#fff6f6}
+  .line .warn{grid-column:1/-1;color:var(--red);font-size:12px;font-weight:600}
+  .qty{display:flex;align-items:center;gap:4px}
+  .qty button{width:28px;height:28px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;font-weight:700}
+  .qty span{min-width:22px;text-align:center;font-weight:700}
+  .rate{width:96px!important;padding:5px 8px!important;text-align:right}
+  .x{border:0;background:none;color:var(--mute);cursor:pointer;font-size:12px;padding:0;text-decoration:underline}
+  .tot{display:flex;justify-content:space-between;font-size:20px;font-weight:800;margin:12px 0}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .pay{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .pay label{flex:1;min-width:70px}
+  .pay input{display:none}
+  .pay span{display:block;text-align:center;padding:8px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600;font-size:14px}
+  .pay input:checked+span{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .big{width:100%;margin-top:12px;padding:13px;border:0;border-radius:10px;background:var(--red);color:#fff;font-weight:800;font-size:16px;cursor:pointer}
+  .big:disabled{background:#d8d3ca;cursor:not-allowed}
+  .err{color:var(--red);font-weight:600;font-size:14px;margin-top:8px}
+  .ok{background:#eef7f1;border:1px solid #bfe3cc;border-radius:10px;padding:12px;margin-top:10px}
+  .ok a{font-weight:700;color:var(--ink)}
+  .empty{color:var(--mute);text-align:center;padding:26px 0}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+  .n{text-align:right;white-space:nowrap}
+  .src{font-size:12px;font-weight:700;padding:2px 7px;border-radius:99px;background:#f0eee9;white-space:nowrap}
+  .src.website{background:#eaf1fd;color:#2457b8}.src.whatsapp{background:#e8f8ee;color:#1d7a43}
+  tr.cancelled td{color:#aaa;text-decoration:line-through}
+  tr.cancelled td:last-child{text-decoration:none}
+  .tbtn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 9px;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap}
+  a.tbtn{color:var(--ink);text-decoration:none;display:inline-block}
+  .tbtn.danger{color:var(--red)}
+  .tbtn.sure{background:var(--red);color:#fff;border-color:var(--red)}
+  .stockQty{display:flex;align-items:center;gap:4px;justify-content:flex-end}
+  .stockQty input{width:64px;padding:5px;text-align:center}
+  .scroll{overflow-x:auto}
+  .summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .summary div{background:var(--bg);border-radius:8px;padding:8px 12px;font-size:13px}
+  .summary b{display:block;font-size:17px}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-weight:600;font-size:14px;z-index:9;max-width:calc(100% - 32px)}
+  .lock{max-width:380px;margin:12vh auto;background:#fff;padding:24px;border-radius:12px}
+  @media (max-width:600px){.hideSm{display:none}.todayBox{margin-left:0;text-align:left}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Vibe X <span>Billing</span></h1>
+  <div class="live"><i class="dot" id="dot"></i><span id="sync">Connecting…</span></div>
+  <div class="todayBox" id="todayBox"></div>
+</header>
+
+<div id="lock" class="lock hide">
+  <h2 style="margin-top:0">Owner key</h2>
+  <p class="sub">Enter the shop's owner key to open billing.</p>
+  <input type="text" id="keyIn" autocomplete="off">
+  <button class="big" id="keyGo">Open</button>
+  <div class="err" id="keyErr"></div>
+</div>
+
+<div id="app" class="hide">
+<nav>
+  <button data-tab="home">Home</button>
+  <button data-tab="new" class="on">New bill</button>
+  <button data-tab="bills">Bills</button>
+  <button data-tab="parties">Parties</button>
+  <button data-tab="purchases">Purchases</button>
+  <button data-tab="expenses">Expenses</button>
+  <button data-tab="cash">Cash &amp; Bank</button>
+  <button data-tab="stock">Stock</button>
+</nav>
+<main>
+  <section class="panel hide" id="tab-home"></section>
+  <section class="panel hide" id="tab-parties"></section>
+  <section class="panel hide" id="tab-purchases"></section>
+  <section class="panel hide" id="tab-expenses"></section>
+  <section class="panel hide" id="tab-cash"></section>
+  <section class="panel" id="tab-new">
+    <div class="grid">
+      <div>
+        <input type="search" id="q" placeholder="Scan a barcode, or type a code or name" autocomplete="off" autofocus>
+        <div class="results" id="results"></div>
+      </div>
+      <aside class="cart">
+        <h2>Bill</h2>
+        <div id="lines"><div class="empty">Search an item and tap it to add.</div></div>
+        <div id="chargeList"></div>
+        <button class="x" id="addCharge">+ Add extra charge</button>
+        <div class="tot"><span>Total</span><span id="total">₹0</span></div>
+        <div class="row2">
+          <input type="text" id="cName" placeholder="Customer name (optional)" maxlength="60">
+          <input type="tel" id="cPhone" placeholder="Mobile (for WhatsApp bill)" maxlength="14">
+        </div>
+        <div class="pay">
+          <label><input type="radio" name="pay" value="cash" checked><span>Cash</span></label>
+          <label><input type="radio" name="pay" value="upi"><span>UPI</span></label>
+          <label><input type="radio" name="pay" value="card"><span>Card</span></label>
+          <label><input type="radio" name="pay" value="credit"><span>Credit</span></label>
+        </div>
+        <button class="big" id="make" disabled>Create bill</button>
+        <div class="err" id="err"></div>
+        <div id="done"></div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="panel hide" id="tab-bills">
+    <div class="summary" id="summary"></div>
+    <input type="search" id="bq" placeholder="Search bill number, customer, item…" autocomplete="off">
+    <div class="scroll"><table>
+      <thead><tr><th>Bill</th><th class="hideSm">Time</th><th>Items</th><th class="hideSm">Customer</th><th>From</th><th class="n">Total</th><th></th></tr></thead>
+      <tbody id="billRows"></tbody>
+    </table></div>
+  </section>
+
+  <section class="panel hide" id="tab-stock">
+    <input type="search" id="sq" placeholder="Search stock or scan a barcode…" autocomplete="off">
+    <label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="sCheck"> Only items that need checking</label>
+    <p class="sub">Changes here show on the website and in WhatsApp straight away. Use it for new stock coming in and stock counts. Sales go through <b>New bill</b>.</p>
+    <div class="scroll"><table>
+      <thead><tr><th>Code</th><th>Item</th><th class="n">Price ₹</th><th class="n">In stock</th></tr></thead>
+      <tbody id="stockRows"></tbody>
+    </table></div>
+  </section>
+</main>
+</div>
+
+<script>
+(() => {
+  // ---- Owner key: from ?key= once, then remembered on this device ----
+  const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+  const u = new URL(location.href);
+  let KEY = u.searchParams.get("key") || store.get("vx-owner-key") || "";
+  if (u.searchParams.get("key")) { store.set("vx-owner-key", KEY); u.searchParams.delete("key"); history.replaceState(null, "", u.pathname + u.search); }
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const inr = (n) => (n < 0 ? "−" : "") + "₹" + Math.abs(Number(n || 0)).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  const api = async (path, opts = {}) => {
+    const r = await fetch(path, { ...opts, cache: "no-store", headers: { "Content-Type": "application/json", "x-owner-key": KEY, ...(opts.headers || {}) } });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) { showLock("That key didn't work."); throw new Error("key"); }
+    if (!r.ok) throw new Error(j.error || "Something went wrong.");
+    return j;
+  };
+  const toast = (msg) => { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3200); };
+
+  function showLock(msg) { $("app").classList.add("hide"); $("lock").classList.remove("hide"); $("keyErr").textContent = msg || ""; }
+  $("keyGo").onclick = () => { KEY = $("keyIn").value.trim(); store.set("vx-owner-key", KEY); $("lock").classList.add("hide"); start(); };
+
+  // ---- Live data: the same products.json the website and WhatsApp use ----
+  let products = [], invoices = [], today = null, lastSync = 0, online = true;
+  const stockOf = (p) => (p.quantity != null ? p.quantity : p.status === "sold" ? 0 : 1);
+  const byId = () => new Map(products.map((p) => [p.id, p]));
+
+  async function refresh() {
+    try {
+      const [ps, inv] = await Promise.all([
+        api("/api/billing/products"),
+        api("/api/billing/invoices"),
+      ]);
+      const changed = JSON.stringify(ps) !== JSON.stringify(products) || inv.invoices.length !== invoices.length || (inv.invoices[0] && invoices[0] && inv.invoices[0].status !== invoices[0].status) || JSON.stringify(inv.today) !== JSON.stringify(today);
+      products = ps; invoices = inv.invoices; today = inv.today;
+      lastSync = Date.now(); online = true;
+      if (changed) render();
+    } catch (e) { if (e.message !== "key") online = false; }
+    paintSync();
+  }
+  function paintSync() {
+    const s = Math.round((Date.now() - lastSync) / 1000);
+    $("dot").classList.toggle("off", !online);
+    $("sync").textContent = online ? `Live · synced ${s <= 1 ? "just now" : s + "s ago"}` : "Offline, retrying…";
+  }
+
+  // ---- Tabs ----
+  document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
+    document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("on", x === b));
+    ["home", "new", "bills", "parties", "purchases", "expenses", "cash", "stock"].forEach((t) => $("tab-" + t).classList.toggle("hide", t !== b.dataset.tab));
+    if (b.dataset.tab === "new") $("q").focus();
+    const load = window.VX.tabs && window.VX.tabs[b.dataset.tab];
+    if (load) load().catch((e) => toast(e.message));
+  });
+
+  // ---- New bill ----
+  const cart = []; // { id, qty, price (rate), disc (₹ off the line) }
+  const charges = []; // { label, amount }: extra lines that aren't stock, e.g. courier
+  $("addCharge").onclick = () => { charges.push({ label: "", amount: "" }); renderCart(); };
+  function matches(q) {
+    q = q.trim().toLowerCase();
+    const list = products.filter((p) => p.price);
+    if (!q) return list.filter((p) => stockOf(p) > 0).slice(0, 40);
+    const words = q.split(/\s+/);
+    return list.filter((p) => {
+      if (p.code === q || p.barcode === q) return true;
+      const hay = `${p.code} ${p.barcode || ""} ${p.name} ${p.brand || ""} ${p.category || ""} ${p.sizes || ""}`.toLowerCase();
+      return words.every((w) => hay.includes(w));
+    }).sort((a, b) => (b.code === q || b.barcode === q) - (a.code === q || a.barcode === q) || (stockOf(b) > 0) - (stockOf(a) > 0)).slice(0, 40);
+  }
+  function stockPill(p) {
+    const n = stockOf(p);
+    if (p.status === "hold") return `<span class="pill low">Held: ${esc(p.holdFor)}</span>`;
+    if (n <= 0) return `<span class="pill out">Sold out</span>`;
+    return `<span class="pill ${n === 1 ? "low" : ""}">${n} left</span>`;
+  }
+  function renderResults() {
+    const list = matches($("q").value);
+    $("results").innerHTML = list.length ? list.map((p) => `
+      <button class="item" data-id="${esc(p.id)}" ${p.status === "hold" ? "disabled" : ""}>
+        <div class="thumb" style="${p.image ? `background-image:url('${esc(p.image)}')` : ""}"></div>
+        <div class="grow"><div class="name">${esc(p.name)}</div><div class="sub">#${esc(p.code)}${p.sizes ? " · " + esc(p.sizes) : ""}${p.category ? " · " + esc(p.category) : ""}</div></div>
+        ${stockPill(p)}<div class="price">${inr(p.price)}</div>
+      </button>`).join("") : `<div class="empty">Nothing matches.</div>`;
+    $("results").querySelectorAll(".item").forEach((b) => b.onclick = () => { addToCart(b.dataset.id); $("q").value = ""; renderResults(); $("q").focus(); });
+  }
+  function addToCart(id) {
+    const p = byId().get(id);
+    if (!p || p.status === "hold") return;
+    const line = cart.find((l) => l.id === id);
+    if (line) line.qty++;
+    else cart.push({ id, qty: 1, price: p.price, disc: 0 });
+    $("done").innerHTML = ""; $("err").textContent = "";
+    renderCart();
+  }
+  function renderCart() {
+    const m = byId();
+    let total = 0, bad = false;
+    $("lines").innerHTML = cart.length ? cart.map((l, i) => {
+      const p = m.get(l.id);
+      const have = p ? stockOf(p) : 0;
+      // Sold somewhere else (WhatsApp / website) while this bill was open: flag it.
+      // A hold or a removed item stops the bill. Short stock only warns: the piece is in his hand.
+      const warn = !p ? "Removed from the shop." : p.status === "hold" ? `Held for website order ${p.holdFor}.` : "";
+      const note = p && !warn && l.qty > have ? `System shows ${Math.max(0, have)}. This will bill, and flag it for a recount.` : "";
+      if (warn) bad = true;
+      const amt = (Number(l.price) || 0) * l.qty - (Number(l.disc) || 0);
+      total += amt;
+      return `<div class="line ${warn ? "bad" : ""}">
+        <div class="grow"><div class="name">${esc(p ? p.name : "Item")}</div><div class="sub">#${esc(p ? p.code : "")}${p && p.price !== Number(l.price) ? ` · list ${inr(p.price)}` : ""} · <button class="x" data-rm="${i}">remove</button></div></div>
+        <div style="text-align:right"><input class="rate" type="number" min="0" step="1" value="${esc(l.price)}" data-rate="${i}" aria-label="Rate"><input class="rate" type="number" min="0" step="1" value="${l.disc ? esc(l.disc) : ""}" placeholder="Disc ₹" data-disc="${i}" aria-label="Discount" style="margin-top:4px;display:block"></div>
+        <div class="qty"><button data-dec="${i}" aria-label="Less">−</button><span>${l.qty}</span><button data-inc="${i}" aria-label="More">+</button></div>
+        <div class="price" style="text-align:right">${inr(amt)}</div>
+        ${warn ? `<div class="warn">⚠ ${esc(warn)}</div>` : ""}
+        ${note ? `<div class="warn" style="color:var(--amber)">⚠ ${esc(note)}</div>` : ""}
+      </div>`;
+    }).join("") : `<div class="empty">Search an item and tap it to add.</div>`;
+    for (const c of charges) total += Number(c.amount) || 0;
+    $("chargeList").innerHTML = charges.map((c, i) => `<div class="row2"><input value="${esc(c.label)}" placeholder="Charge, e.g. Courier" data-cl="${i}" aria-label="Charge name"><div class="qty"><input class="rate" type="number" min="0" value="${esc(c.amount)}" placeholder="₹" data-ca="${i}" aria-label="Charge amount"><button data-crm="${i}" aria-label="Remove charge">×</button></div></div>`).join("");
+    $("chargeList").querySelectorAll("[data-cl]").forEach((i) => (i.oninput = () => { charges[+i.dataset.cl].label = i.value; }));
+    $("chargeList").querySelectorAll("[data-ca]").forEach((i) => (i.onchange = () => { charges[+i.dataset.ca].amount = i.value; renderCart(); }));
+    $("chargeList").querySelectorAll("[data-crm]").forEach((b) => (b.onclick = () => { charges.splice(+b.dataset.crm, 1); renderCart(); }));
+    $("total").textContent = inr(total);
+    $("make").disabled = !cart.length || bad;
+    $("lines").querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => { cart.splice(+b.dataset.rm, 1); renderCart(); });
+    $("lines").querySelectorAll("[data-inc]").forEach((b) => b.onclick = () => { const l = cart[+b.dataset.inc]; l.qty++; renderCart(); });
+    $("lines").querySelectorAll("[data-dec]").forEach((b) => b.onclick = () => { const i = +b.dataset.dec; if (cart[i].qty > 1) cart[i].qty--; else cart.splice(i, 1); renderCart(); });
+    $("lines").querySelectorAll("[data-rate]").forEach((inp) => inp.onchange = () => { cart[+inp.dataset.rate].price = Math.max(0, Math.round(Number(inp.value) || 0)); renderCart(); });
+    $("lines").querySelectorAll("[data-disc]").forEach((inp) => inp.onchange = () => { cart[+inp.dataset.disc].disc = Math.max(0, Math.round(Number(inp.value) || 0)); renderCart(); });
+  }
+  $("q").oninput = renderResults;
+  $("q").onkeydown = (e) => {
+    if (e.key !== "Enter") return;
+    // A barcode scanner types the digits and presses Enter, so a scan lands here.
+    e.preventDefault();
+    const q = $("q").value.trim();
+    const first = matches(q).find((p) => p.status !== "hold");
+    if (first) { addToCart(first.id); $("q").value = ""; renderResults(); }
+    else if (q) { toast(matches(q).length ? "That item is held for a website order." : `Nothing found for ${q}`); $("q").select(); }
+  };
+  let overLimit = false; // set when the owner taps again after the credit limit warning
+  $("make").onclick = async () => {
+    $("make").disabled = true; $("err").textContent = "";
+    try {
+      const phone = $("cPhone").value.replace(/\D/g, "").slice(-10);
+      if ($("cPhone").value.trim() && phone.length !== 10) throw new Error("Mobile number should be 10 digits.");
+      const r = await api("/api/billing/invoices", { method: "POST", body: JSON.stringify({
+        lines: cart.map((l) => ({ productId: l.id, qty: l.qty, price: l.price, disc: l.disc || 0 })),
+        charges: charges.map((c) => ({ label: c.label, amount: Number(c.amount) })),
+        customer: { name: $("cName").value, phone },
+        payment: document.querySelector("input[name=pay]:checked").value,
+        overLimit,
+        allowShort: true, // the piece is at the counter; the line above already warned
+      }) });
+      overLimit = false; $("make").textContent = "Create bill";
+      const inv = r.invoice;
+      const wa = phone ? `https://wa.me/91${phone}?text=${encodeURIComponent(`Hi${inv.customer.name ? " " + inv.customer.name : ""}, thank you for shopping at Vibe X! Your bill ${inv.number} (${inr(inv.total)}): ${location.origin}${r.url}`)}` : "";
+      $("done").innerHTML = `<div class="ok">✅ <b>${esc(inv.number)}</b> · ${inr(inv.total)}<br>Stock updated on the website and WhatsApp.<br>
+        <a href="${r.url}?o" target="_blank" rel="noopener">Open / print bill</a>${wa ? ` · <a href="${wa}" target="_blank" rel="noopener">Send on WhatsApp</a>` : ""}</div>`;
+      cart.length = 0; charges.length = 0; $("cName").value = ""; $("cPhone").value = ""; document.querySelector("input[name=pay][value=cash]").checked = true;
+      await refresh(); render(); $("q").focus();
+    } catch (e) {
+      $("err").textContent = e.message;
+      if (/credit limit/.test(e.message)) { overLimit = true; $("make").textContent = "Bill anyway"; }
+      await refresh(); renderCart();
+    }
+  };
+
+  // ---- Bills ----
+  const SRC = { counter: "Counter", whatsapp: "WhatsApp", website: "Website" };
+  const PAY = { cash: "Cash", upi: "UPI", card: "Card", credit: "Credit" };
+  function renderBills() {
+    if (today) $("summary").innerHTML = `<div>Today<b>${inr(today.total)}</b></div><div>Bills<b>${today.bills}</b></div><div>Pieces<b>${today.pieces}</b></div>` +
+      Object.entries(today.byPayment).map(([k, v]) => `<div>${PAY[k] || k}<b>${inr(v)}</b></div>`).join("");
+    const q = $("bq").value.trim().toLowerCase();
+    const list = invoices.filter((x) => !q || `${x.number} ${x.customer.name} ${x.customer.phone} ${x.order || ""} ${x.lines.map((l) => l.name + " " + l.code).join(" ")}`.toLowerCase().includes(q)).slice(0, 200);
+    $("billRows").innerHTML = list.length ? list.map((x) => `<tr class="${x.status}">
+      <td><b>${esc(x.number.split("/").pop())}</b><div class="sub">${esc(x.number)}</div></td>
+      <td class="hideSm">${new Date(x.at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
+      <td>${x.lines.map((l) => `${l.qty > 1 ? l.qty + "× " : ""}${esc(l.name)}`).join("<br>")}</td>
+      <td class="hideSm">${esc(x.customer.name || "Walk-in")}${x.order ? `<div class="sub">${esc(x.order)}</div>` : ""}</td>
+      <td><span class="src ${x.source}">${SRC[x.source] || x.source}</span><div class="sub">${PAY[x.payment] || ""}</div></td>
+      <td class="n"><b>${inr(x.total)}</b></td>
+      <td class="n"><a class="tbtn" href="/bill/${x.id}?o" target="_blank" rel="noopener">View</a>
+        ${x.status === "cancelled" ? `<span class="sub">Cancelled</span>` : `<button class="tbtn danger" data-cancel="${x.id}">Cancel</button>`}</td>
+    </tr>`).join("") : `<tr><td colspan="7" class="empty">No bills yet.</td></tr>`;
+    $("billRows").querySelectorAll("[data-cancel]").forEach((b) => b.onclick = async () => {
+      // Two taps: first arms it, second cancels (no pop-up).
+      if (!b.classList.contains("sure")) { b.classList.add("sure"); b.textContent = "Tap again: stock back, payment removed"; setTimeout(() => { b.classList.remove("sure"); b.textContent = "Cancel"; }, 4000); return; }
+      b.disabled = true;
+      try { const r = await api(`/api/billing/invoices/${b.dataset.cancel}/cancel`, { method: "POST", body: "{}" }); toast(`${r.invoice.number} cancelled. Items back in stock.`); }
+      catch (e) { toast(e.message); }
+      await refresh(); render();
+    });
+  }
+  $("bq").oninput = renderBills;
+
+  // ---- Stock ----
+  let editing = null; // don't redraw the row being typed in
+  function renderStock() {
+    const q = $("sq").value.trim().toLowerCase();
+    const check = $("sCheck").checked;
+    const list = products.filter((p) => (!check || p.needsCount || p.needsName || !p.price) && (!q || `${p.code} ${p.barcode || ""} ${p.name} ${p.brand || ""} ${p.category || ""}`.toLowerCase().includes(q)))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name))).slice(0, 300);
+    $("stockRows").innerHTML = list.length ? list.map((p) => `<tr>
+      <td><b>${esc(p.code)}</b></td>
+      <td><div class="name">${esc(p.name)}</div><div class="sub">${esc([p.barcode, p.category, p.sizes].filter(Boolean).join(" · "))} ${stockPill(p)}${p.hidden ? ` <span class="pill low">Not on website</span>` : ""}${p.needsCount ? ` <span class="pill out">Count this</span>` : ""}${p.needsName ? ` <span class="pill out">Needs a name</span>` : ""}</div></td>
+      <td class="n"><input type="number" class="rate" min="1" value="${esc(p.price || "")}" data-price="${esc(p.id)}"></td>
+      <td><div class="stockQty"><button class="tbtn" data-step="-1" data-id="${esc(p.id)}">−</button><input type="number" min="0" value="${stockOf(p)}" data-qty="${esc(p.id)}"><button class="tbtn" data-step="1" data-id="${esc(p.id)}">+</button></div></td>
+    </tr>`).join("") : `<tr><td colspan="4" class="empty">No items.</td></tr>`;
+    const push = async (id, body) => {
+      try { await api("/api/billing/stock", { method: "POST", body: JSON.stringify({ productId: id, ...body }) }); toast("Saved. Website updated."); }
+      catch (e) { toast(e.message); }
+      editing = null; await refresh(); render();
+    };
+    $("stockRows").querySelectorAll("[data-step]").forEach((b) => b.onclick = () => { const p = byId().get(b.dataset.id); push(b.dataset.id, { quantity: Math.max(0, stockOf(p) + Number(b.dataset.step)) }); });
+    $("stockRows").querySelectorAll("[data-qty]").forEach((i) => { i.onfocus = () => (editing = i.dataset.qty); i.onchange = () => push(i.dataset.qty, { quantity: i.value }); });
+    $("stockRows").querySelectorAll("[data-price]").forEach((i) => { i.onfocus = () => (editing = i.dataset.price); i.onchange = () => push(i.dataset.price, { price: i.value }); });
+  }
+  $("sq").oninput = renderStock;
+  $("sCheck").onchange = renderStock;
+
+  function render() {
+    if (today) $("todayBox").innerHTML = `Today <b>${inr(today.total)}</b> · ${today.bills} bill${today.bills === 1 ? "" : "s"}`;
+    renderResults(); renderCart(); renderBills();
+    if (!editing) renderStock();
+  }
+
+  window.VX = { api, esc, inr, toast };
+
+  async function start() {
+    try { await api("/api/billing/invoices"); } catch { return; }
+    $("app").classList.remove("hide");
+    await refresh(); render();
+    $("q").focus(); // ready for the first scan
+    setInterval(refresh, 2000);
+    setInterval(paintSync, 1000);
+  }
+  start();
+})();
+</script>
+<script src="/billing-books.js"></script>
+</body>
+</html>
