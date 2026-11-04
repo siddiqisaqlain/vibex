@@ -27,6 +27,31 @@
   }
   window.VX.itemForm = itemForm;
 
+  // ---- Linking website items to imported stock ----
+  const words = (s) => new Set(String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((w) => w.length > 2));
+  const overlap = (a, b) => { const A = words(a), B = words(b); let n = 0; for (const w of A) if (B.has(w)) n++; return n; };
+  window.VX.linkPanel = async () => {
+    const items = await api("/api/billing/products");
+    const web = items.filter((p) => !p.hidden && !p.importKey), stock = items.filter((p) => p.hidden);
+    const box = $("itemBox");
+    if (!web.length) { box.innerHTML = `<div class="form"><b>All website items are linked.</b></div>`; return; }
+    if (!stock.length) { box.innerHTML = `<div class="form"><b>Import his stock first.</b><p class="sub">There are no imported items to link to yet.</p></div>`; return; }
+    const options = (p) => {
+      const ranked = stock.map((s) => ({ s, n: overlap(p.name, s.name) })).sort((a, b) => b.n - a.n || a.s.name.localeCompare(b.s.name));
+      return ranked.map(({ s, n }) => `<option value="${esc(s.id)}">${n ? "★ " : ""}${esc(s.name)} (${s.quantity} pcs, ₹${esc(s.price ?? "-")})</option>`).join("");
+    };
+    box.innerHTML = `<div class="form"><b>Link website items</b><p class="sub">Pick the same item from his stock. The website keeps its photo and price, and takes the real stock count and barcode. ★ means a similar name. Check each one before linking: it can't be undone from here.</p>
+      <div class="scroll"><table><tbody>${web.map((p) => `<tr><td><div class="thumb" style="${p.image ? `background-image:url('${esc(p.image)}')` : ""}"></div></td><td><div class="name" style="white-space:normal">${esc(p.name)}</div><div class="sub">${inr(p.price)} · ${p.quantity ?? 1} on website</div></td><td><select data-lk="${esc(p.id)}"><option value="">Choose stock item…</option>${options(p)}</select></td><td class="n"><button class="tbtn" data-lkgo="${esc(p.id)}">Link</button></td></tr>`).join("")}</tbody></table></div>
+      <button class="tbtn" id="lkClose" style="margin-top:8px">Close</button></div>`;
+    $("lkClose").onclick = () => (box.innerHTML = "");
+    box.querySelectorAll("[data-lkgo]").forEach((b) => (b.onclick = async () => {
+      const stockId = box.querySelector(`[data-lk="${b.dataset.lkgo}"]`).value;
+      if (!stockId) return toast("Choose the stock item first.");
+      try { await api("/api/billing/link", { method: "POST", body: JSON.stringify({ websiteId: b.dataset.lkgo, stockId }) }); toast("Linked. Counter and website now share one stock."); await window.VX.reload(); window.VX.linkPanel(); }
+      catch (e) { toast(e.message); }
+    }));
+  };
+
   // ---- Barcode labels ----
   window.VX.printLabels = async (ids) => {
     if (!ids.length) return toast("Tick the items first.");

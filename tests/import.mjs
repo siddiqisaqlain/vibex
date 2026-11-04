@@ -112,6 +112,33 @@ try {
 
   m = await post("/api/message", { text: "Zara shirt 1499 M L", image: PNG }); assert.doesNotMatch(m.reply || "", /is on your website/); ok("normal photo posts still go the usual way");
 
+  // Linking a website item to its imported stock record
+  const stockRec = (await post("/api/billing/items", { name: "Lattafa stock", category: "Fragrances", price: 2500, cost: 1500, mrp: 4000, barcode: "555566667777", quantity: 6 })).product;
+  await post("/api/billing/stock", { productId: "live1", quantity: 2 });
+  const webBefore = (await all()).find((p) => p.id === "live1");
+  const sale = await post("/api/billing/invoices", { lines: [{ productId: stockRec.id, qty: 1 }], payment: "cash" });
+  assert.equal((await post("/api/billing/link", { websiteId: "live1", stockId: "nope" })).status, 409);
+  assert.equal((await post("/api/billing/link", { websiteId: stockRec.id, stockId: stockRec.id })).status, 409);
+  ok("linking refuses the wrong items");
+  assert.equal((await fetch(`${base}/api/billing/link`, { method: "POST", body: "{}" })).status, 401);
+  let linked = await post("/api/billing/link", { websiteId: "live1", stockId: stockRec.id }).catch((e) => e);
+  assert.equal(linked.status, 409); assert.match(linked.error, /already linked/); ok("an already-linked website item can't be linked twice");
+  const web2 = (await post("/api/billing/items", { name: "Web Only", price: 900, quantity: 1 })).product;
+  await post("/api/message", { text: web2.code, image: PNG });
+  assert.equal((await all()).find((p) => p.id === web2.id).hidden, undefined);
+  linked = await post("/api/billing/link", { websiteId: web2.id, stockId: stockRec.id });
+  assert.equal(linked.status, 200);
+  const after = await all(); const one = after.find((p) => p.id === web2.id);
+  assert.ok(!after.some((p) => p.id === stockRec.id)); assert.equal(one.barcode, "555566667777"); assert.equal(one.cost, 1500); assert.equal(one.quantity, 5); assert.equal(one.price, 900); assert.match(one.image, /^\/uploads\//); assert.equal(one.hidden, undefined); ok("linking leaves one item: website photo and price, real stock, barcode and cost");
+  assert.ok(fs.readdirSync(dir).some((f) => f.startsWith("products-before-link-"))); ok("a copy is kept before linking");
+  const bills2 = JSON.parse(fs.readFileSync(path.join(dir, "invoices.json")));
+  assert.equal(bills2.find((x) => x.id === sale.invoice.id).lines[0].productId, web2.id); ok("earlier bills move to the linked item");
+  r = await post("/api/billing/invoices", { lines: [{ productId: web2.id, qty: 2 }], payment: "cash" });
+  assert.equal((await all()).find((p) => p.id === web2.id).quantity, 3);
+  const pubOne = (await (await fetch(base + "/api/products")).json()).find((p) => p.id === web2.id); assert.equal(pubOne.quantity, 3); assert.equal(pubOne.barcode, undefined); ok("a counter sale now reduces the website item");
+  const ret = await post("/api/billing/returns", { kind: "sale_return", invoiceId: sale.invoice.id, lines: [{ productId: web2.id, qty: 1 }], refund: 2500, mode: "cash" });
+  assert.equal(ret.status, 200); assert.equal((await all()).find((p) => p.id === web2.id).quantity, 4); ok("a return on an earlier bill restocks the linked item");
+
   console.log(`\nAll ${pass} import checks passed.`);
 } catch (e) { console.error("\nFAILED:", e); console.error(log.slice(-1500)); process.exitCode = 1; }
 finally { srv.kill(); fs.rmSync(dir, { recursive: true, force: true }); }

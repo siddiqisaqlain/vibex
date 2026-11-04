@@ -237,7 +237,7 @@
     <div class="cards" id="itemCards"></div>
     <input type="search" id="sq" placeholder="Search stock or scan a barcode…" autocomplete="off">
     <label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="sCheck"> Only items that need checking</label>
-    <div class="repDates" id="stockTools"><button class="tbtn" id="addItem">Add item</button><button class="tbtn" id="printLabels">Print labels for ticked items</button><label class="sub">Labels each <input type="number" id="lblCount" value="1" min="1" max="200" style="width:64px"></label></div>
+    <div class="repDates" id="stockTools"><button class="tbtn" id="addItem">Add item</button><button class="tbtn" id="linkItems">Link website items</button><button class="tbtn" id="printLabels">Print labels for ticked items</button><label class="sub">Labels each <input type="number" id="lblCount" value="1" min="1" max="200" style="width:64px"></label></div>
     <div id="itemBox"></div>
     <p class="sub">Changes here show on the website and in WhatsApp straight away. Use it for new stock coming in and stock counts. Sales go through <b>Create Sales Invoice</b>.</p>
     <div class="scroll"><table>
@@ -475,6 +475,7 @@
   let editing = null; // don't redraw the row being typed in
   const picks = new Set(); // items ticked for labels
   $("addItem").onclick = () => window.VX.itemForm(null);
+  $("linkItems").onclick = () => window.VX.linkPanel();
   $("printLabels").onclick = () => window.VX.printLabels([...picks]).catch((e) => toast(e.message));
   function renderStock() {
     const q = $("sq").value.trim().toLowerCase();
