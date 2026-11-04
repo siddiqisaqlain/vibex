@@ -35,6 +35,7 @@ const DB = path.join(STORE, "products.json");
 const SEED = path.join(DATA, "seed.json");
 
 fs.mkdirSync(UPLOADS, { recursive: true });
+wa.setAlertsFile(path.join(STORE, "wa-alerts.json")); // alerts held while the owner is outside WhatsApp's 24 h window
 // Seed items store "hoursAgo" so the demo always looks freshly stocked.
 // Photos dropped in data/seed-photos/ are given to the sample items in name order.
 const SEED_PHOTOS = path.join(DATA, "seed-photos");
@@ -174,7 +175,7 @@ function sendToOwner(msg) {
   saveInbox(inbox);
   // Also to the owner's real WhatsApp, when it's connected (lib/whatsapp.js).
   const img = msg.image && /^\//.test(msg.image) && siteUrl() ? siteUrl() + msg.image : null;
-  wa.notifyOwners(msg.text, img);
+  wa.notifyOwners(msg.text, img, { shop: SHOP_NAME, ...msg.summary });
 }
 
 // ---- Real WhatsApp (Cloud API webhook) ----
@@ -222,6 +223,7 @@ async function handleEnquiry(req, res) {
     id: crypto.randomBytes(6).toString("hex"),
     at: new Date().toISOString(),
     kind: "enquiry",
+    summary: { kind: "enquiry", ref: `EQ${(p.code || p.id).toString().slice(-6).toUpperCase()}` },
     productId: p.id,
     image: p.image,
     text: `💬 *Enquiry from the website*\n*${p.name}*${price}${p.status === "sold" ? " (marked SOLD)" : ""}\n\n👤 ${name}\n📞 ${prettyPhone(phone)}${note ? `\n💬 “${note}”` : ""}\n\nReply on WhatsApp: https://wa.me/91${phone}?text=${hello}`,
@@ -303,6 +305,7 @@ async function orderPaid(req, res, id) {
   const hello = encodeURIComponent(`Hi ${o.name}, Vibe X here about your order ${o.code} (${o.productName}).`);
   sendToOwner({
     id: crypto.randomBytes(6).toString("hex"), at: new Date().toISOString(), kind: "order",
+    summary: { kind: "order", ref: o.code },
     image: proof || (p && p.image) || null,
     text: `💰 *New order ${o.code}: check the payment*\n*${o.productName}* · ${inr(o.amount)} · ${o.lot}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 ${utr ? `Payment ref: ${utr}` : "Payment screenshot above"}\n\nCheck your bank or UPI app for ${inr(o.amount)}, then reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
   });
