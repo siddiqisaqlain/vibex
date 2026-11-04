@@ -1117,8 +1117,26 @@ function stats() {
 }
 function statsReply() {
   const s = stats();
-  const sec = Object.entries(s.sections).map(([k, v]) => `${SECTION_LABEL[k] || k} ${v}`).join(" · ");
-  return `📊 *Your website today*\n\n🛍️ ${s.live} pieces live (${s.units} in stock, worth ${inr(s.stockValue)})\n📈 ${s.postedToday} posted today${s.streak > 1 ? ` · 🔥 ${s.streak}-day streak` : ""}\n💸 ${s.soldToday} sold today${s.salesToday ? ` · ${inr(s.salesToday)}` : ""}\n💰 ${s.ordersToCheck} order${s.ordersToCheck === 1 ? "" : "s"} waiting for you to check payment\n💬 ${s.enquiriesToday} enquir${s.enquiriesToday === 1 ? "y" : "ies"} today\n⏳ ${s.lastOne} on their last piece · ${s.soldOut} sold out\n\n${sec}`;
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  // Same order as the strip on /demo: stock first, then what happened today.
+  const sec = Object.entries(s.sections).sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${SECTION_LABEL[k] || k} *${v}*`).join(" · ");
+  const shop = [
+    `📦 In stock: *${s.units}* pcs`,
+    `💎 Worth: *${inr(s.stockValue)}*`,
+    `⏳ Last piece: *${s.lastOne}*`,
+    `✔️ Sold out: *${s.soldOut}*`,
+    `🔥 Streak: *${plural(s.streak, "day", "days")}*`,
+  ];
+  const today = [
+    `🛍️ Live on site: *${s.live}*`,
+    `📈 Posted today: *${s.postedToday}*`,
+    `💸 Sold today: *${s.soldToday}*${s.salesToday ? ` · ${inr(s.salesToday)}` : ""}`,
+    `💰 Orders to check: *${s.ordersToCheck}*${s.ordersToCheck ? " ⚠️" : ""}`,
+    `💬 Enquiries today: *${s.enquiriesToday}*`,
+    s.drafts ? `📝 Waiting for done: *${s.drafts}*` : null,
+  ].filter(Boolean);
+  return `📊 *Your shop right now*\n\n${shop.join("\n")}${sec ? `\n\n${sec}` : ""}\n\n*Today*\n${today.join("\n")}`;
 }
 
 http
