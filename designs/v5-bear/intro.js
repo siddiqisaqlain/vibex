@@ -109,6 +109,8 @@
   document.body.classList.add("vxi-on");
   const canvas = el.querySelector("canvas"), ctx = canvas.getContext("2d");
   const needle = el.querySelector(".vxi-compass-in"), logo = el.querySelector(".vxi-logo"), copy = el.querySelector(".vxi-copy");
+  const copyP = copy.querySelector("p");
+  logo.style.animationPlayState = copyP.style.animationPlayState = "paused";   // they start with the clock
 
   let W = 0, H = 0, dpr = 1;
   function resize() { dpr = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; canvas.width = W * dpr; canvas.height = H * dpr; }
@@ -144,7 +146,7 @@
     const bw = W - box.l - box.r, bh = H - box.t - box.b;
     const fit = Math.min(bw / (x1 - x0), bh / (y1 - y0));
     // the dive: zoom hard into Srinagar until the white top of the model fills the screen
-    const z = 1 + Math.pow(easeIn(e), 1.15) * 16;
+    const z = 1 + ease(e) * 9;
     cam.k = fit * z;
     const [hxr, hyr] = raw(SRINAGAR[0] - CX, SRINAGAR[1] - CY, 0);
     const cx0 = box.l + bw / 2 - ((x0 + x1) / 2) * fit, cy0 = box.t + bh / 2 - ((y0 + y1) / 2) * fit;
@@ -184,19 +186,27 @@
   }
   const strokeLine = (pts, z0) => { ctx.beginPath(); pts.forEach(([x, y, z], i) => { const [sx, sy] = P(x, y, z0 === undefined ? z : z0); i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy); }); ctx.stroke(); };
 
-  const t0 = performance.now();
+  // The camera holds still until the shop underneath has been built: building it stalls the page for
+  // a moment, and a stall during a still frame can not be seen. Then the clock starts.
+  const tLoad = performance.now();
+  let t0 = 0;
+  const built = () => document.querySelector("#slides .slide") && document.querySelector("#grid .card");
   let raf = 0, over = false;
   function draw(now) {
-    const ms = now - t0;
+    if (!t0 && (built() || now - tLoad > 1600)) { t0 = now; root.dataset.vxiStart = Math.round(now); logo.style.animationPlayState = copyP.style.animationPlayState = "running"; }
+    const ms = t0 ? now - t0 : 0;
+    if (t0 && !exitAt && ms >= HOLD_TO) leave(false);
     const e = camera(ms, now);
     const fade = 1 - clamp01(e * 2.4);                          // routes, pins, floor clear early in the dive
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    const slab = ease(clamp01(ms / 450));
+    const slab = ease(clamp01(ms / 450));                    // fades in with the clock, after any start-up stall
     const appear = slab * fade;
     const T = 10;
 
     // floor: a faint dot grid the model sits on
+    const diving = e > .12;
+    if (!diving) {
     ctx.fillStyle = "#c9c9c9";
     for (let gx = -560; gx <= 560; gx += 40) for (let gy = -520; gy <= 560; gy += 40) {
       const d = Math.hypot(gx * .9, gy) / 600;
@@ -205,13 +215,16 @@
       ctx.globalAlpha = appear * .55 * (1 - d) * (1 - d);
       ctx.fillRect(sx - .8 * f, sy - .8 * f, 1.6 * f, 1.6 * f);
     }
+    }
     ctx.globalAlpha = slab;
 
     // shadow, then the slab's side in three bands, then the top: outline first, fill over it, state lines last
-    ctx.fillStyle = "rgba(0,0,0,.03)";
-    for (const off of [22, 14, 8]) for (const p of polys) { path(p, -T * 3, off * .4, off); ctx.fill(); }
-    for (const [z, c] of [[-T, "#c4c4c4"], [-T * .66, "#d0d0d0"], [-T * .33, "#dcdcdc"]]) {
-      ctx.fillStyle = c; for (const p of polys) { path(p, z); ctx.fill(); }
+    if (!diving) {
+      ctx.fillStyle = "rgba(0,0,0,.03)";
+      for (const off of [22, 14, 8]) for (const p of polys) { path(p, -T * 3, off * .4, off); ctx.fill(); }
+      for (const [z, c] of [[-T, "#c4c4c4"], [-T * .66, "#d0d0d0"], [-T * .33, "#dcdcdc"]]) {
+        ctx.fillStyle = c; for (const p of polys) { path(p, z); ctx.fill(); }
+      }
     }
     ctx.lineJoin = "round";
     ctx.strokeStyle = "#a9a9a9"; ctx.lineWidth = 2.2;
@@ -291,11 +304,11 @@
     clearTimeout(safety);
     // once the dive has whited the screen out, lift the layer: the page underneath is white too,
     // so the only things that move are the page's own arrivals (banner opening, header, pills)
-    const lift = Math.max(0, EXIT * .38 - (performance.now() - exitAt));
+    const lift = Math.max(0, EXIT * .3 - (performance.now() - exitAt));
     setTimeout(() => {
       document.body.classList.remove("vxi-on");
       enter();
-      el.style.transition = "opacity .42s ease";
+      el.style.transition = "opacity .5s cubic-bezier(.4,0,.2,1)";
       el.style.opacity = "0";
     }, lift);
     // the VIBE X mark flies into the header logo
@@ -312,5 +325,5 @@
     setTimeout(() => { over = true; cancelAnimationFrame(raf); el.remove(); removeEventListener("resize", resize); }, EXIT + 120);
   }
   el.addEventListener("click", () => leave(true));
-  const timer = setTimeout(() => leave(false), HOLD_TO);
+  const timer = 0; // the hand-off is started from draw(), on the animation's own clock
 })();

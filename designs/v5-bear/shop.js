@@ -298,7 +298,7 @@
     const grid = document.createElement("div");
     grid.className = "grid";
     shown.forEach((p, i) => {
-      const sig = card(p, i < 10 || fresh.has(p.id));
+      const sig = card(p, fresh.has(p.id)); // the rack is below the first screen: photos load as it nears
       let hit = cardCache.get(p.id);
       if (!hit || hit.sig !== sig) {
         const t = document.createElement("template");
