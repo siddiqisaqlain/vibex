@@ -698,3 +698,9 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 @keyframes co-bounce { 0% { opacity: 0; transform: translateY(14px) scale(.4) rotate(-14deg); } 60% { opacity: 1; transform: translateY(-8px) scale(1.2) rotate(8deg); } 100% { transform: none; } }
 @keyframes co-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .co-emotes span, .co-thanks { animation: none; } .co-thanks { background: none; color: var(--ink); } }
+
+/* Product description and size picker */
+.pdp-desc { margin: 14px 0 0; color: var(--ink-2); line-height: 1.6; white-space: pre-line; }
+.pdp-sizes { margin: 18px 0 4px; }
+.pdp-sizes .label { margin: 0 0 8px; }
+.pdp-sizes .ask-err { margin: 8px 0 0; }

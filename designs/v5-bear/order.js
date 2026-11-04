@@ -34,6 +34,8 @@ window.VXOrder = (() => {
     if (p.status === "hold") return `<span class="order is-hold">On hold</span>${enquire}`;
     // Online ordering stays off until the shop's real payment details are in shop.json.
     const order = S.orderingOpen === false ? ""
+      : p.price && !big && (p.options || []).length > 1
+      ? `<a class="order order-now" href="${window.VX_BASE || ""}/p/${encodeURIComponent(p.id)}">${BAG}Choose size</a>`
       : p.price
       ? `<button type="button" class="order order-now" data-order="${esc(p.id)}">${BAG}Order now</button>`
       : `<span class="order is-sold">Price on request</span>`;
@@ -130,12 +132,13 @@ window.VXOrder = (() => {
     toast.timer = setTimeout(() => (t.hidden = true), ms);
   }
 
-  // getProduct(id) -> product, supplied by the page.
-  function install(getProduct) {
+  // getProduct(id) -> product, supplied by the page. forOrder(id) -> the product as ordered
+  // (with its size), or nothing if the customer still has to choose.
+  function install(getProduct, forOrder = getProduct) {
     document.addEventListener("click", (e) => {
       const ord = e.target.closest("button[data-order]");
       if (ord) {
-        const p = getProduct(ord.dataset.order);
+        const p = forOrder(ord.dataset.order);
         if (p) window.VXCheckout.open(p);
         return;
       }

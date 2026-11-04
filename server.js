@@ -15,6 +15,7 @@ const { parseMessage, categoryAnswer, findSubcategory } = require("./lib/parse")
 const { classify, aiEnabled, MODEL, readPurchaseBill } = require("./lib/classify");
 const wa = require("./lib/whatsapp");
 const createBilling = require("./lib/billing");
+const { sizePairs, withoutSizePairs, optionsOf, applySizePairs, autoDescription } = require("./lib/sizes");
 const { readJson, writeJson, dailyBackup } = require("./lib/jsonstore");
 const SHOP_NAME = "Vibe X";
 
@@ -85,15 +86,14 @@ ensureCodes();
 const VOLUME = /\s*[-–,(]?\s*\b(\d{1,4}(?:[.,]\d)?)\s?(ml|mls|ltr|litres?|liters?)\b\.?\)?/i;
 function tidyListing(l) {
   if (!l || !l.name || l.category !== "Fragrances") return l; // clothes sizes like "L" are left alone
-  const m = VOLUME.exec(l.name);
-  if (m) {
+  const vols = [];
+  for (let m = VOLUME.exec(l.name); m; m = VOLUME.exec(l.name)) {
     const rest = (l.name.slice(0, m.index) + " " + l.name.slice(m.index + m[0].length)).replace(/\s+/g, " ").replace(/^[\s\-–,]+|[\s\-–,]+$/g, "").trim();
-    if (rest.length >= 2) {
-      l.name = rest;
-      const vol = `${m[1].replace(",", ".")} ${/^(ltr|lit)/i.test(m[2]) ? "L" : "ml"}`;
-      if (!l.sizes) l.sizes = vol;
-    }
+    if (rest.length < 2) break;
+    l.name = rest;
+    vols.push(`${m[1].replace(",", ".")} ${/^(ltr|lit)/i.test(m[2]) ? "L" : "ml"}`);
   }
+  if (vols.length && !l.sizes) l.sizes = vols.join(" · ");
   l.name = l.name.replace(/\s+[-–]\s*$/, "").trim();
   return l;
 }
@@ -104,12 +104,25 @@ function tidyListing(l) {
   for (const p of items) { const before = `${p.name}|${p.sizes}`; tidyListing(p); if (`${p.name}|${p.sizes}` !== before) n++; }
   if (n) { fs.writeFileSync(DB, JSON.stringify(items, null, 2)); console.log(`Tidied ${n} product name(s): bottle size moved to the size field`); }
 })();
+// Once at start-up: descriptions written for the stock already on the site. Never overwrites one.
+(() => {
+  const seed = require("./lib/descriptions.json");
+  const items = load();
+  let n = 0;
+  for (const p of items) if (!p.description && seed[p.id]) { p.description = seed[p.id]; n++; }
+  if (n) { fs.writeFileSync(DB, JSON.stringify(items, null, 2)); console.log(`Added ${n} product description(s)`); }
+})();
 const save = (items) => writeJson(DB, items);
 // What customers may see. Cost prices and the shop's own notes never leave the server, and
 // hidden items (imported, waiting for a photo) aren't on sale yet.
 const PRIVATE_FIELDS = ["cost", "purchasePrice", "supplierId", "hsn", "gstRate", "reorderAt", "barcode", "importKey", "needsCount", "needsName"];
 const isPublic = (p) => !p.hidden;
-const forCustomers = (p) => { const c = { ...p }; for (const k of PRIVATE_FIELDS) delete c[k]; return c; };
+const forCustomers = (p) => {
+  const c = { ...p, options: optionsOf(p), description: p.description || autoDescription(p) };
+  for (const k of PRIVATE_FIELDS) delete c[k];
+  delete c.sizePrices;
+  return c;
+};
 const publicProducts = () => load().filter(isPublic).map(forCustomers);
 
 // Posts the bot wasn't sure about ("Gucci 2499": clothes or perfume?) wait here, oldest first,
@@ -357,14 +370,19 @@ async function createOrder(req, res) {
   if (delivery === "ship" && (!address || !city || !/^[1-9]\d{5}$/.test(pin))) {
     return send(res, 400, { error: "Please add your full address, city and 6 digit PIN code." });
   }
+  // The server decides the price from the size, never the browser.
+  const options = optionsOf(p);
+  const picked = options.length === 1 ? options[0] : options.find((o) => o.size === String(b.size || ""));
+  if (options.length > 1 && !picked) return send(res, 400, { error: "Please choose a size first." });
+  const price = picked?.price ?? p.price;
   const orders = loadOrders();
   const promo = applyOffer(b.promo, phone, orders);
   if (promo && promo.error) return send(res, 400, { error: promo.error });
-  const discount = promo ? Math.round((p.price * promo.offer.percent) / 100) : 0;
+  const discount = promo ? Math.round((price * promo.offer.percent) / 100) : 0;
   const order = {
     id: crypto.randomBytes(8).toString("hex"), code: newOrderCode(orders),
-    productId: p.id, productName: p.name, lot: lotOf(p), amount: p.price - discount,
-    ...(promo ? { promo: promo.offer.code, discount, fullPrice: p.price } : {}),
+    productId: p.id, productName: p.name, lot: lotOf(p), amount: price - discount, ...(picked ? { size: picked.size } : {}),
+    ...(promo ? { promo: promo.offer.code, discount, fullPrice: price } : {}),
     name, phone, delivery, address, city, pin,
     status: "awaiting_payment", createdAt: new Date().toISOString(),
   };
@@ -398,7 +416,7 @@ async function orderPaid(req, res, id) {
     id: crypto.randomBytes(6).toString("hex"), at: new Date().toISOString(), kind: "order",
     summary: { kind: "order", ref: o.code },
     image: proof || (p && p.image) || null,
-    text: `💰 *New order ${o.code}: check the payment*\n*${o.productName}* · ${inr(o.amount)}${o.promo ? ` (${o.promo}: ${inr(o.fullPrice)} − ${inr(o.discount)})` : ""} · ${o.lot}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 ${utr ? `Payment ref: ${utr}` : proof ? "Payment screenshot above" : `Customer tapped "I've paid". Look for note ${o.code}`}\n\nCheck your bank or UPI app for ${inr(o.amount)}, then reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
+    text: `💰 *New order ${o.code}: check the payment*\n*${o.productName}*${o.size ? ` · ${o.size}` : ""} · ${inr(o.amount)}${o.promo ? ` (${o.promo}: ${inr(o.fullPrice)} − ${inr(o.discount)})` : ""} · ${o.lot}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 ${utr ? `Payment ref: ${utr}` : proof ? "Payment screenshot above" : `Customer tapped "I've paid". Look for note ${o.code}`}\n\nCheck your bank or UPI app for ${inr(o.amount)}, then reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
   });
   send(res, 200, { code: o.code, status: o.status });
 }
@@ -415,13 +433,42 @@ _Faster:_ put it all in the caption, e.g. _Zara shirt 1499 M L_, and it's one ta
 *Set stock:* _stock 4795 5_
 *Wrong section:* _move 4795 perfume_ (or clothes, shoes, accessory)
 *Take down:* _remove 4795_
+*Sizes:* _sizes 4795 50ml 2999 100ml 4999_ (or _sizes 4795 M L XL_)
+*Description:* _desc 4795 your words_
 *Start over:* _clear_ drops every photo still waiting to be posted
 *Orders:* _confirm VX-1234_ or _cancel VX-1234_
 The 4-digit code is the LOT number on the website, and I send it when you post.
 Tip: put *perfume*, *clothes*, *shoes* or *accessory* in the caption and I'll never have to ask which it is.`;
 
+// "desc 4795 Soft cotton tee", "sizes 4795 50ml 2999 100ml 4999", "sold 4795 100ml"
+function liveEdit(text) {
+  const t = text.trim();
+  let m = /^(?:desc|description|about)\s+(\d{4})\s+([\s\S]{5,500})$/i.exec(t);
+  const size = !m && /^sizes?\s+(\d{4})\s+(.{1,100})$/i.exec(t);
+  const sold = !m && !size && /^sold\s+(\d{4})\s+(\d{1,4}(?:\.\d)?)\s?ml(?:\s+(\d{1,3}))?$/i.exec(t);
+  const hit = m || size || sold;
+  if (!hit) return null;
+  const items = load();
+  const p = items.find((x) => x.code === hit[1]);
+  if (!p) return `I couldn't find code ${hit[1]}. The code is the LOT number on the website.`;
+  if (m) { p.description = m[2].trim(); save(items); return `📝 Description updated for “${p.name}” (#${p.code}).`; }
+  if (size) {
+    setSizes(p, size[2]);
+    save(items);
+    return `📏 “${p.name}” (#${p.code}) now comes in: ${optionsOf(p).map((o) => `${o.size} ${inr(o.price)}`).join(", ")}.`;
+  }
+  const opt = optionsOf(p).find((o) => o.size === `${sold[2]} ml`);
+  if (!opt) return `“${p.name}” (#${p.code}) doesn't have ${sold[2]} ml. It has: ${p.sizes || "no sizes set"}.`;
+  const r = billing.sell([{ productId: p.id, qty: Number(sold[3]) || 1, price: opt.price, size: opt.size }], { source: "whatsapp", clamp: true });
+  if (r.error) return `⚠️ ${r.error}`;
+  const after = billing.stockOf(r.products.find((x) => x.id === p.id));
+  return `🏷️ Sold ${r.invoice.lines[0].qty} × “${p.name}” ${opt.size} (#${p.code}). ${after === 0 ? "*SOLD OUT* on the website." : `*${after}* left on the website.`}\n🧾 Bill ${r.invoice.number} · ${inr(r.invoice.total)}: ${billUrl(r.invoice)}`;
+}
+
 // Owner stock messages: "sold 4795 2", "add 4795 3", "stock 4795 5", "help".
 function stockCommand(text) {
+  const live = liveEdit(text);
+  if (live) return live;
   const c = parseMessage(text);
   if (c.type === "help") return HELP;
   if (c.type !== "stock") return null;
@@ -439,6 +486,7 @@ function stockCommand(text) {
   if (c.action === "sold") {
     // Same path as the billing portal: stock comes off and a bill is written in one go.
     if (p.status === "sold" || before === 0) return `“${p.name}” (#${p.code}) is already sold out. Send *add ${p.code} 1* if more came in.`;
+    if (p.sizePrices && optionsOf(p).length > 1) return `Which size of “${p.name}” sold? Send ${optionsOf(p).map((o) => `*sold ${p.code} ${o.size.replace(" ", "")}*`).join(" or ")}`;
     const r = billing.sell([{ productId: p.id, qty: c.qty }], { source: "whatsapp", clamp: true });
     if (r.error) return `⚠️ ${r.error}`;
     const n = r.invoice.lines[0].qty;
@@ -485,7 +533,7 @@ function orderCommand(text) {
   if (o.status === "confirmed") return `${o.code} is already confirmed.`;
   if (o.status === "cancelled") return `${o.code} was cancelled. Ask the customer to order again.`;
   // Same path as the billing portal: stock comes off and the bill is written in one go.
-  const sale = billing.sell([{ productId: o.productId, qty: 1, price: o.amount }], {
+  const sale = billing.sell([{ productId: o.productId, qty: 1, price: o.amount, size: o.size }], {
     source: "website", order: o.code, holdFor: o.code, payment: "upi",
     customer: { name: o.name, phone: o.phone, address: o.delivery === "ship" ? `${o.address}, ${o.city} ${o.pin}` : "" },
   });
@@ -652,7 +700,7 @@ function productMeta(req, id) {
   const proto = String(req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
   const origin = (process.env.PUBLIC_URL || `${proto}://${req.headers.host}`).replace(/\/$/, "");
   const title = p ? `${p.name}${p.price ? ` · ₹${p.price.toLocaleString("en-IN")}` : ""} · Vibe X` : "Vibe X · The Surplus Room";
-  const desc = p
+  const desc = p?.description ? p.description.slice(0, 200) : p
     ? [p.brand, p.category, p.sizes, p.status === "sold" ? "Sold" : "In stock at Vibe X, Srinagar"].filter(Boolean).join(" · ")
     : "Original world-brand surplus. Srinagar, Kashmir.";
   const og = [
@@ -776,6 +824,9 @@ function photoForImported(text, image) {
 }
 
 async function makeDraft(text, imageData, parsed = parseMessage(text)) {
+  // "Gucci Flora 50ml 2999 100ml 4999": read the sizes first so they don't end up in the name.
+  const pairs = sizePairs(text);
+  if (pairs.length) parsed = parseMessage(`${withoutSizePairs(text)} ${pairs[0].price}`);
   const rules = parsed.type === "product" ? parsed.product : parseMessage("").product;
   let listing = rules, note = null, by = "rules", sure = parsed.type === "product" ? parsed.sure : false;
   if (aiEnabled()) {
@@ -791,6 +842,7 @@ async function makeDraft(text, imageData, parsed = parseMessage(text)) {
         mrp: ai.mrp ?? rules.mrp,
         sizes: ai.sizes || rules.sizes,
         quantity: ai.quantity ?? rules.quantity,
+        description: ai.description || rules.description,
       };
       note = ai.note;
       sure = ai.sure;
@@ -801,6 +853,7 @@ async function makeDraft(text, imageData, parsed = parseMessage(text)) {
   }
   // The rules miss "m l xl" / "32 34" at the end of a caption; the answer reader gets those.
   if (!listing.sizes) { const a = readAnswer(text); if (a.sizes) listing = { ...listing, sizes: a.sizes }; }
+  if (pairs.length) { listing = applySizePairs({ ...listing, category: "Fragrances" }, pairs); sure = true; }
   const id = crypto.randomBytes(6).toString("hex");
   return { id, listing, note, by, image: saveImage(imageData, id), sure, guess: listing.category };
 }
@@ -1106,7 +1159,7 @@ function batchReply(text) {
 // section, and can change any of them first. Drafts are not on the website.
 const SECTION_LABEL = { Clothing: "Clothes", Fragrances: "Perfume", Footwear: "Shoes", Accessories: "Accessory" };
 // Edit words, so a typo like "pirce 3000" or "qyt 2" still counts.
-const EDIT_WORDS = { price: "price", rate: "price", mrp: "mrp", qty: "qty", quantity: "qty", stock: "qty", pcs: "qty", name: "name", brand: "brand", size: "size", sizes: "size" };
+const EDIT_WORDS = { price: "price", rate: "price", mrp: "mrp", qty: "qty", quantity: "qty", stock: "qty", pcs: "qty", name: "name", brand: "brand", size: "size", sizes: "size", desc: "description", description: "description", about: "description" };
 function editWord(w) {
   w = w.toLowerCase();
   if (EDIT_WORDS[w]) return EDIT_WORDS[w];
@@ -1129,8 +1182,16 @@ const needsSize = (l) => l.category === "Clothing" && !l.sizes;
 function formatSizes(v) {
   v = v.trim();
   if (/^(free|free ?size|one ?size|os)$/i.test(v)) return "Free size";
-  if (/^\d+\s?ml$/i.test(v)) return v.replace(/\s?ml/i, " ml");
-  return v.split(/[\s,\/&]+/).filter(Boolean).map((x) => x.toUpperCase()).join(" · ").replace(/^(UK|US|EU) · /, "$1 ");
+  return v.replace(/(\d)\s*mls?\b/gi, "$1ml").split(/[\s,\/&]+/).filter(Boolean)
+    .map((x) => (/^[\d.]+ml$/i.test(x) ? x.replace(/ml$/i, " ml") : x.toUpperCase())).join(" · ").replace(/^(UK|US|EU) · /, "$1 ");
+}
+// Sets sizes on a draft or a live product, with prices if each size has one.
+function setSizes(l, t) {
+  const pairs = sizePairs(t);
+  if (pairs.length) return applySizePairs(l, pairs);
+  delete l.sizePrices;
+  l.sizes = formatSizes(t);
+  return l;
 }
 // A bare size answer: "M", "m l xl", "32 34", "free size", "UK 9"
 const SIZE_ONLY = /^(?:(?:xxs|xs|s|m|l|xl|xxl|xxxl|2xl|3xl|4xl|\d{2}|uk\s?\d{1,2}|free|free ?size|one ?size)(?:[\s,\/&]+|$))+$/i;
@@ -1151,6 +1212,7 @@ const FIELDS = {
   section: { label: "Section", ask: "🗂️ Which section does it go in?", list: { button: "Choose section", rows: SECTION_ROWS } },
   brand: { label: "Brand", ask: "✨ Which brand?\nType it, e.g. *Zara*" },
   mrp: { label: "MRP", ask: "🏷️ What's the MRP (original price)?\nJust type the number, e.g. *6999*" },
+  description: { label: "Description", ask: "📝 Type a line or two about it, e.g. *Soft cotton, relaxed fit*" },
 };
 // The first thing still missing, in the order the owner is asked.
 function missingField(item) {
@@ -1158,7 +1220,7 @@ function missingField(item) {
   if (!item.sure) return "section";
   if (!l.name || l.name === "New arrival") return "name";
   if (!l.price) return "price";
-  if (needsSize(l)) return "size";
+  if (needsSize(l) || (l.category === "Fragrances" && !l.sizes && !item.noSize)) return "size";
   return null;
 }
 // Name examples that fit the section once it's known.
@@ -1171,8 +1233,10 @@ function question(item, field, lead = "") {
     const c = item.listing.category;
     ask = `🏷️ What's it called?\nType the name, e.g. *${(item.sure && NAME_EG[c]) || "Dior Sauvage EDT"}*${c === "Fragrances" ? "\n(Bottle size like *100 ml* is fine too.)" : ""}`;
   }
-  const out = { reply: `${lead}${ask}`, buttons: f.buttons, list: f.list };
-  if (!f.buttons && !f.list) out.buttons = ["❌ Cancel"];
+  const perfumeSize = field === "size" && item.listing.category === "Fragrances";
+  if (perfumeSize) ask = "🧴 Which bottle sizes do you have?\nOne size: *100ml*\nPriced per size: *50ml 2999 100ml 4999*";
+  const out = { reply: `${lead}${ask}`, buttons: perfumeSize ? ["Skip"] : f.buttons, list: f.list };
+  if (!out.buttons && !f.list) out.buttons = ["❌ Cancel"];
   return out;
 }
 function preview(item, lead = "") {
@@ -1182,7 +1246,8 @@ function preview(item, lead = "") {
     `*${l.name}*`,
     l.brand ? `✨ ${l.brand}` : null,
     `💰 ${rupees(l.price)}${l.mrp ? ` ~MRP ${rupees(l.mrp)}~` : ""}`,
-    l.sizes ? `📏 ${l.sizes}` : null,
+    l.sizes ? `📏 ${l.sizePrices ? Object.entries(l.sizePrices).map(([k, v]) => `${k} ${rupees(v)}`).join(", ") : l.sizes}` : null,
+    l.description ? `📝 ${l.description}` : null,
     `📦 ${l.quantity || 1} ${(l.quantity || 1) > 1 ? "pieces" : "piece"}`,
     `🗂️ ${section}`,
   ].filter(Boolean);
@@ -1208,14 +1273,15 @@ const changeMenu = (l) => ({
     { id: "Section", title: "🗂️ Section", description: SECTION_LABEL[l.category] || "" },
     { id: "Brand", title: "✨ Brand", description: l.brand || "not set" },
     { id: "MRP", title: "🏷️ MRP", description: l.mrp ? rupees(l.mrp) : "not set" },
+    { id: "Description", title: "📝 Description", description: (l.description || "not set").slice(0, 70) },
   ] },
 });
-const FIELD_PICK = { name: "name", price: "price", quantity: "qty", qty: "qty", size: "size", sizes: "size", section: "section", category: "section", brand: "brand", mrp: "mrp" };
+const FIELD_PICK = { name: "name", price: "price", quantity: "qty", qty: "qty", size: "size", sizes: "size", section: "section", category: "section", brand: "brand", mrp: "mrp", description: "description" };
 const money = (t) => { const m = /^(?:₹|rs\.?)?\s*([\d,]{2,9})(?:\s*\/-)?$/i.exec(t.trim()); const n = m && Number(m[1].replace(/,/g, "")); return n >= 10 ? n : null; };
 // The owner's answer to the question the bot just asked. Returns true if it fitted.
 function answer(item, field, t) {
   const l = item.listing;
-  if (field === "price") { const n = money(t); if (!n) return false; l.price = n; return true; }
+  if (field === "price") { const n = money(t); if (!n) return false; l.price = n; delete l.sizePrices; return true; }
   if (field === "mrp") { const n = money(t); if (!n) return false; l.mrp = n; return true; }
   if (field === "qty") { const m = /^(\d{1,3})(?:\s*(?:pcs?|pieces?|nos))?$/i.exec(t); if (!m || !Number(m[1])) return false; l.quantity = Number(m[1]); return true; }
   if (field === "section") {
@@ -1226,7 +1292,13 @@ function answer(item, field, t) {
     item.sure = true;
     return true;
   }
-  if (field === "size") { if (t.length > 40) return false; l.sizes = formatSizes(t); return true; }
+  if (field === "size") {
+    if (/^skip$/i.test(t)) { item.noSize = true; return true; }
+    if (t.length > 100) return false;
+    setSizes(l, t);
+    return true;
+  }
+  if (field === "description") { if (t.length < 5 || t.length > 500) return false; l.description = t; return true; }
   if (field === "name") { if (t.length < 2 || t.length > 80) return false; l.name = t; return true; }
   if (field === "brand") { if (t.length < 2 || t.length > 40) return false; l.brand = t; return true; }
   return false;
@@ -1236,7 +1308,8 @@ const NOT_UNDERSTOOD = {
   mrp: "🏷️ I need just the number, e.g. *6999*.",
   qty: "📦 Send a number, e.g. *2*.",
   section: "🗂️ Tap one of the sections below.",
-  size: "📏 Type the sizes, e.g. *M L XL*.",
+  size: "📏 Type the sizes, e.g. *M L XL* or *50ml 100ml*.",
+  description: "📝 Type a line or two, up to 500 letters.",
   name: "🏷️ Type a short name, e.g. *Zara Denim Jacket*.",
   brand: "✨ Type a short brand name, e.g. *Zara*.",
 };
@@ -1293,7 +1366,7 @@ function draftReply(text, hasImage) {
   }
   // The answer to the question just asked.
   // ("Prince jacket" as a name is an answer, not a mistyped "price".)
-  const isEdit = kind && (["name", "brand", "size"].includes(kind) || /^[₹\d,.\/-]+$/.test(rest.join("")));
+  const isEdit = kind && (["name", "brand", "size", "description"].includes(kind) || /^[₹\d,.\/-]+$/.test(rest.join("")));
   if (item.ask && !isEdit) {
     const changed = Boolean(item.fromChange);
     if (answer(item, item.ask, t)) { delete item.fromChange; return step(item, { changed }); }
@@ -1308,7 +1381,7 @@ function draftReply(text, hasImage) {
   let m;
   if ((m = /^(?:price|rate|rs\.?|₹)\s*[:=\-]?\s*(?:₹|rs\.?)?\s*([\d,]{2,9})(?:\s*\/-)?$/i.exec(e)) || (m = /^(?:₹|rs\.?)?\s*([\d,]{3,9})(?:\s*\/-)?$/i.exec(e))) {
     const n = Number(m[1].replace(/,/g, ""));
-    if (n >= 10) { l.price = n; return step(item, { changed: true }); }
+    if (n >= 10) { l.price = n; delete l.sizePrices; return step(item, { changed: true }); }
   }
   if ((m = /^mrp\s*[:=\-]?\s*(?:₹|rs\.?)?\s*([\d,]{2,9})$/i.exec(e))) { l.mrp = Number(m[1].replace(/,/g, "")); return step(item, { changed: true }); }
   if ((m = /^(?:qty|quantity|stock|pcs|pieces|nos)\s*[:=\-]?\s*(\d{1,3})$/i.exec(e)) || (m = /^(\d{1,3})\s*(?:pcs|pc|pieces|piece|nos|qty)$/i.exec(e)) || (m = /^[x×]\s*(\d{1,3})$/i.exec(e))) {
@@ -1317,7 +1390,9 @@ function draftReply(text, hasImage) {
   }
   if ((m = /^name\s*[:=\-]?\s+(.{2,80})$/i.exec(e))) { l.name = m[1].trim(); return step(item, { changed: true }); }
   if ((m = /^brand\s*[:=\-]?\s+(.{2,40})$/i.exec(e))) { l.brand = m[1].trim(); return step(item, { changed: true }); }
-  if ((m = /^sizes?\s*[:=\-]?\s+(.{1,40})$/i.exec(e))) { l.sizes = formatSizes(m[1]); return step(item, { changed: true }); }
+  if ((m = /^sizes?\s*[:=\-]?\s+(.{1,100})$/i.exec(e))) { setSizes(l, m[1]); return step(item, { changed: true }); }
+  if ((m = /^(?:desc|description|about)\s*[:=\-]?\s+([\s\S]{5,500})$/i.exec(e))) { l.description = m[1].trim(); return step(item, { changed: true }); }
+  if (sizePairs(t).length) { setSizes(l, t); return step(item, { changed: true }); }
   // Looks like a new product typed out (words and a price)? Queue it behind this one.
   const looks = parseMessage(t);
   if (!kind && looks.type === "product" && looks.product.price && looks.product.name !== "New arrival") {

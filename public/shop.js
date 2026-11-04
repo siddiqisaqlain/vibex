@@ -95,6 +95,7 @@
       ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="${eager ? "eager" : "lazy"}" decoding="async">`
       : window.productArt(p, hash(p.id));
   }
+  const manyPrices = (p) => new Set((p.options || []).map((o) => o.price)).size > 1;
   function card(p, eager) {
     const off = offPct(p);
     const meta = [p.sizes, p.status === "sold" && soldAt(p) ? `Sold ${agoAt(soldAt(p))}` : null].filter(Boolean).map(esc).join(" · ");
@@ -108,7 +109,7 @@
         <div class="info">
           <span class="brand">${esc(p.brand || p.subcategory || p.category)}</span>
           <h3 class="name"><a href="${pdp(p)}">${esc(p.name)}</a></h3>
-          <div class="price"><b>${p.price ? rupees(p.price) : "Price on request"}</b>${off ? `<s>${rupees(p.mrp)}</s><em>(${off}% off)</em>` : ""}</div>
+          <div class="price"><b>${p.price ? `${manyPrices(p) ? "From " : ""}${rupees(p.price)}` : "Price on request"}</b>${off && !manyPrices(p) ? `<s>${rupees(p.mrp)}</s><em>(${off}% off)</em>` : ""}</div>
           ${meta ? `<span class="meta">${meta}</span>` : ""}
           ${window.VXOrder.button(p)}
         </div>
@@ -217,13 +218,14 @@
   }
 
   // ---- shop by size / price / brand ----
-  const sizesOf = (p) => (p.category === "Clothing" && p.sizes ? String(p.sizes).toUpperCase().split(/\s*[·,/|]\s*|\s+/).filter((s) => SIZE_ORDER.includes(s)) : []);
+  const sizesOf = (p) => (p.options || []).map((o) => o.size.toUpperCase()).filter((s) => SIZE_ORDER.includes(s) || /^[\d.]+ ML$/.test(s));
+  const sizeLabel = (s) => s.replace(/ ML$/, " ml");
   function renderShopBy() {
     const live = products.filter((p) => p.status !== "sold");
     const sizes = {};
     for (const p of live) for (const s of sizesOf(p)) sizes[s] = (sizes[s] || 0) + 1;
-    const sz = SIZE_ORDER.filter((s) => sizes[s]);
-    $("sizes").innerHTML = sz.map((s) => `<button type="button" class="pill${view.size === s ? " on" : ""}" data-size="${s}">${s}</button>`).join("");
+    const sz = [...SIZE_ORDER.filter((s) => sizes[s]), ...Object.keys(sizes).filter((s) => / ML$/.test(s)).sort((a, b) => parseFloat(a) - parseFloat(b))];
+    $("sizes").innerHTML = sz.map((s) => `<button type="button" class="pill${view.size === s ? " on" : ""}" data-size="${s}">${sizeLabel(s)}</button>`).join("");
     $("by-size").hidden = !sz.length;
     const bands = BANDS.filter((b) => live.some((p) => p.price && b.test(p.price)));
     $("prices").innerHTML = bands.map((b) => `<button type="button" class="pill${view.band === b.id ? " on" : ""}" data-band="${b.id}">${b.label}</button>`).join("");
@@ -289,7 +291,7 @@
 
   function renderActive() {
     const chips = [];
-    if (view.size) chips.push(["size", `Size ${view.size}`]);
+    if (view.size) chips.push(["size", `Size ${sizeLabel(view.size)}`]);
     if (view.band) chips.push(["band", view.band === "u2000" ? "Under ₹2,000" : BANDS.find((b) => b.id === view.band)?.label]);
     if (view.brand) chips.push(["brand", view.brand]);
     $("active").hidden = !chips.length;

@@ -7,6 +7,7 @@
   const root = document.getElementById("pdp");
   const id = root.dataset.id;
   let products = [];
+  let pick = null, needPick = false; // chosen size; true after "Order now" with none chosen
 
   const offPct = (p) => (p.mrp && p.price && p.mrp > p.price ? Math.round((1 - p.price / p.mrp) * 100) : 0);
 
@@ -22,13 +23,31 @@
       <span class="brand">${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><span class="mono">${p.price ? rupees(p.price) : "Ask"}</span></a>`;
   }
 
+  const optionsOf = (p) => p.options || [];
+  const chosenOf = (p) => { const o = optionsOf(p); return o.length === 1 ? o[0] : o.find((x) => x.size === pick) || null; };
+  const multiPrice = (p) => new Set(optionsOf(p).map((o) => o.price)).size > 1;
+
+  function sizePicker(p) {
+    const opts = optionsOf(p);
+    if (opts.length < 2 || p.status !== "available") return "";
+    const label = (o) => esc(o.size) + (multiPrice(p) ? ` · ${rupees(o.price)}` : "");
+    return `<div class="pdp-sizes" role="group" aria-label="Choose size">
+        <p class="label">Choose size</p>
+        <div class="pills">${opts.map((o) => `<button type="button" class="pill${o.size === pick ? " on" : ""}" data-pick="${esc(o.size)}" aria-pressed="${o.size === pick}">${label(o)}</button>`).join("")}</div>
+        ${needPick ? `<p class="ask-err" role="alert">Choose a size first.</p>` : ""}
+      </div>`;
+  }
+
   function render() {
     const p = products.find((x) => x.id === id);
     if (!p) {
       root.innerHTML = `<div class="pdp-gone"><h1>This piece has left the rack.</h1><p>It was sold or taken down. New stock lands most days.</p><a class="btn btn-ink" href="${BASE}/#rack">See today's drops</a></div>`;
       return;
     }
-    const off = offPct(p);
+    const chosen = chosenOf(p);
+    const price = chosen?.price ?? p.price;
+    const from = !chosen && multiPrice(p);
+    const off = from ? 0 : offPct({ ...p, price });
     const related = products.filter((x) => x.id !== p.id && x.category === p.category && x.status === "available").slice(0, 4);
     root.innerHTML = `
       <a class="back mono" href="${BASE}/#rack">← Back to the rack</a>
@@ -39,11 +58,13 @@
           ${p.brand ? `<span class="brand">${esc(p.brand)}</span>` : ""}
           <h1>${esc(p.name)}</h1>
           <div class="pdp-price">
-            <b>${p.price ? rupees(p.price) : "Ask for price"}</b>
+            <b>${price ? `${from ? "From " : ""}${rupees(price)}` : "Ask for price"}</b>
             ${off ? `<s>${rupees(p.mrp)}</s><span class="off">−${off}% vs retail</span>` : ""}
           </div>
+          <p class="pdp-desc">${esc(p.description)}</p>
+          ${sizePicker(p)}
           <dl class="pdp-facts">
-            ${p.sizes ? `<div><dt>Size</dt><dd>${esc(p.sizes)}</dd></div>` : ""}
+            ${p.sizes && (optionsOf(p).length < 2 || p.status !== "available") ? `<div><dt>Size</dt><dd>${esc(p.sizes)}</dd></div>` : ""}
             <div><dt>Condition</dt><dd>Original</dd></div>
             <div><dt>In stock</dt><dd>${p.status === "sold" ? "Sold out" : p.status === "hold" ? "On hold for a buyer" : p.quantity > 1 ? `${p.quantity} pieces` : "Last one"}</dd></div>
             <div><dt>Get it</dt><dd>Pick up in Srinagar or ship anywhere in India</dd></div>
@@ -62,7 +83,26 @@
     } catch { /* keep what's on screen */ }
   }
 
-  O.install((pid) => products.find((p) => p.id === pid));
+  root.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-pick]");
+    if (!b) return;
+    pick = b.dataset.pick;
+    needPick = false;
+    render();
+  });
+
+  O.install((pid) => products.find((p) => p.id === pid), (pid) => {
+    const p = products.find((x) => x.id === pid);
+    if (!p) return null;
+    const chosen = chosenOf(p);
+    if (optionsOf(p).length > 1 && !chosen) {
+      needPick = true;
+      render();
+      root.querySelector(".pdp-sizes")?.scrollIntoView({ block: "center", behavior: "smooth" });
+      return null;
+    }
+    return chosen ? { ...p, price: chosen.price, sizes: chosen.size, chosenSize: chosen.size } : p;
+  });
   load();
   setInterval(load, 5000);
 })();

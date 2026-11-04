@@ -33,7 +33,7 @@ window.VXCheckout = (() => {
     const { esc, rupees, lot, hash } = O();
     const pic = p.image ? `<img src="${esc(p.image)}" alt="">` : window.productArt(p, hash(p.id));
     return `<div class="ask-item"><div class="ask-thumb ${p.image ? "" : "art-bg"}">${pic}</div>
-      <div><span class="brand">${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><span class="mono">${rupees(p.price)} · ${lot(p)}</span></div></div>`;
+      <div><span class="brand">${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><span class="mono">${rupees(p.price)}${p.chosenSize ? ` · ${esc(p.chosenSize)}` : ""} · ${lot(p)}</span></div></div>`;
   }
 
   function shell(inner) {
@@ -78,7 +78,7 @@ window.VXCheckout = (() => {
       btn.disabled = true;
       btn.textContent = "One moment…";
       try {
-        const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...state.form, productId: p.id }) });
+        const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...state.form, productId: p.id, size: p.chosenSize }) });
         const out = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(out.error || "Couldn't start the order. Please try again.");
         state.order = out;

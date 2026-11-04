@@ -92,7 +92,7 @@ try {
   ok("once nothing is missing, the owner sees a short preview with Post it / Change / Cancel");
 
   m = await tapButton("✏️ Change");
-  assert.deepEqual(rows(m).map((r) => r.id), ["Name", "Price", "Quantity", "Size", "Section", "Brand", "MRP"]);
+  assert.deepEqual(rows(m).map((r) => r.id), ["Name", "Price", "Quantity", "Size", "Section", "Brand", "MRP", "Description"]);
   assert.equal(rows(m).find((r) => r.id === "Price").description, "₹2,499");
   m = await tapRow("Quantity", "📦 Quantity");
   assert.match(body(m), /How many pieces/);
@@ -193,6 +193,77 @@ try {
   m = await text("done");
   assert.match(body(m), /Nothing is waiting/);
   ok("'clear' drops everything waiting");
+
+  // Perfume sizes in ml, each with its own price.
+  const listed = async (name) => (await (await fetch(`${base}/api/products`)).json()).find((p) => p.name === name);
+  m = await owner({ type: "image", image: { id: "media9", caption: "Gucci Flora 50ml 2999 100ml 4999 3 pcs" } });
+  assert.match(body(m), /50 ml ₹2,999, 100 ml ₹4,999/);
+  assert.deepEqual(buttons(m), ["✅ Post it", "✏️ Change", "❌ Cancel"]);
+  m = await text("desc Soft floral in the pink bottle");
+  assert.match(body(m), /Soft floral in the pink bottle/);
+  m = await tapButton("✅ Post it");
+  let g = await listed("Gucci Flora");
+  assert.ok(g, "listed under its clean name");
+  assert.equal(g.price, 2999);
+  assert.deepEqual(g.options, [{ size: "50 ml", price: 2999 }, { size: "100 ml", price: 4999 }]);
+  assert.equal(g.description, "Soft floral in the pink bottle");
+  assert.equal(g.sizePrices, undefined, "the raw price map stays on the server");
+  ok("a caption with ml prices lists one product with two priced sizes and its description");
+
+  const order = (extra) => fetch(`${base}/api/orders`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productId: g.id, name: "Asha", phone: "9876543210", delivery: "pickup", ...extra }) });
+  let r = await order({});
+  assert.equal(r.status, 400);
+  assert.match((await r.json()).error, /choose a size/i);
+  r = await order({ size: "75 ml" });
+  assert.equal(r.status, 400, "a size the product doesn't have is refused");
+  const o = await (await order({ size: "100 ml", price: 1 })).json();
+  assert.equal(o.amount, 4999, "the size sets the price, not the browser");
+  sent.length = 0;
+  await fetch(`${base}/api/orders/${o.id}/paid`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  for (let i = 0; i < 40 && !sent.length; i++) await new Promise((r) => setTimeout(r, 50));
+  assert.match(body(sent[0]) || sent[0].image?.caption || JSON.stringify(sent[0]), /Gucci Flora\*? · 100 ml/);
+  m = await text(`confirm ${o.code}`);
+  assert.match(body(m), /confirmed/);
+  const bill = JSON.parse(fs.readFileSync(path.join(dir, "invoices.json"), "utf8")).at(-1);
+  assert.equal(bill.lines[0].sizes, "100 ml");
+  assert.equal(bill.lines[0].unit, 4999);
+  ok("an order needs a real size; the amount, owner alert and bill all use that size");
+
+  const code = g.code;
+  m = await text(`sold ${code}`);
+  assert.match(body(m), new RegExp(`sold ${code} 50ml\\*? or \\*?sold ${code} 100ml`));
+  m = await text(`sold ${code} 50ml`);
+  assert.match(body(m), /Sold 1 × “Gucci Flora” 50 ml/);
+  assert.match(body(m), /₹2,999/);
+  m = await text(`sold ${code} 30ml`);
+  assert.match(body(m), /doesn't have 30 ml/);
+  ok("selling a priced size on WhatsApp asks which one and bills that size's price");
+
+  m = await text(`sizes ${code} 30ml 1999 50ml 2999`);
+  assert.match(body(m), /30 ml ₹1,999, 50 ml ₹2,999/);
+  assert.equal((await listed("Gucci Flora")).price, 1999);
+  m = await text(`desc ${code} New words about this perfume`);
+  assert.match(body(m), /Description updated/);
+  assert.equal((await listed("Gucci Flora")).description, "New words about this perfume");
+  ok("sizes and description can be changed on a live product by its code");
+
+  m = await owner({ type: "image", image: { id: "media10", caption: "Dior Sauvage perfume 3200" } });
+  assert.match(body(m), /Which bottle sizes/);
+  assert.deepEqual(buttons(m), ["Skip"]);
+  m = await text("100ml");
+  assert.match(body(m), /📏 100 ml/);
+  m = await tapButton("✏️ Change");
+  m = await tapRow("Size", "📏 Size");
+  m = await text("30 ml 50ml 100ml");
+  assert.match(body(m), /📏 30 ml · 50 ml · 100 ml/);
+  m = await tapButton("✅ Post it");
+  assert.deepEqual((await listed("Dior Sauvage perfume")).options.map((x) => [x.size, x.price]), [["30 ml", 3200], ["50 ml", 3200], ["100 ml", 3200]]);
+  assert.match((await listed("Dior Sauvage perfume")).description, /original fragrance/);
+  m = await owner({ type: "image", image: { id: "media11", caption: "Bleu perfume 2100" } });
+  m = await tapButton("Skip");
+  assert.deepEqual(buttons(m), ["✅ Post it", "✏️ Change", "❌ Cancel"]);
+  m = await tapButton("❌ Cancel");
+  ok("a single perfume is asked for its ml sizes, can skip, and gets a plain description");
 
   console.log(`\nall ${n} checks passed`);
 } catch (e) {
