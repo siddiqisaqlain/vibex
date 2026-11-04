@@ -61,30 +61,12 @@ window.VXCheckout = (() => {
             <label>PIN code<input name="pin" inputmode="numeric" autocomplete="postal-code" maxlength="6" value="${esc(f.pin || "")}"></label>
           </div>
         </div>
-        ${(S.offers || []).length ? `<label>Discount code <small>optional</small><input name="promo" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" value="${esc(f.promo || "")}" placeholder="e.g. ${esc(S.offers[0].code)}"></label>
-        <p class="co-promo" aria-live="polite" hidden></p>` : ""}
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
         <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
         <button class="order co-cta" type="submit">Continue to payment · ${O().rupees(p.price)}</button>
         <p class="consent">We use your name and number only for this order and its delivery. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
       </form>`);
     const form = dlg.querySelector("form");
-    // Discount code: show the new price as soon as a valid code is typed (the server checks it again).
-    const promoIn = form.querySelector("input[name=promo]");
-    const showPromo = () => {
-      if (!promoIn) return;
-      const want = promoIn.value.trim().toUpperCase().replace(/\s+/g, "");
-      const offer = (S.offers || []).find((o) => o.code.toUpperCase() === want);
-      const note = form.querySelector(".co-promo");
-      const cta = form.querySelector(".co-cta");
-      const price = offer ? p.price - Math.round((p.price * offer.percent) / 100) : p.price;
-      cta.textContent = `Continue to payment · ${O().rupees(price)}`;
-      note.hidden = !want;
-      note.className = `co-promo${offer ? " ok" : ""}`;
-      note.textContent = offer ? `✓ ${offer.code}: ${offer.percent}% off. You save ${O().rupees(p.price - price)}.` : want.length >= 4 ? "That code isn't valid." : "";
-      if (!offer && want.length < 4) note.hidden = true;
-    };
-    if (promoIn) { promoIn.addEventListener("input", showPromo); showPromo(); }
     form.addEventListener("change", (e) => {
       if (e.target.name === "delivery") form.querySelector(".co-ship").hidden = e.target.value !== "ship";
     });

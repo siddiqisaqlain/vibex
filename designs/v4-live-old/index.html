@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vibe X · The Surplus Room, Srinagar</title>
+<meta name="description" content="Original world-brand surplus clothing and fragrances. Srinagar, Kashmir. Pan-India shipping.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shop.css">
+</head>
+<body>
+
+<div class="ticker" aria-hidden="true"><div class="ticker-track" id="ticker"></div></div>
+
+<header class="top">
+  <div class="wrap top-row">
+    <a class="logo" href="/" aria-label="Vibe X home">VIBE<span>X</span></a>
+    <nav class="nav" aria-label="Main">
+      <a href="#rack">New drops</a>
+      <a href="#rack" data-jump="Fragrances">Fragrances</a>
+      <a href="#visit">Visit</a>
+      <a id="ig-top" target="_blank" rel="noopener" class="nav-ig">Instagram ↗</a>
+      <button class="menu-btn" type="button" aria-expanded="false" aria-controls="menu" aria-label="Open menu"><span></span><span></span></button>
+    </nav>
+  </div>
+</header>
+<div class="menu" id="menu" hidden>
+  <a href="#rack" data-jump="All">New drops</a>
+  <a href="#rack" data-jump="Clothing">Clothing</a>
+  <a href="#rack" data-jump="Fragrances">Fragrances</a>
+  <a href="#visit">Visit the store</a>
+  <a href="/returns">Returns and refunds</a>
+  <a id="ig-menu" target="_blank" rel="noopener">Instagram ↗</a>
+</div>
+
+<main>
+  <section class="hero wrap">
+    <div class="hero-copy">
+      <p class="kicker"><span class="dot"></span> The Surplus Room · Srinagar, Kashmir</p>
+      <h1 class="reveal">World<br>brands.<br><em>One destination.</em></h1>
+      <p class="lede reveal">Original surplus from The North Face, Patagonia, Carhartt and more. Plus fragrances you won't find at the mall. One piece of each, at a fraction of retail.</p>
+      <div class="cta reveal">
+        <a class="btn btn-ink" href="#rack">See today's drops</a>
+        <a class="btn btn-line" id="map-hero" target="_blank" rel="noopener">Visit the store</a>
+      </div>
+    </div>
+
+    <aside class="feature reveal" id="feature" aria-live="polite"></aside>
+  </section>
+
+  <section class="stats wrap" id="stats" aria-label="About Vibe X"></section>
+
+  <section class="brands" aria-hidden="true"><div class="brands-track" id="brands"></div></section>
+
+  <section class="rack wrap" id="rack">
+    <div class="rack-head">
+      <div>
+        <p class="label">The rack</p>
+        <h2>Fresh off the truck</h2>
+      </div>
+      <p class="live-note"><span class="dot"></span><span>Updates live. When we post a piece on WhatsApp, it lands here.</span></p>
+    </div>
+    <div class="rack-bar">
+      <div class="filters" id="filters" role="tablist" aria-label="Category"></div>
+      <span class="count mono" id="count"></span>
+    </div>
+    <div class="subs" id="subs" hidden></div>
+    <div id="grid"></div>
+    <p class="empty" id="empty" hidden>Nothing on this rail right now. New stock lands most days.</p>
+  </section>
+
+  <section class="how wrap" aria-label="How to order">
+    <p class="label">How it works</p>
+    <ol>
+      <li><span class="mono">01</span><b>Spot it here</b><p>Every piece is one-off. If it's on the rack, it's in the room right now.</p></li>
+      <li><span class="mono">02</span><b>Tap to order</b><p>Message us about the exact piece. We confirm size and hold it for you.</p></li>
+      <li><span class="mono">03</span><b>Wear it</b><p>Pick it up in Srinagar or get it shipped anywhere in India.</p></li>
+    </ol>
+  </section>
+
+  <section class="visit wrap" id="visit">
+    <div class="visit-card">
+      <p class="label">Visit</p>
+      <h2>Come try it on.</h2>
+      <p>The Surplus Room, Srinagar, Kashmir. New stock is unpacked most days, so the rack never looks the same twice.</p>
+      <div class="cta">
+        <a class="btn btn-orange" id="map-visit" target="_blank" rel="noopener">Directions ↗</a>
+        <a class="btn btn-line-light" id="ig-visit" target="_blank" rel="noopener">@vibex.india ↗</a>
+      </div>
+    </div>
+    <div class="visit-stamp" aria-hidden="true">
+      <svg viewBox="0 0 200 200"><defs><path id="circ" d="M100,100 m-78,0 a78,78 0 1,1 156,0 a78,78 0 1,1 -156,0"/></defs>
+        <text><textPath href="#circ">ORIGINAL · SURPLUS · SRINAGAR · PAN-INDIA · ORIGINAL · SURPLUS · </textPath></text>
+        <text x="100" y="114" text-anchor="middle" class="stamp-x">VX</text></svg>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-mark">VIBE<span>X</span></div>
+    <div class="foot-row mono">
+      <span>© Vibe X · The Surplus Room</span>
+      <span>World brands, one destination</span>
+    </div>
+      <p class="foot-biz mono" id="foot-biz"></p>
+    <nav class="foot-links" aria-label="Policies">
+      <a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a>
+    </nav>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="/config.js"></script>
+<script src="/art.js"></script>
+<script src="/order.js"></script>
+<script src="/vendor/qrcode.js"></script>
+<script src="/checkout.js"></script>
+<script src="/menu.js"></script>
+<script src="/shop.js"></script>
+<script src="/newtab.js"></script>
+</body>
+</html>

@@ -1,55 +1,76 @@
+// Vibe X homepage, v5 (department-store layout: category pills, banner slider, dense grid,
+// shop by size / price / brand). Everything is drawn from /api/products and stays live.
 (() => {
   const S = window.SHOP;
   const $ = (id) => document.getElementById(id);
-  const CATS = ["All", "Clothing", "Fragrances", "Footwear", "Accessories"];
-  const SHELF = {
-    Clothing: ["Clothing", "Jackets, fleece and denim from the world's outdoor and street labels."],
-    Fragrances: ["Fragrances", "Designer and niche scents, original bottles."],
-    Footwear: ["Footwear", "Boots, sneakers and leather shoes."],
-    Accessories: ["Accessories", "Caps, bags and the small things."],
+  const CATS = ["Clothing", "Fragrances", "Footwear", "Accessories"];
+  const BLURB = {
+    Clothing: "Jackets, fleece and denim from the world's outdoor and street labels.",
+    Fragrances: "Designer and niche scents. Original bottles.",
+    Footwear: "Boots, sneakers and leather shoes.",
+    Accessories: "Caps, bags and the small things.",
   };
   const NEW_HOURS = 48;
-  // Only brands actually on the rack scroll by (naming brands the shop doesn't stock would mislead).
+  const PAGE = 10;
+  const SIZE_ORDER = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "2XL", "XXXL", "3XL"];
+  const BANDS = [
+    { id: "u1000", label: "Under ₹1,000", test: (n) => n < 1000 },
+    { id: "1000", label: "₹1,000 – ₹1,999", test: (n) => n >= 1000 && n < 2000 },
+    { id: "2000", label: "₹2,000 – ₹2,999", test: (n) => n >= 2000 && n < 3000 },
+    { id: "3000", label: "₹3,000 and up", test: (n) => n >= 3000 },
+  ];
 
   let products = [];
-  let filter = "All";
-  let sub = null; // subcategory inside a category, e.g. "Jacket"
+  // What the rack shows: a tab (All / New / a category) plus optional narrowing.
+  const view = { tab: "All", sub: null, size: null, band: null, brand: null, shown: PAGE };
   let known = null;
-  let featuredId = null;
-
-  for (const [id, url] of [["ig-top", S.instagram], ["ig-visit", S.instagram], ["map-hero", S.maps], ["map-visit", S.maps]]) $(id).href = url;
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  // Homepage numbers: only the ones the owner confirmed (shop.json → claims.stats).
-  const stats = (S.claims && S.claims.stats) || [];
-  $("stats").innerHTML = stats.map((x) => `<div><b>${esc(x.big)}</b><span>${esc(x.small)}</span></div>`).join("");
-  $("stats").hidden = !stats.length;
-  // Seller details in the footer (E-Commerce Rules: name, address, contact), shown once filled in.
-  const B = S.business || {};
-  $("foot-biz").innerHTML = [B.legalName, B.address, B.phone, B.email, B.gstin && `GSTIN ${B.gstin}`].filter(Boolean).map(esc).join(" · ");
   const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN");
   const hash = (s) => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
-  const lot = (p) => "LOT " + (p.code || String(hash(p.id) % 9000 + 1000));
   const hoursOld = (p) => (Date.now() - new Date(p.createdAt)) / 3600e3;
   const isNew = (p) => p.status === "available" && hoursOld(p) < NEW_HOURS;
   const offPct = (p) => (p.mrp && p.price && p.mrp > p.price ? Math.round((1 - p.price / p.mrp) * 100) : 0);
+  const BASE = window.VX_BASE || ""; // "/preview/<name>" when shown as a hidden preview
+  const pdp = (p) => `${BASE}/p/${encodeURIComponent(p.id)}`;
+  const wa = S.whatsapp ? `https://wa.me/${S.whatsapp}?text=${encodeURIComponent("Hi Vibe X! I saw your website.")}` : S.instagram;
 
-  function ago(p) {
-    const h = hoursOld(p);
-    if (h < 1) return "just now";
-    if (h < 24) return `${Math.floor(h)}h ago`;
-    const d = Math.floor(h / 24);
-    return d === 1 ? "yesterday" : `${d}d ago`;
+  // ---- static bits from shop.json ----
+  for (const [id, url] of [["ig-top", S.instagram], ["ig-visit", S.instagram], ["ig-foot", S.instagram], ["map-visit", S.maps], ["map-foot", S.maps], ["wa-top", wa], ["wa-foot", wa], ["wa-dock", wa]]) {
+    const el = $(id); if (el) el.href = url;
+  }
+  const B = S.business || {};
+  $("foot-biz").innerHTML = [B.legalName, B.address, B.phone, B.email, B.gstin && `GSTIN ${B.gstin}`].filter(Boolean).map(esc).join(" · ");
+  $("store-addr").textContent = B.address || S.city || "Srinagar, Kashmir";
+  if (B.phone) { $("store-phone").textContent = B.phone; $("store-phone").href = `tel:${B.phone.replace(/\s/g, "")}`; }
+  else $("store-phone").parentElement.hidden = true;
+
+  // Trust strip: only the numbers the owner confirmed (shop.json → claims.stats).
+  const stats = (S.claims && S.claims.stats) || [];
+  $("stats").innerHTML = stats.map((x, i) => `<div><span class="trust-no">${String(i + 1).padStart(2, "0")}</span><p><b>${esc(x.big)}</b><span>${esc(x.small)}</span></p></div>`).join("");
+  $("stats").hidden = !stats.length;
+  $("stats").style.setProperty("--n", Math.max(1, stats.length));
+
+  // ---- red announcement bar: one message at a time ----
+  function renderTicker() {
+    const msgs = (S.claims && S.claims.ticker) || [];
+    const bar = $("ticker");
+    bar.parentElement.hidden = !msgs.length;
+    bar.innerHTML = msgs.map((x, i) => `<span class="${i ? "" : "on"}">${esc(x)}</span>`).join("");
+    if (msgs.length < 2) return;
+    let i = 0;
+    setInterval(() => {
+      const all = bar.children;
+      all[i].classList.replace("on", "out");
+      i = (i + 1) % all.length;
+      const next = all[i];
+      next.classList.add("prep"); next.classList.remove("out");
+      void next.offsetWidth;
+      next.classList.remove("prep"); next.classList.add("on");
+    }, 3500);
   }
 
-  function media(p, extraClass = "", eager = false) {
-    const pic = p.image
-      ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="${eager ? "eager" : "lazy"}" decoding="async">`
-      : window.productArt(p, hash(p.id));
-    return `<div class="media ${p.image ? "" : "art-bg"} ${extraClass}">${pic}<a class="cover" href="/p/${encodeURIComponent(p.id)}" aria-label="${esc(p.name)}"></a>`;
-  }
-
-  // Real sales from the last 72 hours (/api/recent-sales): drive "Last one", "Sold 3h ago" and the toast.
+  // ---- product card ----
   let sales = [];
   const soldAt = (p) => sales.find((s) => s.id === p.id)?.at;
   const agoAt = (at) => {
@@ -69,126 +90,222 @@
     }
     return out.length ? `<div class="badges">${out.join("")}</div>` : "";
   }
-
+  function pic(p, eager) {
+    return p.image
+      ? `<img src="${esc(p.image)}" alt="${esc(p.name)}" loading="${eager ? "eager" : "lazy"}" decoding="async">`
+      : window.productArt(p, hash(p.id));
+  }
   function card(p, eager) {
     const off = offPct(p);
+    const meta = [p.sizes, p.status === "sold" && soldAt(p) ? `Sold ${agoAt(soldAt(p))}` : null].filter(Boolean).map(esc).join(" · ");
     return `
-      <article class="card${p.status === "sold" ? " sold" : ""}" data-id="${esc(p.id)}" data-cat="${esc(p.category)}">
-        ${media(p, "", eager)}
-          <span class="lot">${lot(p)}</span>
+      <article class="card${p.status === "sold" ? " sold" : ""}" data-id="${esc(p.id)}">
+        <div class="media ${p.image ? "" : "art-bg"}">${pic(p, eager)}<a class="cover" href="${pdp(p)}" aria-label="${esc(p.name)}"></a>
           ${badges(p)}
-          <div class="tag">
-            <b>${p.price ? rupees(p.price) : "Ask"}</b>
-            ${off ? `<s>${rupees(p.mrp)}</s><span class="off">−${off}%</span>` : ""}
-          </div>
-          ${p.status === "sold" ? `<div class="sold-stamp"><span>SOLD</span></div>` : ""}
-          ${p.status === "hold" ? `<div class="sold-stamp hold-stamp"><span>ON HOLD</span></div>` : ""}
+          ${p.status === "sold" ? `<div class="sold-stamp"><span>Sold out</span></div>` : ""}
+          ${p.status === "hold" ? `<div class="sold-stamp hold-stamp"><span>On hold</span></div>` : ""}
         </div>
         <div class="info">
-          ${p.brand ? `<span class="brand">${esc(p.brand)}</span>` : ""}
-          <h3 class="name"><a href="/p/${encodeURIComponent(p.id)}">${esc(p.name)}</a></h3>
-          <span class="meta">${[p.subcategory, p.sizes, p.quantity > 1 && p.status !== "sold" ? `${p.quantity} left` : null, p.status === "sold" && soldAt(p) ? `sold ${agoAt(soldAt(p))}` : ago(p)].filter(Boolean).map(esc).join(" · ")}</span>
+          <span class="brand">${esc(p.brand || p.subcategory || p.category)}</span>
+          <h3 class="name"><a href="${pdp(p)}">${esc(p.name)}</a></h3>
+          <div class="price"><b>${p.price ? rupees(p.price) : "Price on request"}</b>${off ? `<s>${rupees(p.mrp)}</s><em>(${off}% off)</em>` : ""}</div>
+          ${meta ? `<span class="meta">${meta}</span>` : ""}
           ${window.VXOrder.button(p)}
         </div>
       </article>`;
   }
 
-  function renderFeature(animate) {
-    const p = products.filter((x) => x.status === "available").sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-    if (!p) {
-      // Empty rack (e.g. a fresh start): a calm placeholder instead of a blank space.
-      featuredId = null;
-      $("feature").innerHTML = `
-        <div class="feature-card feature-empty">
-          <div class="feature-head"><span>Latest drop</span><span class="live"><span class="dot"></span>coming soon</span></div>
-          <div class="feature-body">
-            <h3>New pieces land here first.</h3>
-            <p>The moment a piece is posted, it shows up on this card and on the rack below.</p>
-            <a class="btn btn-ink" href="${esc(S.instagram)}" target="_blank" rel="noopener">Follow @${esc(S.igHandle)} ↗</a>
-          </div>
-        </div>`;
-      return;
-    }
-    const changed = p.id !== featuredId;
-    featuredId = p.id;
-    const off = offPct(p);
-    $("feature").innerHTML = `
-      <div class="feature-sticker">${off ? `${off}%<br>off` : "Just<br>in"}</div>
-      <div class="feature-card${animate && changed ? " swap" : ""}">
-        <div class="feature-head"><span>Latest drop</span><span class="live"><span class="dot"></span>${ago(p)}</span></div>
-        ${media(p)}<span class="lot">${lot(p)}</span></div>
-        <div class="feature-body">
-          ${p.brand ? `<span class="brand">${esc(p.brand)}</span>` : ""}
-          <div class="feature-row">
-            <div><h3>${esc(p.name)}</h3><span class="meta">${[p.sizes, p.category].filter(Boolean).map(esc).join(" · ")}</span></div>
-            <div class="feature-price"><b>${p.price ? rupees(p.price) : "Ask"}</b>${off ? `<s>${rupees(p.mrp)}</s>` : ""}</div>
-          </div>
-          ${window.VXOrder.button(p)}
-        </div>
-      </div>`;
+  // ---- category pills under the header ----
+  // Hero numbers: counted from the rack right now, so they are always true.
+  function renderHeroStats() {
+    const live = products.filter((p) => p.status === "available");
+    const labels = new Set(live.map((p) => p.brand).filter(Boolean)).size;
+    const fresh = products.filter(isNew).length;
+    const rows = [[live.length, live.length === 1 ? "piece on the rail" : "pieces on the rail"], [fresh, "new in 48 hours"], [labels, labels === 1 ? "label in stock" : "labels in stock"]].filter(([n]) => n > 0);
+    $("hero-stats").innerHTML = rows.map(([n, l]) => `<div><dt>${n}</dt><dd>${l}</dd></div>`).join("");
   }
 
-  function renderMarquees() {
-    const live = [...new Set(products.map((p) => p.brand).filter(Boolean))];
-    const row = live.map((b) => `<span>${esc(b)}</span>`).join("");
-    $("brands").innerHTML = row + row + row;
-    $("brands").parentElement.hidden = live.length < 3;
-    // Top banner: one message at a time. The strip glides left by one message every few seconds;
-    // a copy of the first message at the end lets it loop without a jump.
-    const msgs = (S.claims && S.claims.ticker) || [];
-    const bar = $("ticker");
-    bar.parentElement.hidden = !msgs.length;
-    bar.innerHTML = [...msgs, ...msgs.slice(0, 1)].map((x) => `<span>${esc(x)}</span>`).join("");
-    clearInterval(bar._spin);
-    if (msgs.length > 1) {
-      let i = 0;
-      bar._spin = setInterval(() => {
-        if (document.hidden) return;
-        i += 1;
-        bar.classList.add("glide");
-        bar.style.transform = `translateX(-${i * 100}%)`;
-        if (i === msgs.length) setTimeout(() => { // reached the copy: snap back to the real first one, unseen
-          bar.classList.remove("glide");
-          bar.style.transform = "translateX(0)";
-          i = 0;
-        }, 850);
-      }, 4000);
-    }
+  function renderCatTabs() {
+    const fresh = products.filter(isNew).length;
+    const tabs = [
+      fresh ? `<button class="cat-tab hl" data-jump="New"><i>${fresh} new</i>New in</button>` : "",
+      `<button class="cat-tab" data-jump="All">Shop all</button>`,
+      ...CATS.filter((c) => products.some((p) => p.category === c)).map((c) => `<button class="cat-tab" data-jump="${c}">${c}</button>`),
+      products.some((p) => p.price && p.price < 2000 && p.status === "available") ? `<button class="cat-tab" data-band="u2000">Under ₹2,000</button>` : "",
+      products.some((p) => offPct(p) >= 40) ? `<button class="cat-tab" data-jump="Deals">40%+ off</button>` : "",
+    ];
+    $("cat-tabs").innerHTML = `<div class="cat-tabs-in">${tabs.join("")}</div>`;
   }
 
-  function renderFilters() {
-    $("filters").innerHTML = CATS.map((c) => {
-      const n = c === "All" ? products.length : products.filter((p) => p.category === c).length;
-      if (c !== "All" && !n) return "";
-      return `<button role="tab" aria-selected="${c === filter}" data-cat="${c}">${c}<sup>${n}</sup></button>`;
+  // ---- banner slider, built from real photos ----
+  let slideTimer = null;
+  function renderSlider() {
+    const photos = (list) => list.filter((p) => p.image && p.status === "available");
+    const byNew = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
+    // the newest pieces with photos, one per slide (a mix of categories when there is one)
+    const all = photos(products).sort(byNew);
+    const picks = [];
+    for (const c of CATS) { const p = all.find((x) => x.category === c); if (p) picks.push(p); }
+    for (const p of all) if (picks.length < 5 && !picks.includes(p)) picks.push(p);
+    const slides = picks.sort(byNew).slice(0, 5);
+    const el = $("slider");
+    el.hidden = !slides.length;
+    if (!slides.length) return;
+    $("slides").innerHTML = slides.map((p, i) => `
+      <a class="slide" href="${pdp(p)}" role="group" aria-roledescription="slide" aria-label="${esc(p.name)}, ${i + 1} of ${slides.length}">
+        <div class="slide-pics"><img src="${esc(p.image)}" alt="${esc(p.name)}" ${i === 0 ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async"></div>
+        ${isNew(p) ? `<span class="slide-flag">${hoursOld(p) < 24 ? "New today" : "Just in"}</span>` : ""}
+      </a>`).join("");
+    const caption = (i) => {
+      const p = slides[i];
+      $("slide-cap").href = pdp(p);
+      $("slide-cap").innerHTML = `<span>${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><em>${p.price ? rupees(p.price) : "Price on request"}</em>`;
+      $("slide-count").textContent = `${String(i + 1).padStart(2, "0")} / ${String(slides.length).padStart(2, "0")}`;
+    };
+    caption(0);
+    $("slider-dots").innerHTML = slides.length > 1 ? slides.map((_, i) => `<button type="button" aria-label="Slide ${i + 1}" data-slide="${i}"${i ? "" : ' aria-current="true"'}></button>`).join("") : "";
+    const track = $("slides");
+    const go = (i) => track.scrollTo({ left: i * track.clientWidth, behavior: "smooth" });
+    const cur = () => Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+    const mark = () => {
+      const i = cur();
+      $("slider-dots").querySelectorAll("button").forEach((b, j) => b.toggleAttribute("aria-current", j === i));
+      track.querySelectorAll(".slide").forEach((s, j) => s.classList.toggle("on", j === i));
+      caption(Math.min(i, slides.length - 1));
+    };
+    track.onscroll = mark;
+    requestAnimationFrame(mark);
+    $("slider-dots").onclick = (e) => { const b = e.target.closest("[data-slide]"); if (b) { go(+b.dataset.slide); restart(); } };
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    function restart() {
+      clearInterval(slideTimer);
+      // hold the first slide while the opening map is up, and for a full turn after it lifts
+      let introGone = document.querySelector(".vxi") ? 0 : 1;
+      if (slides.length > 1 && !reduce) slideTimer = setInterval(() => {
+        if (document.querySelector(".vxi")) { introGone = 0; return; }
+        if (introGone === 0) { introGone = Date.now(); return; }            // the map just lifted: give slide 1 a full turn
+        if (introGone > 1 && Date.now() - introGone < 4000) return;
+        go((cur() + 1) % slides.length);
+      }, 5500);
+    }
+    track.onpointerdown = restart;
+    restart();
+  }
+
+  // ---- "Shop our range": category + style tiles ----
+  function renderRange() {
+    const tiles = [];
+    for (const c of CATS) {
+      const list = products.filter((p) => p.category === c);
+      if (!list.length) continue;
+      tiles.push({ label: c, n: list.length, p: list.find((p) => p.image) || list[0], jump: c });
+      const subs = {};
+      for (const p of list) if (p.subcategory && p.subcategory.toLowerCase() !== c.toLowerCase()) (subs[p.subcategory] ||= []).push(p);
+      // a style that is the whole category (every fragrance is a "Perfume") would just repeat it
+      for (const [s, items] of Object.entries(subs).filter(([, items]) => items.length < list.length).sort((a, b) => b[1].length - a[1].length).slice(0, 3)) {
+        tiles.push({ label: s, n: items.length, p: items.find((p) => p.image) || items[0], jump: c, sub: s });
+      }
+    }
+    $("range").innerHTML = tiles.map((t) => `
+      <button type="button" class="range-tile" data-jump="${esc(t.jump)}"${t.sub ? ` data-sub="${esc(t.sub)}"` : ""}>
+        <span class="range-pic ${t.p.image ? "" : "art-bg"}">${pic(t.p)}</span>
+        <span class="range-name">${esc(t.label)}</span><span class="range-n">${t.n} ${t.n === 1 ? "piece" : "pieces"}</span>
+      </button>`).join("");
+    $("range").parentElement.hidden = tiles.length < 2;
+    // one clean row for up to six tiles, otherwise two even rows
+    $("range").style.setProperty("--cols", tiles.length <= 6 ? tiles.length : Math.ceil(tiles.length / 2));
+  }
+
+  // ---- shop by size / price / brand ----
+  const sizesOf = (p) => (p.category === "Clothing" && p.sizes ? String(p.sizes).toUpperCase().split(/\s*[·,/|]\s*|\s+/).filter((s) => SIZE_ORDER.includes(s)) : []);
+  function renderShopBy() {
+    const live = products.filter((p) => p.status !== "sold");
+    const sizes = {};
+    for (const p of live) for (const s of sizesOf(p)) sizes[s] = (sizes[s] || 0) + 1;
+    const sz = SIZE_ORDER.filter((s) => sizes[s]);
+    $("sizes").innerHTML = sz.map((s) => `<button type="button" class="pill${view.size === s ? " on" : ""}" data-size="${s}">${s}</button>`).join("");
+    $("by-size").hidden = !sz.length;
+    const bands = BANDS.filter((b) => live.some((p) => p.price && b.test(p.price)));
+    $("prices").innerHTML = bands.map((b) => `<button type="button" class="pill${view.band === b.id ? " on" : ""}" data-band="${b.id}">${b.label}</button>`).join("");
+    $("by-price").hidden = !bands.length;
+    const brands = {};
+    for (const p of live) if (p.brand) brands[p.brand] = (brands[p.brand] || 0) + 1;
+    const names = Object.keys(brands).sort((a, b) => brands[b] - brands[a] || a.localeCompare(b));
+    $("brands").innerHTML = names.map((b) => `<button type="button" class="pill${view.brand === b ? " on" : ""}" data-brand="${esc(b)}">${esc(b)}<sup>${brands[b]}</sup></button>`).join("");
+    $("by-brand").hidden = names.length < 3;
+  }
+
+  // ---- "Just landed": one big photo + six small, like a lookbook grid ----
+  function renderLooks() {
+    const list = products.filter((p) => p.image && p.status === "available").sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 7);
+    $("looks-sec").hidden = list.length < 4;
+    if (list.length < 4) return;
+    const tile = (p, big) => `<a class="look${big ? " big" : ""}" href="${pdp(p)}"><img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" decoding="async">
+      <span><b>${esc(p.name)}</b>${p.price ? rupees(p.price) : ""}</span></a>`;
+    $("looks").innerHTML = tile(list[0], true) + `<div class="looks-small">${list.slice(1).map((p) => tile(p)).join("")}</div>`;
+    // store photo: four pieces from the rack
+    $("store-pic").innerHTML = list.slice(0, 4).map((p) => `<img src="${esc(p.image)}" alt="" loading="lazy">`).join("") + `<span>Khanyaar, Srinagar</span>`;
+  }
+
+  // ---- the rack ----
+  const sortRack = (a, b) => (a.status === "sold") - (b.status === "sold") || (a.status === "hold") - (b.status === "hold") || new Date(b.createdAt) - new Date(a.createdAt);
+  function inView(p) {
+    if (view.tab === "New" && !isNew(p)) return false;
+    if (view.tab === "Deals" && offPct(p) < 40) return false;
+    if (CATS.includes(view.tab) && p.category !== view.tab) return false;
+    if (view.sub && p.subcategory !== view.sub) return false;
+    if (view.size && !sizesOf(p).includes(view.size)) return false;
+    if (view.band) {
+      const b = BANDS.find((x) => x.id === view.band);
+      if (view.band === "u2000") { if (!(p.price && p.price < 2000)) return false; }
+      else if (!b || !p.price || !b.test(p.price)) return false;
+    }
+    if (view.brand && p.brand !== view.brand) return false;
+    return true;
+  }
+
+  function renderTabs() {
+    const tabs = ["All", "New", ...CATS.filter((c) => products.some((p) => p.category === c))];
+    if (view.tab === "Deals") tabs.push("Deals");
+    $("filters").innerHTML = tabs.map((t) => {
+      const n = t === "All" ? products.length : t === "New" ? products.filter(isNew).length : t === "Deals" ? products.filter((p) => offPct(p) >= 40).length : products.filter((p) => p.category === t).length;
+      if (t === "New" && !n) return "";
+      const label = t === "All" ? "All" : t === "New" ? "New in" : t === "Deals" ? "40%+ off" : t;
+      return `<button role="tab" aria-selected="${t === view.tab}" data-tab="${t}">${label}<sup>${n}</sup></button>`;
     }).join("");
   }
 
-  const sortRack = (a, b) => (a.status === "sold") - (b.status === "sold") || (a.status === "hold") - (b.status === "hold") || new Date(b.createdAt) - new Date(a.createdAt);
-
   function renderSubs() {
     const el = $("subs");
-    if (filter === "All") { el.hidden = true; el.innerHTML = ""; return; }
+    if (!CATS.includes(view.tab)) { el.hidden = true; el.innerHTML = ""; return; }
     const counts = {};
-    for (const p of products) if (p.category === filter && p.subcategory) counts[p.subcategory] = (counts[p.subcategory] || 0) + 1;
+    for (const p of products) if (p.category === view.tab && p.subcategory) counts[p.subcategory] = (counts[p.subcategory] || 0) + 1;
     const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
     if (names.length < 2) { el.hidden = true; el.innerHTML = ""; return; }
     el.hidden = false;
-    el.innerHTML = [`<button data-sub="" aria-pressed="${!sub}">All ${esc(filter.toLowerCase())}</button>`]
-      .concat(names.map((n) => `<button data-sub="${esc(n)}" aria-pressed="${sub === n}">${esc(n)}<sup>${counts[n]}</sup></button>`))
-      .join("");
+    el.innerHTML = [`<button data-sub="" aria-pressed="${!view.sub}">All ${esc(view.tab.toLowerCase())}</button>`]
+      .concat(names.map((n) => `<button data-sub="${esc(n)}" aria-pressed="${view.sub === n}">${esc(n)}<sup>${counts[n]}</sup></button>`)).join("");
+  }
+
+  function renderActive() {
+    const chips = [];
+    if (view.size) chips.push(["size", `Size ${view.size}`]);
+    if (view.band) chips.push(["band", view.band === "u2000" ? "Under ₹2,000" : BANDS.find((b) => b.id === view.band)?.label]);
+    if (view.brand) chips.push(["brand", view.brand]);
+    $("active").hidden = !chips.length;
+    $("active").innerHTML = chips.map(([k, l]) => `<button type="button" data-clear="${k}">${esc(l)} <span aria-hidden="true">×</span></button>`).join("") + (chips.length ? `<button type="button" class="clear-all" data-clear="all">Clear all</button>` : "");
   }
 
   // Cards are kept between live updates and only rebuilt when that product changed, so
-  // photos never reload or go blank on phones. First rows and new pieces load photos at once.
+  // photos never reload or go blank on phones.
   const cardCache = new Map();
-  const slot = (p, i) => `<div class="slot" data-id="${esc(p.id)}" data-i="${i}"></div>`;
-  function fillSlots(fresh) {
-    const byId = new Map(products.map((p) => [p.id, p]));
-    for (const el of $("grid").querySelectorAll(".slot")) {
-      const p = byId.get(el.dataset.id);
-      if (!p) { el.remove(); continue; }
-      const sig = card(p, Number(el.dataset.i) < 8 || fresh.has(p.id));
+  function renderGrid(fresh = new Set()) {
+    const list = products.filter(inView).sort(sortRack);
+    const shown = list.slice(0, view.shown);
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    shown.forEach((p, i) => {
+      const sig = card(p, fresh.has(p.id)); // the rack is below the first screen: photos load as it nears
       let hit = cardCache.get(p.id);
       if (!hit || hit.sig !== sig) {
         const t = document.createElement("template");
@@ -197,41 +314,25 @@
         cardCache.set(p.id, hit);
       }
       hit.el.classList.toggle("fresh", fresh.has(p.id));
-      el.replaceWith(hit.el);
-    }
+      grid.appendChild(hit.el);
+    });
+    const byId = new Set(products.map((p) => p.id));
     for (const id of cardCache.keys()) if (!byId.has(id)) cardCache.delete(id);
-  }
-
-  function renderGrid(fresh = new Set()) {
-    let html = "";
-    if (filter === "All") {
-      // Curated shelves: one section per category, in shop order.
-      for (const cat of CATS.slice(1)) {
-        const list = products.filter((p) => p.category === cat).sort(sortRack);
-        if (!list.length) continue;
-        const [title, blurb] = SHELF[cat];
-        html += `<section class="shelf"><header class="shelf-head"><h3>${title}<sup>${list.length}</sup></h3><p>${blurb}</p>
-          <button class="shelf-all" data-cat="${cat}">See all ${title.toLowerCase()} →</button></header>
-          <div class="grid">${list.map(slot).join("")}</div></section>`;
-      }
-    } else {
-      const list = products.filter((p) => p.category === filter && (!sub || p.subcategory === sub)).sort(sortRack);
-      if (list.length) html = `<div class="grid">${list.map(slot).join("")}</div>`;
-    }
-    $("grid").innerHTML = html;
-    fillSlots(fresh);
-    $("empty").hidden = html !== "";
-    const avail = products.filter((p) => p.status === "available").length;
-    const fresh48 = products.filter(isNew).length;
-    $("count").textContent = `${avail} pieces in · ${fresh48} new in 48h`;
-    renderFilters();
+    $("grid").replaceChildren(...(shown.length ? [grid] : []));
+    $("empty").hidden = shown.length > 0;
+    $("more").hidden = list.length <= view.shown;
+    $("count").textContent = list.length ? `Showing ${shown.length} of ${list.length}` : "";
+    renderTabs();
     renderSubs();
+    renderActive();
+    renderShopBy();
+    document.querySelectorAll(".cat-tab").forEach((b) => b.classList.toggle("on", b.dataset.jump === view.tab && !view.band || (b.dataset.band && view.band === b.dataset.band)));
   }
 
-  function setFilter(cat) {
-    filter = CATS.includes(cat) ? cat : "All";
-    sub = null;
+  function setView(patch, scroll) {
+    Object.assign(view, patch, { shown: PAGE });
     renderGrid();
+    if (scroll) $("rack").scrollIntoView({ behavior: "smooth" });
   }
 
   const toast = (html) => window.VXOrder.toast(html, 6000);
@@ -249,8 +350,12 @@
       known = new Set(next.map((p) => p.id));
       products = next;
       renderGrid(fresh);
-      renderFeature(!first);
-      if (first) renderMarquees();
+      renderCatTabs();
+      renderHeroStats();
+      renderRange();
+      renderLooks();
+      if (first || fresh.size) renderSlider();
+      if (first) renderTicker();
       if (fresh.size) {
         const p = next.find((x) => fresh.has(x.id));
         toast(`<b>New drop</b><span>${esc(p.name)}${p.price ? ` · ${rupees(p.price)}` : ""}</span><button type="button" class="toast-go" data-goto="${esc(p.id)}">See it</button>`);
@@ -258,38 +363,58 @@
     } catch { /* server restarting; next tick retries */ }
   }
 
-  $("filters").addEventListener("click", (e) => {
-    const b = e.target.closest("button[data-cat]");
-    if (b) setFilter(b.dataset.cat);
+  // ---- clicks ----
+  document.addEventListener("click", (e) => {
+    const jump = e.target.closest("[data-jump]");
+    if (jump) {
+      e.preventDefault();
+      const tab = jump.dataset.jump;
+      setView({ tab, sub: jump.dataset.sub || null, size: null, band: null, brand: null }, true);
+      return;
+    }
+    const band = e.target.closest("[data-band]");
+    if (band) {
+      const v = band.dataset.band;
+      setView({ band: view.band === v ? null : v, ...(v === "u2000" ? { tab: "All", sub: null } : {}) }, true);
+      return;
+    }
+    const size = e.target.closest("[data-size]");
+    if (size) { setView({ size: view.size === size.dataset.size ? null : size.dataset.size, tab: view.tab === "All" || view.tab === "New" ? view.tab : "Clothing" }, true); return; }
+    const brand = e.target.closest("[data-brand]");
+    if (brand) { setView({ brand: view.brand === brand.dataset.brand ? null : brand.dataset.brand }, true); return; }
+    const clr = e.target.closest("[data-clear]");
+    if (clr) { const k = clr.dataset.clear; setView(k === "all" ? { size: null, band: null, brand: null } : { [k]: null }); return; }
+    const goto = e.target.closest("[data-goto]");
+    if (goto) {
+      setView({ tab: "All", sub: null, size: null, band: null, brand: null });
+      const el = document.querySelector(`.card[data-id="${CSS.escape(goto.dataset.goto)}"]`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      $("toast").hidden = true;
+      return;
+    }
+    if (e.target.closest('[data-dock="home"]')) { e.preventDefault(); scrollTo({ top: 0, behavior: "smooth" }); }
   });
-  $("grid").addEventListener("click", (e) => {
-    const b = e.target.closest("button.shelf-all");
-    if (!b) return;
-    setFilter(b.dataset.cat);
-    document.getElementById("rack").scrollIntoView({ behavior: "smooth" });
+  $("filters").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-tab]");
+    if (b) setView({ tab: b.dataset.tab, sub: null });
   });
   $("subs").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-sub]");
-    if (!b) return;
-    sub = b.dataset.sub || null;
-    renderGrid();
+    if (b) setView({ sub: b.dataset.sub || null });
   });
-  document.querySelectorAll("[data-jump]").forEach((a) => a.addEventListener("click", () => setFilter(a.dataset.jump)));
+  $("more").addEventListener("click", () => { view.shown += PAGE; renderGrid(); });
 
   window.VXOrder.install((id) => products.find((p) => p.id === id));
 
-  // Jump to a new piece from the "New drop" toast.
-  document.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-goto]");
-    if (!b) return;
-    const p = products.find((x) => x.id === b.dataset.goto);
-    if (p && filter !== "All" && p.category !== filter) setFilter("All");
-    const el = document.querySelector(`.card[data-id="${CSS.escape(b.dataset.goto)}"]`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    $("toast").hidden = true;
-  });
+  // ---- phone dock: hides while scrolling down, comes back on the way up ----
+  let lastY = scrollY;
+  addEventListener("scroll", () => {
+    const y = scrollY;
+    $("dock").classList.toggle("away", y > lastY && y > 200);
+    lastY = y;
+  }, { passive: true });
 
-  // ---- "Just sold" note: only real sales (the owner's "sold" or a confirmed order), no buyer details ----
+  // ---- "Just sold" note: only real sales, no buyer details ----
   const SEEN_KEY = "vx-sales-seen";
   let seen = new Set();
   try { seen = new Set(JSON.parse(sessionStorage.getItem(SEEN_KEY) || "[]")); } catch { /* private mode */ }
@@ -297,14 +422,14 @@
   const saleKey = (s) => `${s.id}@${s.at}`;
   function showSale() {
     const t = $("toast");
-    if (!t.hidden || shownThisVisit >= 3) return; // never cover another note; at most 3 a visit
+    if (!t.hidden || shownThisVisit >= 3) return;
     const s = sales.find((x) => !seen.has(saleKey(x)));
     if (!s) return;
     seen.add(saleKey(s));
     try { sessionStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch { /* fine */ }
     shownThisVisit++;
     const fresh = Date.now() - new Date(s.at) < 3600e3;
-    toast(`<b>🛍️ Sold</b><span>Someone ${fresh ? "just " : ""}bought ${esc(s.name)}${s.qty > 1 ? ` (×${s.qty})` : ""}${agoAt(s.at) === "just now" ? "" : ` · ${agoAt(s.at)}`}</span>`);
+    toast(`<b>Sold</b><span>Someone ${fresh ? "just " : ""}bought ${esc(s.name)}${s.qty > 1 ? ` (×${s.qty})` : ""}${agoAt(s.at) === "just now" ? "" : ` · ${agoAt(s.at)}`}</span>`);
   }
   let salesJson = "";
   async function refreshSales() {
@@ -322,10 +447,9 @@
   setInterval(refreshSales, 15000);
   setInterval(showSale, 30000);
 
-  // Phones pause background tabs; catch up the moment the page is shown again.
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
-  window.addEventListener("pageshow", (e) => { if (e.persisted) refresh(); });
-  window.addEventListener("focus", refresh);
+  addEventListener("pageshow", (e) => { if (e.persisted) refresh(); });
+  addEventListener("focus", refresh);
 
   refresh();
   setInterval(refresh, 2000);
