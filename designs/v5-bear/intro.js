@@ -96,6 +96,15 @@
   .vxi-compass i { position: absolute; top: 4px; width: 0; height: 0; border: 4px solid transparent; border-bottom: 9px solid ${RED}; border-top: 0; }
   .vxi.leaving { pointer-events: none; }
   .vxi.leaving .vxi-skip, .vxi.leaving .vxi-compass, .vxi.leaving .vxi-copy p, .vxi.leaving .vxi-count { opacity: 0; }
+  /* delivery pill: slides up under the counter while the parcels are in the air */
+  .vxi-ship { display: inline-flex; align-items: center; gap: 9px; margin-top: 14px; padding: 8px 14px 8px 11px; border-radius: 999px; background: ${INK}; color: #fff; font: 500 11px 'Geist Mono', ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; opacity: 0; transform: translateY(12px); transition: opacity .25s; }
+  .vxi-ship.on { animation: vxiUp .7s cubic-bezier(.2,.8,.2,1) forwards; }
+  .vxi-ship svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 1.6; stroke-linejoin: round; animation: vxiDrive 1.4s ease-in-out infinite; }
+  .vxi-ship b { font-weight: 700; color: ${RED}; filter: brightness(1.35); }
+  .vxi-ship span { opacity: .85; }
+  @keyframes vxiDrive { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
+  .vxi.leaving .vxi-ship { opacity: 0; }
+  @media (max-width: 600px) { .vxi-ship { font-size: 10px; padding: 7px 12px 7px 10px; } }
   /* orders counter: ticks up as parcels land, then flips to the headline figure with a flash */
   .vxi-count { position: relative; margin-top: 12px; font: 700 50px/1 'Schibsted Grotesk', Arial, sans-serif; letter-spacing: -.05em; color: ${INK}; font-variant-numeric: tabular-nums; white-space: nowrap; transition: opacity .25s; }
   .vxi-count b { display: inline-block; font: inherit; }
@@ -113,7 +122,7 @@
   el.setAttribute("aria-label", "Vibe X ships from Srinagar to cities across India");
   el.innerHTML = `<style>${css}</style><div class="vxi-bg"></div><canvas></canvas>
     <div class="vxi-compass" aria-hidden="true"><div class="vxi-compass-in"><i></i><span>N</span></div></div>
-    <div class="vxi-copy"><div class="vxi-logo">VIBE<span>X</span></div><div class="vxi-count" hidden><b>0</b></div><p>From Srinagar to <b>all of India</b></p></div>
+    <div class="vxi-copy"><div class="vxi-logo">VIBE<span>X</span></div><div class="vxi-count" hidden><b>0</b></div><p>From Srinagar to <b>all of India</b></p><div class="vxi-ship" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 6.5h11v9h-11zM13.5 9.5h4l3 3.2v2.8h-7z"/><circle cx="6.5" cy="17" r="1.7"/><circle cx="17" cy="17" r="1.7"/></svg><b></b><span></span></div></div>
     <button class="vxi-skip" type="button">Skip</button>`;
   document.body.prepend(el);
   document.body.classList.add("vxi-on");
@@ -133,6 +142,18 @@
     countEl.hidden = false;
     copyP.innerHTML = `${(o.small || "orders fulfilled").replace(/[<>&]/g, "")} · from Srinagar to <b>all of India</b>`;
   }
+  // Delivery line (shop.json -> claims.delivery), shown once the parcels are in the air.
+  const ship = el.querySelector(".vxi-ship");
+  function setupShip() {
+    const dl = window.SHOP && window.SHOP.claims && window.SHOP.claims.delivery;
+    if (!dl || !dl.label) return false;
+    ship.querySelector("b").textContent = dl.label;
+    ship.querySelector("span").textContent = dl.detail ? `· ${dl.detail}` : "";
+    ship.hidden = false;
+    setTimeout(() => ship.classList.add("on"), LAUNCH_AT + 450);
+    return true;
+  }
+  let shipping = false;
   function tickCount(ms) {
     if (countEl.classList.contains("done")) return;
     const p = clamp01((ms - LAUNCH_AT) / (LANDED - LAUNCH_AT));
@@ -171,7 +192,7 @@
     for (const [x, y] of frame) { const [a, b] = raw(x, y, 0); if (a < x0) x0 = a; if (a > x1) x1 = a; if (b < y0) y0 = b; if (b > y1) y1 = b; }
     y0 -= 40 * s;                                                  // headroom for arcs and the Srinagar tag
     const mobile = W < 700;
-    const box = { l: mobile ? 26 : 70, r: mobile ? 26 : 70, t: mobile ? 92 : 70, b: (mobile ? 150 : 170) + (orders ? (mobile ? 50 : 60) : 0) };
+    const box = { l: mobile ? 26 : 70, r: mobile ? 26 : 70, t: mobile ? 92 : 70, b: (mobile ? 150 : 170) + (orders ? (mobile ? 50 : 60) : 0) + (shipping ? 46 : 0) };
     const bw = W - box.l - box.r, bh = H - box.t - box.b;
     const fit = Math.min(bw / (x1 - x0), bh / (y1 - y0));
     // the dive: zoom hard into Srinagar until the white top of the model fills the screen
@@ -222,7 +243,7 @@
   const built = () => document.querySelector("#slides .slide") && document.querySelector("#grid .card");
   let raf = 0, over = false;
   function draw(now) {
-    if (!t0 && (built() || now - tLoad > 1600)) { t0 = now; root.dataset.vxiStart = Math.round(now); logo.style.animationPlayState = copyP.style.animationPlayState = "running"; setupCount(); }
+    if (!t0 && (built() || now - tLoad > 1600)) { t0 = now; root.dataset.vxiStart = Math.round(now); logo.style.animationPlayState = copyP.style.animationPlayState = "running"; setupCount(); shipping = setupShip(); }
     if (orders) tickCount(t0 ? now - t0 : 0);
     const ms = t0 ? now - t0 : 0;
     if (t0 && !exitAt && ms >= HOLD_TO) leave(false);

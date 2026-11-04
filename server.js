@@ -481,7 +481,7 @@ ${head}
 <nav class="nav"><a href="/#rack">New drops</a><a class="nav-ig" href="https://www.instagram.com/vibex.india/" target="_blank" rel="noopener">Instagram ↗</a></nav></div></header>
 <main class="wrap pdp" id="pdp" data-id="${escHtml(id)}"></main>
 <div class="toast" id="toast" role="status" hidden></div>
-<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/pdp.js"></script>
+<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/pdp.js"></script><script src="/newtab.js"></script>
 </body></html>`;
 }
 
@@ -510,7 +510,7 @@ ${head}
 <nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a></nav></div>
 <p class="foot-note">© 2026 Vibe X · The Surplus Room, Srinagar, Kashmir</p></div></footer>
 <div class="toast" id="toast" role="status" hidden></div>
-<script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}<script src="/ui.js"></script>
+<script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}<script src="/ui.js"></script><script src="/newtab.js"></script>
 </body></html>`;
 }
 
@@ -532,6 +532,7 @@ ${head}
 <footer class="foot"><div class="wrap"><div class="foot-mark">VIBE<span>X</span></div>
 <div class="foot-row mono"><span>© Vibe X · The Surplus Room</span><span>World brands, one destination</span></div>
 <nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a></nav></div></footer>
+<script src="/newtab.js"></script>
 </body></html>`;
 }
 
@@ -584,6 +585,7 @@ function previewRoute(req, res, name, rest) {
     return send(res, p ? 200 : 404, previewHtml(legacyProductPage(title, head, pm[1]), name), "text/html; charset=utf-8");
   }
   if (rest === "/config.js") return sendConfig(res);
+  if (rest === "/newtab.js") return serveFile(res, path.join(ROOT, "lib"), "newtab.js");
   return serveFile(res, dir, rest.slice(1));
 }
 
@@ -1410,6 +1412,7 @@ http
       if (p.startsWith("/seed-photos/")) return serveFile(res, SEED_PHOTOS, p.slice("/seed-photos/".length));
       if (p.startsWith("/uploads/")) return serveFile(res, UPLOADS, p.slice("/uploads/".length));
       if (p === "/config.js") return sendConfig(res);
+      if (p === "/newtab.js") return serveFile(res, path.join(ROOT, "lib"), "newtab.js");
       const pv = /^\/preview\/(classic|modern)(\/.*)?$/.exec(p);
       if (pv) return previewRoute(req, res, pv[1], pv[2] || "");
       if (p === "/" ) return serveFile(res, PUBLIC, "index.html");

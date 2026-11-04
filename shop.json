@@ -24,7 +24,7 @@
     "_note": "Set confirmed to true only after the owner has read and agreed the Returns, Terms and Privacy pages.",
     "confirmed": false,
     "damageReportHours": 48,
-    "changeOfMindDays": 3,
+    "changeOfMindDays": 7,
     "refundWorkingDays": 5,
     "dispatchWorkingDays": 2,
     "deliveryDays": "3 to 7",
@@ -71,6 +71,11 @@
       "small": "orders fulfilled"
     },
     "_ordersNote": "Shown in the opening animation. Given by the agency on 2026-11-04; not yet confirmed in writing by the owner. Delete 'orders' to hide it.",
+    "delivery": {
+      "label": "Speedy delivery",
+      "detail": "as fast as 3 days"
+    },
+    "_deliveryNote": "Shown in the opening animation. Kept consistent with policy.deliveryDays ('3 to 7' days after dispatch): say 'as fast as', not a flat promise.",
     "ticker": [
       "Express delivery across 15K+ pincodes in India",
       "Trusted by 2 lakh+ customers across India",
