@@ -23,6 +23,14 @@
     const d = await api("/api/billing/dashboard");
     const m = d.month;
     $("tab-home").innerHTML = `
+      <div class="dash">
+        <div><b>Latest Transactions</b>
+          <div class="scroll"><table><thead><tr><th>Date</th><th>Type</th><th>Txn No</th><th>Party Name</th><th class="n">Amount</th></tr></thead><tbody>
+          ${d.latest.length ? d.latest.map((t) => `<tr><td>${dayText(t.day)}</td><td>${esc(t.type)}</td><td>${esc(t.ref)}</td><td>${esc(t.party)}</td><td class="n">${inr(t.amount)}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">Nothing yet.</td></tr>`}
+          </tbody></table></div></div>
+        <div><b>Sales Report, last 7 days</b>${weekChart(d.week)}</div>
+      </div>
+      <h3>Your shop</h3>
       <div class="summary">
         <div>To collect<b class="owed-in">${inr(d.toCollect)}</b></div><div>To pay<b class="owed-out">${inr(d.toPay)}</b></div>
         <div>Cash<b>${inr(d.cash)}</b></div><div>Bank<b>${inr(d.bank)}</b></div><div>Stock at cost<b>${inr(d.stockAtCost)}</b></div>
@@ -35,6 +43,23 @@
       ${d.gst ? "" : turnoverBox(d.turnover)}
       <h3>Who owes the most</h3>
       ${d.topDues.length ? `<div class="scroll"><table><tbody>${d.topDues.map((x) => `<tr><td>${esc(x.name)}</td><td class="n"><b>${inr(x.balance)}</b></td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Nobody owes anything.</div>`}`;
+  }
+
+  // One series, thin line, hover shows the day. The total and bill count sit beside it as text.
+  function weekChart(days) {
+    const W = 240, H = 140, top = 12, base = H - 22, max = Math.max(...days.map((x) => x.total), 1);
+    const px = (i) => 10 + i * ((W - 20) / (days.length - 1)), py = (v) => base - (v / max) * (base - top);
+    const line = days.map((x, i) => `${i ? "L" : "M"}${px(i).toFixed(1)} ${py(x.total).toFixed(1)}`).join(" ");
+    const label = (x) => new Date(x.day).toLocaleDateString("en-IN", { weekday: "narrow" });
+    const full = (x) => new Date(x.day).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+    window.VX.weekTip = (i, on) => { const t = $("wkTip"); if (!on) return t.classList.add("hide"); const x = days[i]; t.textContent = `${full(x)}: ${inr(x.total)}, ${x.bills} bill${x.bills === 1 ? "" : "s"}`; t.style.left = `${(px(i) / W) * 100}%`; t.style.top = `${(py(x.total) / H) * 100}%`; t.classList.remove("hide"); };
+    return `<div class="week"><div style="position:relative"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Sales for the last 7 days">
+      <line x1="10" x2="${W - 10}" y1="${base}" y2="${base}" stroke="var(--line)"/>
+      <path d="${line} L${px(days.length - 1)} ${base} L${px(0)} ${base} Z" fill="#1f8a4c" opacity=".14"/>
+      <path d="${line}" fill="none" stroke="#1f8a4c" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+      ${days.map((x, i) => `<text x="${px(i)}" y="${H - 6}" text-anchor="middle" font-size="12" fill="#667085">${label(x)}</text><rect x="${px(i) - 18}" y="0" width="36" height="${H}" fill="transparent" onmouseenter="VX.weekTip(${i},true)" onmouseleave="VX.weekTip(${i},false)"/>`).join("")}
+      </svg><div id="wkTip" class="hide"></div></div>
+      <div class="weekStat">Last 7 days sales<b>${inr(days.reduce((n, x) => n + x.total, 0))}</b>Invoices Made<b>${days.reduce((n, x) => n + x.bills, 0)}</b></div></div>`;
   }
 
   // No GSTIN yet: how close the shop is to needing one.
@@ -64,8 +89,8 @@
         <div class="row2"><input id="pAddr" placeholder="Address"><input id="pLimit" type="number" placeholder="Credit limit ₹ (optional)"></div>
         <button class="big" id="pSave">Save</button><div class="err" id="pErr"></div>
       </details>
-      <div class="scroll"><table><thead><tr><th>Name</th><th class="hideSm">Mobile</th><th class="n">Balance</th></tr></thead><tbody>
-      ${shown.length ? shown.map((x) => `<tr class="click" data-open="${x.id}"><td><b>${esc(x.name)}</b></td><td class="hideSm">${esc(x.phone)}</td><td class="n">${bal(x.balance)}</td></tr>`).join("") : `<tr><td colspan="3" class="empty">No ${partyType}s yet.</td></tr>`}
+      <div class="scroll"><table><thead><tr><th>Party Name</th><th class="hideSm">Mobile Number</th><th>Party type</th><th class="n">Balance</th></tr></thead><tbody>
+      ${shown.length ? shown.map((x) => `<tr class="click" data-open="${x.id}"><td><b>${esc(x.name)}</b></td><td class="hideSm">${esc(x.phone)}</td><td>${x.type === "supplier" ? "Supplier" : "Customer"}</td><td class="n">${bal(x.balance)}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">No ${partyType}s yet.</td></tr>`}
       </tbody></table></div>`;
     document.querySelectorAll("input[name=ptype]").forEach((i) => (i.onchange = () => { partyType = i.value; parties(); }));
     $("psearch").oninput = (e) => { partySearch = e.target.value.toLowerCase(); const at = e.target.selectionStart; parties().then(() => { $("psearch").focus(); $("psearch").setSelectionRange(at, at); }); };

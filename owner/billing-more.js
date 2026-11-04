@@ -70,6 +70,57 @@
   }
   window.VX.tabs.settings = settings;
 
+  // ---- Payment In / Payment Out ----
+  let dir = "in";
+  async function payments(sub) {
+    if (sub === "in" || sub === "out") dir = sub;
+    const [list, parties] = await Promise.all([api("/api/billing/payments"), api("/api/billing/parties")]);
+    const names = new Map(parties.map((p) => [p.id, p.name]));
+    const shown = list.filter((p) => p.direction === dir);
+    const dayFmt = (d) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    $("tab-payments").innerHTML = `
+      <details class="form"><summary>Create Payment ${dir === "in" ? "In" : "Out"}</summary>
+        <div class="row2"><select id="pyParty"><option value="">Party…</option>${parties.map((p) => `<option value="${p.id}">${esc(p.name)} (${inr(p.balance)})</option>`).join("")}</select><input id="pyAmt" type="number" min="1" placeholder="Amount ₹"></div>
+        <div class="row2"><input id="pyDay" type="date" value="${today}" max="${today}"><select id="pyMode"><option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option><option value="bank">Bank</option></select></div>
+        <input id="pyNote" placeholder="Note (optional)" style="margin-top:8px">
+        <button class="big" id="pySave">Save</button><div class="err" id="pyErr"></div></details>
+      <div class="scroll"><table><thead><tr><th>Date</th><th>Payment Number</th><th>Party Name</th><th>Mode</th><th class="n">Amount</th><th></th></tr></thead><tbody>
+      ${shown.length ? shown.map((p) => `<tr class="${p.status === "cancelled" ? "cancelled" : ""}"><td>${dayFmt(p.day)}</td><td><b>${esc(p.number)}</b></td><td>${esc(names.get(p.partyId) || "")}</td><td>${esc(p.mode)}</td><td class="n"><b>${inr(p.amount)}</b></td><td class="n">${p.status === "cancelled" ? `<span class="sub">Cancelled</span>` : `<button class="tbtn danger" data-pcx="${p.id}">Cancel</button>`}</td></tr>`).join("") : `<tr><td colspan="6" class="empty">No payments yet.</td></tr>`}
+      </tbody></table></div>`;
+    $("pySave").onclick = async () => {
+      try { await api("/api/billing/payments", { method: "POST", body: JSON.stringify({ direction: dir, partyId: $("pyParty").value, amount: $("pyAmt").value, day: $("pyDay").value, mode: $("pyMode").value, note: $("pyNote").value }) }); toast("Saved."); payments(); }
+      catch (e) { $("pyErr").textContent = e.message; }
+    };
+    document.querySelectorAll("[data-pcx]").forEach((b) => {
+      const first = b.textContent;
+      b.onclick = async () => {
+        if (!b.classList.contains("sure")) { b.classList.add("sure"); b.textContent = "Tap again to cancel"; setTimeout(() => { b.classList.remove("sure"); b.textContent = first; }, 4000); return; }
+        await api(`/api/billing/payments/${b.dataset.pcx}/cancel`, { method: "POST", body: "{}" }); toast("Cancelled."); payments();
+      };
+    });
+  }
+
+  // ---- Online Orders: the website's orders, with the same confirm and cancel as WhatsApp ----
+  async function orders() {
+    const list = await api("/api/billing/orders");
+    const STATUS = { awaiting_payment: ["Awaiting payment", "low"], paid: ["Check payment", "low"], confirmed: ["Confirmed", ""], cancelled: ["Cancelled", "out"] };
+    $("tab-orders").innerHTML = `<div class="scroll"><table><thead><tr><th>Date</th><th>Order</th><th>Party Name</th><th>Item</th><th class="n">Amount</th><th>Status</th><th></th></tr></thead><tbody>
+      ${list.length ? list.map((o) => { const s = STATUS[o.status] || [o.status, ""]; return `<tr><td>${new Date(o.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td><td><b>${esc(o.code)}</b></td><td>${esc(o.name)}<div class="sub">${esc(o.phone)}</div></td><td>${esc(o.productName)}</td><td class="n"><b>${inr(o.amount)}</b></td><td><span class="pill ${s[1]}">${s[0]}</span>${o.utr ? `<div class="sub">Ref ${esc(o.utr)}</div>` : ""}</td>
+        <td class="n">${o.status === "paid" ? `<button class="tbtn" data-oa="confirm" data-oc="${esc(o.code)}">Confirm</button> ` : ""}${o.status !== "cancelled" ? `<button class="tbtn danger" data-oa="cancel" data-oc="${esc(o.code)}">Cancel</button>` : ""}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">No website orders yet.</td></tr>`}
+      </tbody></table></div>`;
+    document.querySelectorAll("[data-oa]").forEach((b) => {
+      const first = b.textContent;
+      b.onclick = async () => {
+        if (!b.classList.contains("sure")) { b.classList.add("sure"); b.textContent = "Tap again"; setTimeout(() => { b.classList.remove("sure"); b.textContent = first; }, 4000); return; }
+        try { await api(`/api/billing/orders/${b.dataset.oc}/${b.dataset.oa}`, { method: "POST", body: "{}" }); toast("Done. Stock and bills updated."); }
+        catch (e) { toast(e.message); }
+        orders();
+      };
+    });
+  }
+  Object.assign(window.VX.tabs, { payments, orders });
+
   // ---- Reading a supplier's bill photo into the purchase form ----
   window.VX.scanBill = async (file) => {
     const image = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(file); });

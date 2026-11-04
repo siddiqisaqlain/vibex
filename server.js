@@ -1562,6 +1562,9 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
     const b = (await body()) || {};
     return reply(dm[3] === "cancel" ? documents.cancelDoc(dm[2]) : documents.convertDoc(dm[2], b));
   }
+  if (get && route === "orders") return send(res, 200, loadOrders().slice(-200).reverse().map(({ proof, ...o }) => o));
+  const om2 = /^orders\/(VX-\d{4})\/(confirm|cancel)$/.exec(route);
+  if (post && om2) { const text = orderCommand(`${om2[2]} ${om2[1]}`); return /^[✅❌]/.test(text) ? send(res, 200, { ok: true, text }) : send(res, 409, { error: text.replace(/\n[\s\S]*/, "") }); }
   if (get && route === "reports") return send(res, 200, reports.LIST);
   dm = /^reports\/([a-z0-9]+)(\.csv)?$/.exec(route);
   if (dm && get) {

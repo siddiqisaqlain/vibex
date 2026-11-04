@@ -20,12 +20,13 @@
   const KINDS = [["quotation", "Quotation"], ["proforma", "Proforma"], ["challan", "Challan"], ["purchase_order", "Purchase Order"], ["dispatch", "Dispatch Note"]];
   let kind = "quotation";
   const lines = [];
-  async function documents() {
+  async function documents(sub) {
+    if (typeof sub === "string") { kind = sub; lines.length = 0; }
     const [list, parties, items] = await Promise.all([api("/api/billing/docs"), api("/api/billing/parties"), api("/api/billing/products")]);
     const buying = kind === "purchase_order";
+    const shown = list.filter((d) => d.kind === kind);
     const who = parties.filter((p) => p.type === (buying ? "supplier" : "customer"));
     $("tab-docs").innerHTML = `
-      ${pills("dkind", KINDS, kind)}
       ${kind === "dispatch" ? `<details class="form" open><summary>New Dispatch Note</summary>
         <p class="sub">A shipping slip from a bill. It isn't a government e-way bill.</p>
         <div class="row2"><input id="dpBill" placeholder="Bill number, e.g. 7651"><input id="dpCourier" placeholder="Courier or transporter"></div>
@@ -43,10 +44,9 @@
         <button class="big" id="dSave">Save</button><div class="err" id="dErr"></div>
       </details>`}
       <div class="scroll"><table><thead><tr><th>Number</th><th>Party</th><th class="n">Total</th><th>Status</th><th></th></tr></thead><tbody>
-      ${list.length ? list.map((d) => `<tr class="${d.status === "cancelled" ? "cancelled" : ""}"><td><b>${esc(d.number)}</b><div class="sub">${dayText(d.day)}</div></td><td>${esc(d.customer?.name || "-")}</td><td class="n"><b>${inr(d.total)}</b></td><td>${d.status === "dispatched" ? `<span class="pill">${esc(d.transport.courier)}${d.transport.tracking ? " · " + esc(d.transport.tracking) : ""}</span>` : d.status === "converted" ? `<span class="pill">Became ${esc(d.convertedTo)}</span>` : d.status === "open" ? `<span class="pill low">Open</span>` : `<span class="sub">Cancelled</span>`}</td>
+      ${shown.length ? shown.map((d) => `<tr class="${d.status === "cancelled" ? "cancelled" : ""}"><td><b>${esc(d.number)}</b><div class="sub">${dayText(d.day)}</div></td><td>${esc(d.customer?.name || "-")}</td><td class="n"><b>${inr(d.total)}</b></td><td>${d.status === "dispatched" ? `<span class="pill">${esc(d.transport.courier)}${d.transport.tracking ? " · " + esc(d.transport.tracking) : ""}</span>` : d.status === "converted" ? `<span class="pill">Became ${esc(d.convertedTo)}</span>` : d.status === "open" ? `<span class="pill low">Open</span>` : `<span class="sub">Cancelled</span>`}</td>
         <td class="n"><a class="tbtn" href="/doc/${d.id}?o" target="_blank" rel="noopener">View</a>${d.status === "open" ? ` <button class="tbtn" data-conv="${d.id}">${d.kind === "purchase_order" ? "Receive stock" : "Make bill"}</button> <button class="tbtn danger" data-dcancel="${d.id}">Cancel</button>` : ""}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">Nothing yet.</td></tr>`}
       </tbody></table></div>`;
-    document.querySelectorAll("input[name=dkind]").forEach((i) => (i.onchange = () => { kind = i.value; lines.length = 0; documents(); }));
     document.querySelectorAll("[data-conv]").forEach((b) => twoTap(b, "Tap again to confirm", async () => { const r = await api(`/api/billing/docs/${b.dataset.conv}/convert`, { method: "POST", body: JSON.stringify({ payment: "cash" }) }); toast(`Done: ${r.doc.convertedTo}. Stock updated.`); documents(); }));
     document.querySelectorAll("[data-dcancel]").forEach((b) => twoTap(b, "Tap again to cancel", async () => { await api(`/api/billing/docs/${b.dataset.dcancel}/cancel`, { method: "POST", body: "{}" }); toast("Cancelled."); documents(); }));
     if (kind === "dispatch") {
@@ -98,12 +98,13 @@
   // ---- Returns and notes ----
   const RTYPES = [["sale_return", "Sales Return"], ["credit_note", "Credit Note"], ["purchase_return", "Purchase Return"], ["debit_note", "Debit Note"]];
   let rtype = "sale_return", src = null;
-  async function returns() {
+  async function returns(sub) {
+    if (typeof sub === "string") { rtype = sub; src = null; }
     const [list, parties] = await Promise.all([api("/api/billing/returns"), api("/api/billing/parties")]);
     const goods = rtype === "sale_return" || rtype === "purchase_return";
+    const shown = list.filter((r) => r.kind === rtype);
     const sale = rtype === "sale_return";
     $("tab-returns").innerHTML = `
-      ${pills("rtype", RTYPES, rtype)}
       <details class="form" open><summary>New ${esc(RTYPES.find((r) => r[0] === rtype)[1])}</summary>
       ${goods ? `<div class="row2"><input id="rFind" placeholder="${sale ? "Bill number, e.g. 7651" : "Purchase number, e.g. PB/26-27/0001"}"><button class="tbtn" id="rLoad">Find</button></div><div id="rLines"></div>
         <div class="row2" style="margin-top:8px"><input id="rRefund" type="number" min="0" placeholder="${sale ? "Money paid back ₹" : "Money received back ₹"}"><div></div></div>${pills("rmode", MODES, "cash")}`
@@ -112,10 +113,9 @@
         <button class="big" id="rSave">Save</button><div class="err" id="rErr"></div>
       </details>
       <div class="scroll"><table><thead><tr><th>Number</th><th>Against</th><th class="n">Amount</th><th></th></tr></thead><tbody>
-      ${list.length ? list.map((r) => `<tr class="${r.status === "cancelled" ? "cancelled" : ""}"><td><b>${esc(r.number)}</b><div class="sub">${dayText(r.day)}</div></td><td>${esc(r.invoiceNumber || r.purchaseNumber || r.customer?.name || "")}<div class="sub">${esc(r.reason || "")}</div></td><td class="n"><b>${inr(r.total)}</b>${r.refund ? `<div class="sub">refund ${inr(r.refund)}</div>` : ""}</td>
+      ${shown.length ? shown.map((r) => `<tr class="${r.status === "cancelled" ? "cancelled" : ""}"><td><b>${esc(r.number)}</b><div class="sub">${dayText(r.day)}</div></td><td>${esc(r.invoiceNumber || r.purchaseNumber || r.customer?.name || "")}<div class="sub">${esc(r.reason || "")}</div></td><td class="n"><b>${inr(r.total)}</b>${r.refund ? `<div class="sub">refund ${inr(r.refund)}</div>` : ""}</td>
         <td class="n"><a class="tbtn" href="/doc/${r.id}?o" target="_blank" rel="noopener">View</a>${r.status === "cancelled" ? "" : ` <button class="tbtn danger" data-rcancel="${r.id}">Cancel</button>`}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">Nothing yet.</td></tr>`}
       </tbody></table></div>`;
-    document.querySelectorAll("input[name=rtype]").forEach((i) => (i.onchange = () => { rtype = i.value; src = null; returns(); }));
     if (goods) $("rLoad").onclick = () => find(sale);
     $("rSave").onclick = async () => {
       try {

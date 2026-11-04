@@ -97,6 +97,16 @@ try {
   const billPage = await (await fetch(`${base}/bill/${shipped.id}`)).text();
   assert.ok(billPage.includes('class="qr"')); assert.ok(billPage.includes("Scan to check this bill")); assert.ok(!/\bIRN\b|e-invoice/i.test(billPage)); ok("every bill has a check QR, with no e-invoice wording");
 
+  // Online Orders: the portal uses the same confirm as WhatsApp
+  await post("/stock", { productId: "a1", quantity: 3 });
+  const oj = await (await fetch(`${base}/api/orders`, { method: "POST", headers: H, body: JSON.stringify({ productId: "a1", name: "Web", phone: "9000000007", delivery: "pickup" }) })).json();
+  await fetch(`${base}/api/orders/${oj.id}/paid`, { method: "POST", headers: H, body: JSON.stringify({ utr: "123456789012" }) });
+  assert.equal((await get("/orders"))[0].status, "paid");
+  assert.equal((await post(`/orders/${oj.code}/confirm`)).status, 200);
+  assert.equal((await get("/orders"))[0].status, "confirmed"); assert.equal(await stock("a1"), 2);
+  assert.equal((await post(`/orders/${oj.code}/confirm`)).status, 409); ok("Online Orders confirms an order: bill made, stock taken, once only");
+  const dd = await get("/dashboard"); assert.equal(dd.week.length, 7); assert.ok(dd.latest.length > 0 && dd.latest.length <= 5); ok("dashboard has latest transactions and 7 days of sales");
+
   assert.equal((await fetch(`${base}${A}/returns`)).status, 401); assert.equal((await fetch(`${base}${A}/docs`)).status, 401); ok("everything needs the owner key");
 
   console.log(`\nAll ${pass} document checks passed.`);
