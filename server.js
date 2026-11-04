@@ -78,6 +78,30 @@ function ensureCodes() {
   if (changed) fs.writeFileSync(DB, JSON.stringify(items, null, 2));
 }
 ensureCodes();
+// "Gucci Flora 100 mL" -> name "Gucci Flora", sizes "100 ml". Bottle sizes belong in the size
+// field (the site shows them as a chip), not in the name. Also tidies a stray " - " left behind.
+const VOLUME = /\s*[-–,(]?\s*\b(\d{1,4}(?:[.,]\d)?)\s?(ml|mls|ltr|litres?|liters?)\b\.?\)?/i;
+function tidyListing(l) {
+  if (!l || !l.name || l.category !== "Fragrances") return l; // clothes sizes like "L" are left alone
+  const m = VOLUME.exec(l.name);
+  if (m) {
+    const rest = (l.name.slice(0, m.index) + " " + l.name.slice(m.index + m[0].length)).replace(/\s+/g, " ").replace(/^[\s\-–,]+|[\s\-–,]+$/g, "").trim();
+    if (rest.length >= 2) {
+      l.name = rest;
+      const vol = `${m[1].replace(",", ".")} ${/^(ltr|lit)/i.test(m[2]) ? "L" : "ml"}`;
+      if (!l.sizes) l.sizes = vol;
+    }
+  }
+  l.name = l.name.replace(/\s+[-–]\s*$/, "").trim();
+  return l;
+}
+// Once at start-up: tidy names already on the site (e.g. posts from before this existed).
+(() => {
+  const items = load();
+  let n = 0;
+  for (const p of items) { const before = `${p.name}|${p.sizes}`; tidyListing(p); if (`${p.name}|${p.sizes}` !== before) n++; }
+  if (n) { fs.writeFileSync(DB, JSON.stringify(items, null, 2)); console.log(`Tidied ${n} product name(s): bottle size moved to the size field`); }
+})();
 const save = (items) => fs.writeFileSync(DB, JSON.stringify(items, null, 2));
 
 // Posts the bot wasn't sure about ("Gucci 2499": clothes or perfume?) wait here, oldest first,
@@ -846,6 +870,7 @@ function batchNext(queue, lead = "") {
 }
 
 function batchSummary(items, lead = "") {
+  for (const x of items) tidyListing(x.listing);
   const counts = {};
   for (const x of items) counts[x.listing.category] = (counts[x.listing.category] || 0) + 1;
   const mix = Object.entries(counts).map(([c, k]) => `${k} ${(PLURAL[c] || [c, c])[k === 1 ? 0 : 1]}`).join(" · ");
@@ -1018,10 +1043,17 @@ function missingField(item) {
   if (needsSize(l)) return "size";
   return null;
 }
+// Name examples that fit the section once it's known.
+const NAME_EG = { Clothing: "North Face Puffer Jacket", Fragrances: "Dior Sauvage EDT", Footwear: "Nike Air Max 90", Accessories: "Casio G-Shock watch" };
 function question(item, field, lead = "") {
   const f = FIELDS[field];
   item.ask = field;
-  const out = { reply: `${lead}${f.ask}`, buttons: f.buttons, list: f.list };
+  let ask = f.ask;
+  if (field === "name") {
+    const c = item.listing.category;
+    ask = `🏷️ What's it called?\nType the name, e.g. *${(item.sure && NAME_EG[c]) || "Dior Sauvage EDT"}*${c === "Fragrances" ? "\n(Bottle size like *100 ml* is fine too.)" : ""}`;
+  }
+  const out = { reply: `${lead}${ask}`, buttons: f.buttons, list: f.list };
   if (!f.buttons && !f.list) out.buttons = ["❌ Cancel"];
   return out;
 }
@@ -1041,6 +1073,7 @@ function preview(item, lead = "") {
 }
 // Whatever comes next for this draft: the next question, or the preview.
 function step(item, { fresh = false, changed = false } = {}) {
+  tidyListing(item.listing);
   const need = missingField(item);
   const lead = fresh ? `📸 Got it${item.listing.name !== "New arrival" ? `: *${item.listing.name}*` : ""}!\n\n` : changed ? "✏️ Updated.\n\n" : "";
   const out = need ? question(item, need, lead) : preview(item, lead);
@@ -1181,6 +1214,7 @@ function draftReply(text, hasImage) {
 }
 
 function publish({ id, listing, by, image }) {
+  tidyListing(listing);
   const fresh = load(); // reload: another message may have landed meanwhile
   const product = {
     id, ...listing, code: newCode(fresh), quantity: listing.quantity || 1,
