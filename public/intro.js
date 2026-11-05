@@ -9,25 +9,8 @@
 (() => {
   const root = document.documentElement;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  // Hello to the customer, by their own clock. Styled in shop.css (.vx-greet); sits under the
-  // header, clear of the phone dock and the sale notes. Tap to dismiss.
-  function greet() {
-    const h = new Date().getHours();
-    const part = h >= 5 && h < 12 ? "morning" : h >= 12 && h < 17 ? "afternoon" : "evening";
-    let back = false;
-    try { back = localStorage.getItem("vx-been") === "1"; localStorage.setItem("vx-been", "1"); } catch { /* private mode */ }
-    const top = document.querySelector(".top");
-    const card = document.createElement("div");
-    card.className = "vx-greet";
-    card.setAttribute("role", "status");
-    card.style.top = `${Math.max(0, top ? top.getBoundingClientRect().bottom : 58) + 12}px`;
-    card.innerHTML = `<b>Good ${part}</b><span>Welcome ${back ? "back " : ""}to Vibe X. Have a look around, new pieces land most days.</span>`;
-    document.body.appendChild(card);
-    const close = () => { card.classList.remove("on"); setTimeout(() => card.remove(), 450); };
-    card.addEventListener("click", close);
-    requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add("on")));
-    setTimeout(close, 5000);
-  }
+  // Hello to the customer once the logo has landed: the popup itself is VXGreet in shop.js.
+  const greet = () => window.VXGreet?.();
   if (reduce) {
     // no map for these visitors, so the greeting comes straight after the page opens
     let first = true;

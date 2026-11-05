@@ -15,7 +15,8 @@
       <p class="sub" style="margin:4px 0 0">Perfume sizes: type <b>100ml</b> for one size, or <b>50ml 2999 100ml 4999</b> for a price on each. Those prices replace the selling price above.</p>
       <div id="it-sizeRows"></div>
       <div class="row3">${f("hsn", "HSN code")}${f("gstRate", "GST % (blank = default)", "number")}${p ? "<div></div>" : f("quantity", "Opening stock", "number")}</div>
-      ${p ? `<label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="it-onWebsite" ${p.hidden ? "" : "checked"} ${p.image ? "" : "disabled"}> Show on website${p.image ? "" : " (needs a photo: send it on WhatsApp with the code)"}</label>` : ""}
+      ${p ? `<label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="it-onWebsite" ${p.hidden ? "" : "checked"} ${p.image ? "" : "disabled"}> Show on website${p.image ? "" : " (needs a photo: send it on WhatsApp with the code)"}</label>
+      <label class="sub" style="display:block;margin-top:4px"><input type="checkbox" id="it-featured" ${p.featured ? "checked" : ""}> Feature on home page (beside the video, up to 6)</label>` : ""}
       <div class="row2" style="margin-top:8px"><button class="big" id="itSave" style="margin:0">Save</button><button class="tbtn" id="itClose">Close</button></div><div class="err" id="itErr"></div></div>`;
     box.scrollIntoView({ block: "center" });
     // A stock box for each size, redrawn as the Sizes field changes. Blank boxes keep one shared count.
@@ -38,6 +39,7 @@
       const b = {};
       for (const k of ["name", "category", "price", "cost", "mrp", "barcode", "sizes", "reorderAt", "hsn", "gstRate", "quantity"]) if ($(`it-${k}`)) b[k] = $(`it-${k}`).value;
       if ($("it-onWebsite") && !$("it-onWebsite").disabled) b.onWebsite = $("it-onWebsite").checked;
+      if ($("it-featured")) b.featured = $("it-featured").checked;
       const boxes = [...document.querySelectorAll("[data-ss]")];
       if (boxes.length) b.sizeStock = boxes.some((i) => i.value !== "") ? Object.fromEntries(boxes.map((i) => [i.dataset.ss, i.value])) : {};
       try {

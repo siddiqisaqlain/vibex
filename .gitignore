@@ -10,3 +10,4 @@ data/wa-shop.json
 
 # Owner myBillBook exports: customer details, never commit
 data/mybillbook-export/
+data/latest-video.json

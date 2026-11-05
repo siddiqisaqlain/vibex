@@ -57,6 +57,162 @@
   $("stats").hidden = !stats.length;
   $("stats").style.setProperty("--n", Math.max(1, stats.length));
 
+  // ---- latest YouTube video: a plain picture until someone presses play, so YouTube's player
+  // (about 1 MB of scripts) costs nothing on a normal visit. The server picks the video. ----
+  const YT_ORIGIN = "https://www.youtube-nocookie.com";
+  const playerTell = (f) => (func, args = []) => f.contentWindow.postMessage(JSON.stringify({ event: "command", func, args }), YT_ORIGIN);
+  let videoPlaying = false;
+
+  // Sound from something you can't see, with no way to stop it, is the worst of embedded video:
+  // pause once it has mostly left the screen, and carry on when it comes back. Only if we were the
+  // ones who paused it: a video the customer stopped stays stopped.
+  function followPlayer(f, frame) {
+    const tell = playerTell(f);
+    let pausedByScroll = false;
+    videoPlaying = true; // it was asked to autoplay; the player corrects this if not
+    addEventListener("message", (e) => {
+      if (e.origin !== YT_ORIGIN || e.source !== f.contentWindow) return;
+      let data; try { data = JSON.parse(e.data); } catch { return; }
+      const state = data?.info?.playerState;
+      if (typeof state === "number") videoPlaying = state === 1 || state === 3; // playing, buffering
+    });
+    f.addEventListener("load", () => f.contentWindow.postMessage(JSON.stringify({ event: "listening", id: "vx", channel: "widget" }), YT_ORIGIN));
+    new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting && videoPlaying) { pausedByScroll = true; tell("pauseVideo"); }
+      else if (e.isIntersecting && pausedByScroll) { pausedByScroll = false; tell("playVideo"); }
+    }, { threshold: .4 }).observe(frame);
+  }
+
+  function renderVideo() {
+    const v = S.latestVideo, Y = S.youtube || {}, sec = $("latest");
+    if (!sec || !v) return;
+    const frame = $("vid-frame"), btn = $("vid-btn"), img = $("vid-img");
+    if (v.thumbBig) { img.srcset = `${v.thumb} 640w, ${v.thumbBig} 1280w`; img.sizes = "(max-width: 760px) 213px, 60vw"; } // phones always take the 70 KB picture, even at 3x
+    img.src = v.thumb;
+    frame.classList.toggle("is-short", v.short);
+    btn.setAttribute("aria-label", `Play video: ${v.title}`);
+    $("vid-title").textContent = v.headline;
+    const when = v.published ? new Date(v.published).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+    $("vid-tag").textContent = ["New on YouTube", when].filter(Boolean).join(" · ");
+    $("vid-more").href = Y.channel || `https://www.youtube.com/watch?v=${encodeURIComponent(v.id)}`;
+    sec.hidden = false;
+
+    const warm = () => {
+      const l = document.createElement("link");
+      l.rel = "preconnect"; l.href = "https://www.youtube-nocookie.com";
+      document.head.append(l);
+    };
+    btn.addEventListener("pointerenter", warm, { once: true });
+    btn.addEventListener("touchstart", warm, { once: true, passive: true });
+    btn.addEventListener("click", () => {
+      const f = document.createElement("iframe");
+      f.title = v.title;
+      f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+      f.allowFullscreen = true;
+      f.referrerPolicy = "strict-origin-when-cross-origin"; // YouTube refuses to play without it
+      // Phones and Safari won't let a tap out here start sound in YouTube's frame: unmuted, the
+      // first tap would seem to do nothing. So they start silent, straight away.
+      const quiet = /Mobi|Android/.test(navigator.userAgent) || navigator.vendor.includes("Apple");
+      f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(v.id)}?autoplay=1&rel=0&playsinline=1&enablejsapi=1${quiet ? "&mute=1" : ""}`;
+      btn.replaceWith(f);
+      f.focus();
+      followPlayer(f, frame);
+      if (!quiet) return;
+      const sound = document.createElement("button");
+      sound.type = "button"; sound.className = "vid-sound"; sound.textContent = "Tap for sound";
+      const tell = playerTell(f);
+      sound.addEventListener("click", () => { tell("unMute"); tell("setVolume", [100]); tell("playVideo"); sound.remove(); });
+      frame.append(sound);
+    }, { once: true });
+  }
+  renderVideo();
+
+  // ---- the hello popup, once per visit: by their own clock, with their first name if they gave
+  // it. The name stays in this browser (checkout saves it too: order.js). ----
+  const NAME_KEY = "vx-name";
+  const kept = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+  const keep = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* private mode */ } };
+  // The last visit, read once per visit, so a reload doesn't wipe "3 new since your last visit".
+  const lastVisit = (() => {
+    try {
+      let since = sessionStorage.getItem("vx-since");
+      if (since === null) { since = kept("vx-last") || kept("vx-been") || ""; sessionStorage.setItem("vx-since", since); keep("vx-last", String(Date.now())); }
+      return since;
+    } catch { return ""; }
+  })();
+
+  const HELLO_MS = 7000;
+  function greetNow() {
+    const h = new Date().getHours();
+    const part = h >= 5 && h < 12 ? "morning" : h >= 12 && h < 17 ? "afternoon" : "evening";
+    const card = document.createElement("div");
+    card.className = "vx-hi"; card.setAttribute("role", "status");
+
+    let timer = null, hovering = false;
+    const close = () => { clearTimeout(timer); removeEventListener("keydown", onKey); card.classList.remove("on"); setTimeout(() => card.remove(), 400); };
+    const busy = () => hovering || card.querySelector("form");
+    const wait = (ms = HELLO_MS) => { clearTimeout(timer); timer = setTimeout(() => (busy() ? wait(1500) : close()), ms); }; // never closes on someone reading or typing
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    addEventListener("keydown", onKey);
+    card.onpointerenter = (e) => { if (e.pointerType === "mouse") hovering = true; };
+    card.onpointerleave = () => { hovering = false; };
+
+    const draw = (title, wave, text) => {
+      card.innerHTML = `<b></b><p></p><div class="vx-hi-acts"></div><button class="vx-hi-x" type="button" aria-label="Close">×</button>`;
+      card.querySelector("b").textContent = title;
+      if (wave) card.querySelector("b").insertAdjacentHTML("beforeend", ' <span class="vx-hi-wave" aria-hidden="true">👋</span>');
+      card.querySelector("p").textContent = text;
+      card.querySelector(".vx-hi-x").onclick = close;
+      return card.querySelector(".vx-hi-acts");
+    };
+    const action = (acts, label, fn, quiet) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = label; if (quiet) b.className = "quiet"; b.onclick = fn;
+      acts.append(b);
+    };
+
+    function hello() {
+      const name = window.VXOrder.firstName(kept(NAME_KEY));
+      const since = Number(lastVisit) || 0; // "1" from an older visit: been here, date unknown
+      const fresh = since > 1 ? products.filter((p) => p.status === "available" && new Date(p.createdAt) > since).length : 0;
+      const title = name ? (h >= 23 || h < 5 ? `Still up, ${name}?` : `Good ${part}, ${name}`) : `Good ${part}`;
+      const text = fresh ? `${fresh} new ${fresh === 1 ? "piece" : "pieces"} since your last visit.`
+        : name ? "Good to see you again." : lastVisit ? "Welcome back to Vibe X." : "Welcome to Vibe X, all the way from Srinagar.";
+      const acts = draw(title, Boolean(name), text);
+      if (fresh) {
+        acts.insertAdjacentHTML("beforeend", `<a href="#rack" data-jump="All">See what's new →</a>`);
+        acts.lastElementChild.addEventListener("click", close);
+      }
+      if (name) action(acts, "Not you?", () => { keep(NAME_KEY, null); hello(); wait(); }, true);
+      else action(acts, "What should we call you?", ask, Boolean(fresh));
+    }
+
+    function ask() {
+      draw("What should we call you?", false, "Just a first name. It stays on this device.");
+      const form = document.createElement("form");
+      form.noValidate = true;
+      form.innerHTML = `<input aria-label="Your first name" placeholder="First name" autocomplete="given-name" autocapitalize="words" enterkeyhint="done" maxlength="30"><button type="submit">Save</button>`;
+      card.querySelector(".vx-hi-acts").before(form);
+      const input = form.firstElementChild;
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        const name = window.VXOrder.firstName(input.value);
+        if (!name) { input.setAttribute("aria-invalid", "true"); input.focus(); return; }
+        keep(NAME_KEY, name);
+        draw(`Nice to meet you, ${name}`, true, "We'll say hello properly next time.");
+        clearTimeout(timer); timer = setTimeout(close, 3000); // said its piece: goes even with the mouse resting on it
+      };
+      input.focus();
+    }
+
+    hello();
+    document.body.append(card);
+    requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add("on")));
+    wait();
+  }
+  // Called once the opening map has lifted. Stock may still be on its way, and the count needs it.
+  window.VXGreet = (tries = 12) => { if (products.length || tries <= 0) greetNow(); else setTimeout(() => window.VXGreet(tries - 1), 250); };
+
   // ---- red announcement bar: one message at a time ----
   function renderTicker() {
     const msgs = (S.claims && S.claims.ticker) || [];
@@ -197,6 +353,54 @@
     }
     track.onpointerdown = restart;
     restart();
+  }
+
+  // ---- Featured, beside the video: pieces ticked in the portal, then the priciest in stock.
+  // Skips what the hero slider already shows, and repeats of a name (several Tender Ambers). ----
+  const FEATURED = 6;
+  let featKey = "", featTimer = null, featSeen = null;
+  function renderFeatured() {
+    const box = $("feat");
+    if (!box || $("latest").hidden) return;
+    const ok = products.filter((p) => p.image && p.status === "available");
+    const inHero = new Set([...document.querySelectorAll("#slides .slide")].map((a) => a.getAttribute("href")));
+    const chosen = ok.filter((p) => p.featured);
+    const rest = ok.filter((p) => !p.featured).sort((a, b) => (b.price || 0) - (a.price || 0));
+    const picks = [...chosen];
+    for (const skipHero of [true, false]) for (const p of rest) {
+      if (picks.length >= FEATURED) break;
+      if (picks.includes(p) || (skipHero && inHero.has(pdp(p))) || picks.some((x) => x.name === p.name)) continue;
+      picks.push(p);
+    }
+    const list = picks.slice(0, FEATURED);
+    box.hidden = !list.length;
+    const key = list.map((p) => `${p.id}:${p.price}`).join();
+    if (key === featKey) return; // this runs on every stock change: don't throw the customer back to slide 1
+    featKey = key;
+    const track = $("feat-track"), count = $("feat-count");
+    const many = list.length > 1;
+    track.innerHTML = list.map((p, i) => `
+      <a class="feat-slide" href="${pdp(p)}" aria-label="${esc(p.name)}, ${i + 1} of ${list.length}">
+        <span class="feat-pic"><img src="${esc(p.image)}" alt="" loading="lazy" decoding="async"></span>
+        <span class="feat-cap"><span>${esc(p.brand && p.brand !== p.name ? p.brand : p.category)}</span><b>${esc(p.name)}</b><em>${p.price ? `${manyPrices(p) ? "From " : ""}${rupees(p.price)}` : "Price on request"}</em></span>
+      </a>`).join("");
+    $("feat-prev").hidden = $("feat-next").hidden = !many;
+    const step = () => track.firstElementChild?.getBoundingClientRect().width + parseFloat(getComputedStyle(track).columnGap || 0) || 1;
+    const cur = () => Math.round(track.scrollLeft / step());
+    const mark = () => { count.textContent = many ? `${String(Math.min(cur(), list.length - 1) + 1).padStart(2, "0")} / ${String(list.length).padStart(2, "0")}` : ""; };
+    const go = (i) => track.scrollTo({ left: ((i + list.length) % list.length) * step(), behavior: "smooth" });
+    track.onscroll = mark; mark();
+    $("feat-prev").onclick = () => go(cur() - 1);
+    $("feat-next").onclick = () => go(cur() + 1);
+    // Moves on its own only where it's one piece at a time, on screen, and nobody is busy with it
+    // or watching the video. Phones show the next piece peeking in, and swipe.
+    clearInterval(featTimer);
+    if (!many || matchMedia("(prefers-reduced-motion: reduce)").matches || !matchMedia("(min-width: 761px)").matches) return;
+    if (!featSeen) { featSeen = { now: false }; new IntersectionObserver(([e]) => { featSeen.now = e.isIntersecting; }, { threshold: .5 }).observe(box); }
+    // :focus-visible, not :focus-within: a clicked arrow keeps focus, which would stop it for good
+    featTimer = setInterval(() => {
+      if (featSeen.now && !videoPlaying && !box.matches(":hover") && !box.querySelector(":focus-visible") && !document.hidden) go(cur() + 1);
+    }, 5500);
   }
 
   // ---- "Shop our range": category + style tiles ----
@@ -382,6 +586,7 @@
       renderRange();
       renderLooks();
       if (first || fresh.size) renderSlider();
+      renderFeatured();
       if (first) renderTicker();
       if (fresh.size) {
         const p = next.find((x) => fresh.has(x.id));
@@ -454,7 +659,7 @@
   const saleKey = (s) => `${s.id}@${s.at}`;
   function showSale() {
     const t = $("toast");
-    if (!t.hidden || shownThisVisit >= 3) return;
+    if (!t.hidden || shownThisVisit >= 3 || document.querySelector(".vx-hi")) return; // one note at a time
     const s = sales.find((x) => !seen.has(saleKey(x)));
     if (!s) return;
     seen.add(saleKey(s));

@@ -17,6 +17,7 @@ const wa = require("./lib/whatsapp");
 const createBilling = require("./lib/billing");
 const { sizePairs, withoutSizePairs, optionsOf, applySizePairs, autoDescription, formatSizes, setSizeStock, fitSizeStock } = require("./lib/sizes");
 const { readJson, writeJson, dailyBackup } = require("./lib/jsonstore");
+const { videoFeed } = require("./lib/youtube");
 const SHOP_NAME = "Vibe X";
 
 const PORT = Number(process.env.PORT) || 4300;
@@ -716,8 +717,15 @@ function previewRoute(req, res, name, rest) {
   return serveFile(res, dir, rest.slice(1));
 }
 
+// Newest video on the shop's channel: checked hourly here, so no visitor ever waits on YouTube.
+const latestVideo = videoFeed({ ...SHOP.youtube, file: path.join(STORE, "latest-video.json") });
+if (SHOP.youtube?.channelId) {
+  latestVideo.refresh();
+  setInterval(() => latestVideo.refresh(), 3600e3).unref();
+}
+
 function sendConfig(res) {
-  const pub = { ...SHOP, orderingOpen: ORDERING_OPEN };
+  const pub = { ...SHOP, orderingOpen: ORDERING_OPEN, latestVideo: latestVideo.current() };
   res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
   return res.end(`window.SHOP = ${JSON.stringify(pub).replace(/</g, "\\u003c")};\n`);
 }

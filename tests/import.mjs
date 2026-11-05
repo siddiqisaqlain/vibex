@@ -168,6 +168,11 @@ try {
   const noPhoto = (await post("/api/billing/items", { name: "No Photo Yet", price: 100 })).product;
   assert.equal((await post(`/api/billing/items/${noPhoto.id}`, { onWebsite: true })).status, 409);
   r = await post(`/api/billing/items/${web2.id}`, { onWebsite: true }); assert.equal(r.status, 200);
+  // Featured tick: reaches the customer page, and comes off again.
+  const isFeatured = async () => (await (await fetch(`${base}/api/products`)).json()).find((x) => x.id === web2.id)?.featured;
+  await post(`/api/billing/items/${web2.id}`, { featured: true }); assert.equal(await isFeatured(), true);
+  await post(`/api/billing/items/${web2.id}`, { price: 901 }); assert.equal(await isFeatured(), true, "a later edit keeps the tick");
+  await post(`/api/billing/items/${web2.id}`, { featured: false }); assert.equal(await isFeatured(), undefined);
   const back = (await (await fetch(base + "/api/products")).json()).find((p) => p.id === web2.id);
   assert.ok(back); assert.equal(back.quantity, 3); ok("'Show on website' brings it back with the right stock, and needs a photo");
   r = await post("/api/billing/invoices", { lines: [{ productId: web2.id, qty: 3 }], payment: "cash" });

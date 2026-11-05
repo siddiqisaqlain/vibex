@@ -6,6 +6,11 @@
   "whatsapp": "917006656599",
   "instagram": "https://www.instagram.com/vibex.india/",
   "igHandle": "vibex.india",
+  "youtube": {
+    "channel": "https://www.youtube.com/@vibex_india",
+    "channelId": "UCp0Mmc_4MZQAO1GfjeBgyhA",
+    "fallback": { "id": "bE3OYjNm1Q4", "title": "100% Original Watches | 80% Discount | New Models  | VIBE X", "published": "2026-09-09T15:28:55+00:00" }
+  },
   "maps": "https://maps.app.goo.gl/E9e1sXQU3FwTs4yN7",
   "business": {
     "_note": "Shown in the footer and on the Contact page (Consumer Protection (E-Commerce) Rules, 2020).",

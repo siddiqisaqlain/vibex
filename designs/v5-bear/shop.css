@@ -169,7 +169,7 @@ body.menu-open { overflow: hidden; }
   .trust b { font-size: 15px; }
 }
 
-section.range, section.rack, section.find, section.looks, section.how, section.store { margin-bottom: clamp(64px, 8vw, 120px); }
+section.range, section.vid, section.rack, section.find, section.looks, section.how, section.store { margin-bottom: clamp(64px, 8vw, 120px); }
 
 /* shop by category: photo tiles with labels on them */
 .range-row { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 12px; }
@@ -309,6 +309,50 @@ section.range, section.rack, section.find, section.looks, section.how, section.s
 @media (max-width: 760px) { .how ol { grid-template-columns: 1fr; } .how li, .how li + li { padding: 20px 0; border-left: 0; border-top: 1px solid var(--line); } .how li:first-child { border-top: 0; padding-top: 0; } .how li span { font-size: 54px; margin-bottom: 12px; } }
 
 /* the store */
+/* Latest video: a picture with a play button; the YouTube player replaces it on press (shop.js).
+   The fixed shape keeps the page from jumping when the player arrives. */
+.vid-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: clamp(20px, 2.4vw, 36px); }
+.vid-main { min-width: 0; display: flex; flex-direction: column; }
+.vid-frame { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--r); background: var(--ink); }
+.vid-frame.is-short { aspect-ratio: 9 / 16; height: min(640px, 80vh); justify-self: center; }
+.vid-btn { position: absolute; inset: 0; display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; cursor: pointer; }
+.vid-btn:focus-visible { outline: 2px solid var(--red); outline-offset: -4px; }
+.vid-btn img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .9s var(--ease); }
+.vid-btn:hover img { transform: scale(1.03); }
+.vid-play { position: absolute; left: 50%; top: 50%; width: clamp(60px, 7vw, 84px); aspect-ratio: 1; margin: 0; transform: translate(-50%, -50%); display: grid; place-items: center; border-radius: 50%; background: var(--red); color: #fff; box-shadow: 0 6px 24px rgba(0,0,0,.35); transition: transform .3s var(--ease); }
+.vid-btn:hover .vid-play { transform: translate(-50%, -50%) scale(1.08); }
+.vid-play svg { width: 46%; height: 46%; fill: currentColor; }
+.vid-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+.vid-sound { position: absolute; left: 10px; bottom: 44px; min-height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--paper); color: var(--ink); font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .07em; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.3); }
+.vid-info { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; margin-top: 16px; }
+.vid-info h3 { margin: 10px 0 0; font: 600 clamp(22px, 2.2vw, 32px)/1.05 var(--display); letter-spacing: -.035em; }
+.vid-info .btn { flex: none; }
+.feat { min-width: 0; display: flex; flex-direction: column; }
+.feat-head { display: flex; align-items: center; gap: 12px; min-height: 40px; margin-bottom: 10px; }
+.feat-head h3 { margin: 0 auto 0 0; font: 600 20px/1 var(--display); letter-spacing: -.03em; }
+.feat-arrows { display: flex; gap: 6px; }
+.feat-arrows button { width: 40px; height: 40px; padding: 0; border: 1px solid var(--line-2); border-radius: 50%; background: none; color: var(--ink); font-size: 16px; cursor: pointer; transition: background .2s, color .2s; }
+.feat-arrows button:hover { background: var(--ink); color: var(--paper); }
+.feat-arrows button:focus-visible, .feat-slide:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.feat-track { flex: 1; min-height: 0; display: flex; gap: 0; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.feat-track::-webkit-scrollbar { display: none; }
+.feat-slide { flex: 0 0 100%; min-width: 0; display: flex; flex-direction: column; scroll-snap-align: start; text-decoration: none; color: var(--ink); }
+.feat-pic { position: relative; flex: 1; min-height: 240px; overflow: hidden; border-radius: var(--r); background: var(--paper-2); }
+.feat-pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .9s var(--ease); }
+.feat-slide:hover img { transform: scale(1.04); }
+.feat-cap { display: grid; gap: 5px; padding-top: 12px; }
+.feat-cap span { font: 500 10.5px/1 var(--mono); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.feat-cap b { font-weight: 500; font-size: 15px; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feat-cap em { font: 500 13px/1 var(--mono); font-style: normal; color: var(--ink-2); }
+@media (max-width: 760px) {
+  .vid-row { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .vid-info { flex-direction: column; align-items: flex-start; }
+  .feat-arrows { display: none; }
+  .feat-track { gap: 10px; margin: 0 calc(var(--gut) * -1); padding: 0 var(--gut); scroll-padding: 0 var(--gut); }
+  .feat-slide { flex-basis: 62%; }
+  .feat-pic { flex: none; aspect-ratio: 4 / 5; min-height: 0; }
+}
+
 .store { scroll-margin-top: 66px; }
 .store-card { display: grid; grid-template-columns: 1.15fr 1fr; gap: clamp(24px, 4vw, 64px); align-items: stretch; }
 .store-pic { position: relative; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 6px; height: clamp(420px, 40vw, 600px); overflow: hidden; border-radius: var(--r); }
@@ -706,8 +750,26 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .pdp-sizes .ask-err { margin: 8px 0 0; }
 
 /* greeting, right after the opening map (intro.js) */
-.vx-greet { position: fixed; z-index: 45; left: 50%; width: min(360px, calc(100vw - 32px)); padding: 14px 18px 15px; border-radius: 16px; background: var(--ink); color: var(--paper); box-shadow: 0 14px 34px rgba(0,0,0,.22); cursor: pointer; opacity: 0; transform: translate(-50%, -14px); transition: opacity .4s ease, transform .55s var(--ease); }
-.vx-greet.on { opacity: 1; transform: translate(-50%, 0); }
-.vx-greet b { display: block; font: 600 22px/1.1 var(--display); letter-spacing: -.03em; }
-.vx-greet span { display: block; margin-top: 6px; font: 400 13.5px/1.4 var(--body); opacity: .78; }
-@media (prefers-reduced-motion: reduce) { .vx-greet { transition: opacity .2s; transform: translate(-50%, 0); } }
+
+/* The hello: a small light card in the corner, clear of the content people came for, the sale
+   notes (they wait for it: shop.js) and, on phones, the dock. */
+.vx-hi { position: fixed; z-index: 45; left: 24px; bottom: 24px; width: 316px; max-width: calc(100vw - 20px); padding: 14px 44px 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); box-shadow: 0 10px 30px rgba(18,18,18,.14); opacity: 0; transform: translateY(14px); transition: opacity .35s ease, transform .5s var(--ease); }
+.vx-hi.on { opacity: 1; transform: none; }
+.vx-hi b { display: block; font: 600 18px/1.2 var(--display); letter-spacing: -.025em; }
+.vx-hi p { margin: 4px 0 0; font: 400 13.5px/1.4 var(--body); color: var(--ink-2); }
+.vx-hi-wave { display: inline-block; margin-left: 2px; font-weight: 400; transform-origin: 70% 80%; animation: hellowave 1.5s var(--ease) .45s 1 both; }
+@keyframes hellowave { 0%, 100% { transform: rotate(0); } 15%, 45% { transform: rotate(16deg); } 30%, 60% { transform: rotate(-8deg); } 75% { transform: rotate(5deg); } }
+.vx-hi-x { position: absolute; right: 2px; top: 2px; width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; }
+.vx-hi-x:hover { color: var(--ink); }
+.vx-hi-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 8px; }
+.vx-hi-acts:empty { display: none; }
+.vx-hi-acts a, .vx-hi-acts button { display: inline-flex; align-items: center; min-height: 32px; padding: 0; border: 0; background: none; color: var(--ink); font: 500 13px/1 var(--body); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; cursor: pointer; }
+.vx-hi-acts a:hover, .vx-hi-acts button:hover { color: var(--red); text-decoration-color: currentColor; }
+.vx-hi-acts .quiet { color: var(--muted); }
+.vx-hi form { display: flex; gap: 8px; margin-top: 10px; margin-right: -28px; }
+.vx-hi input { flex: 1; min-width: 0; height: 40px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--paper); color: var(--ink); font: 400 16px/1 var(--body); } /* 16px: smaller makes iPhones zoom the page */
+.vx-hi input:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
+.vx-hi input[aria-invalid="true"] { border-color: var(--red); }
+.vx-hi form button { flex: none; height: 40px; padding: 0 14px; border: 0; border-radius: var(--r); background: var(--ink); color: var(--paper); font: 500 13px/1 var(--body); cursor: pointer; }
+@media (max-width: 760px) { .vx-hi { left: 10px; right: 10px; width: auto; bottom: calc(92px + env(safe-area-inset-bottom)); } }
+@media (prefers-reduced-motion: reduce) { .vx-hi { transition: opacity .2s; transform: none; } .vx-hi-wave { animation: none; } }

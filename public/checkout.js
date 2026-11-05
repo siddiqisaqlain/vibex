@@ -65,7 +65,7 @@ window.VXCheckout = (() => {
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
         <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
         <button class="order co-cta" type="submit">Continue to payment · ${O().rupees(p.price)}</button>
-        <p class="consent">We use your name and number only for this order and its delivery. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
+        <p class="consent">We use your name and number only for this order and its delivery. Your first name is also kept on this device, so we can say hello next time. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
       </form>`);
     const form = dlg.querySelector("form");
     form.addEventListener("change", (e) => {
@@ -82,6 +82,7 @@ window.VXCheckout = (() => {
         const out = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(out.error || "Couldn't start the order. Please try again.");
         state.order = out;
+        window.VXOrder.rememberName(state.form.name);
         stepPay();
       } catch (ex) {
         stepDetails(ex.message);

@@ -3,6 +3,18 @@
 // product page's link instead: both apps turn it into a preview card with the photo.
 // Instagram also can't pre-type a message, so we copy it and the customer pastes it.
 window.VXOrder = (() => {
+  // First name for the hello on the home page. Letters only: it's shown on the page, and "Mr" or a
+  // phone number typed into a name box shouldn't become a greeting.
+  function firstName(text) {
+    const words = String(text || "").trim().split(/\s+/).filter((w) => !/^(mr|mrs|ms|miss|dr|sir|shri|sri|smt)\.?$/i.test(w));
+    const n = words[0] || "";
+    if (!/^\p{L}[\p{L}\p{M}'’-]{0,19}$/u.test(n)) return "";
+    return n === n.toLowerCase() || n === n.toUpperCase() ? n[0].toUpperCase() + n.slice(1).toLowerCase() : n;
+  }
+  // After an order, in this browser only. A name the customer already gave us stays as it is.
+  function rememberName(full) {
+    try { const n = firstName(full); if (n && !localStorage.getItem("vx-name")) localStorage.setItem("vx-name", n); } catch { /* private mode */ }
+  }
   const S = window.SHOP;
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN");
@@ -164,5 +176,5 @@ window.VXOrder = (() => {
     });
   }
 
-  return { button, install, toast, lot, rupees, esc, hash, pageUrl };
+  return { firstName, rememberName, button, install, toast, lot, rupees, esc, hash, pageUrl };
 })();

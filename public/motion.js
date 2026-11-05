@@ -8,7 +8,7 @@
   // What rises in. Items in the same row start one after another.
   const PICK = [
     ".sec-head", ".trust > div", ".range-tile", "#grid .card", ".panel",
-    ".look", ".how li", ".store-card", ".foot-grid > div", ".tabs", ".more-wrap",
+    ".look", ".vid-row", ".how li", ".store-card", ".foot-grid > div", ".tabs", ".more-wrap",
   ].join(",");
 
   let io = null;
