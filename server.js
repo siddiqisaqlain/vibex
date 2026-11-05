@@ -406,7 +406,7 @@ async function createOrder(req, res) {
     id: crypto.randomBytes(8).toString("hex"), code: newOrderCode(orders),
     productId: p.id, productName: p.name, lot: lotOf(p), amount: price - discount, ...(picked ? { size: picked.size } : {}),
     ...(promo ? { promo: promo.offer.code, discount, fullPrice: price } : {}),
-    name, phone, delivery, address, city, pin,
+    name, phone, delivery, address, city, pin, ...(b.hideName ? { hideName: true } : {}),
     status: "awaiting_payment", createdAt: new Date().toISOString(),
   };
   orders.push(order);
@@ -620,7 +620,7 @@ ${head}
 <nav class="nav"><a href="/#rack">New drops</a><a class="nav-ig" href="https://www.instagram.com/vibex.india/" target="_blank" rel="noopener">Instagram ↗</a></nav></div></header>
 <main class="wrap pdp" id="pdp" data-id="${escHtml(id)}"></main>
 <div class="toast" id="toast" role="status" hidden></div>
-<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/pdp.js"></script><script src="/newtab.js"></script><script src="/track.js"></script>
+<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/pdp.js"></script><script src="/salebar.js"></script><script src="/newtab.js"></script><script src="/track.js"></script>
 </body></html>`;
 }
 
@@ -770,7 +770,7 @@ function productPage(req, res, id) {
     : pageShell({
         title, head,
         body: `<div class="page-top"><main class="wrap pdp" id="pdp" data-id="${escHtml(id)}"></main></div>`,
-        scripts: ["/art.js", "/order.js", "/vendor/qrcode.js", "/checkout.js", "/pdp.js"],
+        scripts: ["/art.js", "/order.js", "/vendor/qrcode.js", "/checkout.js", "/pdp.js", "/salebar.js"],
       });
   send(res, p ? 200 : 404, html, "text/html; charset=utf-8");
 }
@@ -1510,13 +1510,34 @@ function liveReply(product, win) {
 }
 
 // ---- Real recent sales for the shop's "just sold" note (public: item and time only, no buyer) ----
+// How the "just bought" banner names a buyer: first name and city, nothing else. A website buyer can
+// tick to stay anonymous; a counter buyer stays anonymous unless the bill was ticked to show them.
+function buyerLabel(sale, order, invoice) {
+  const shown = order ? (order.hideName ? "" : order.name) : invoice?.showName ? invoice.customer?.name : "";
+  const word = String(shown || "").trim().split(/\s+/)[0];
+  const name = /^\p{L}{2,20}$/u.test(word) ? word[0].toUpperCase() + word.slice(1).toLowerCase() : "";
+  const shipped = order?.delivery === "ship" ? String(order.city || "").trim() : "";
+  const city = order?.delivery !== "ship" ? "Srinagar" : /^[\p{L} .'-]{2,30}$/u.test(shipped) ? shipped : "";
+  if (name) return city ? `${name} from ${city}` : name;
+  return city ? `Someone ${order?.delivery === "ship" ? "from" : "in"} ${city}` : "Someone";
+}
+// Stock names are the shop's own shorthand ("-30 jeans"); customers see them tidied.
+const saleName = (name) => String(name).replace(/^[^\p{L}]+/u, "").toLowerCase().replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase()) || "an item";
+// Every real sale feeds the banner by itself: website, counter and WhatsApp. Items not on the
+// website show too, but have no page to link to.
 function recentSales() {
-  const byId = new Map(load().filter(isPublic).map((p) => [p.id, p]));
-  const since = Date.now() - 72 * 3600e3;
+  const byId = new Map(load().filter((p) => !p.needsName).map((p) => [p.id, p]));
+  const since = Date.now() - 7 * 864e5; // the banner loops these, so keep a week to play from
+  const invoices = new Map(billing.loadInvoices().map((x) => [x.number, x]));
+  const orders = new Map(loadOrders().map((x) => [x.code, x]));
   return loadActivity()
-    .filter((a) => a.type === "sold" && new Date(a.at) > since && byId.has(a.id))
+    .filter((a) => a.type === "sold" && new Date(a.at) > since && byId.has(a.id) && invoices.get(a.invoice)?.status !== "cancelled")
     .slice(-10).reverse()
-    .map((a) => { const p = byId.get(a.id); return { id: p.id, name: p.name, image: p.image || null, qty: a.qty || 1, at: a.at }; });
+    .map((a) => {
+      const p = byId.get(a.id);
+      const stock = p.status === "sold" ? 0 : p.status === "available" ? billing.stockOf(p) : null;
+      return { id: p.id, name: isPublic(p) ? p.name : saleName(p.name), image: p.image || null, qty: a.qty || 1, at: a.at, onSite: isPublic(p), ...(isPublic(p) && stock !== null && stock <= 3 ? { left: stock } : {}), who: buyerLabel(a, orders.get(a.order), invoices.get(a.invoice)) };
+    });
 }
 
 // ---- Numbers for the owner: the stats bar on /demo, and the "stats" chat command ----
@@ -1801,7 +1822,7 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
       const over = (who.role === "staff" || !b.overLimit) && books.creditCheck(partyId, total - received);
       if (over) return send(res, 409, { error: over, overLimit: true });
     }
-    const r = billing.sell(b.lines, { source: "counter", customer: b.customer, payment: b.payment, note: b.note, partyId, charges: b.charges, received: b.received, paidMode: b.paidMode, allowShort: b.allowShort === true, by: who.role === "staff" ? who.name : undefined });
+    const r = billing.sell(b.lines, { source: "counter", customer: b.customer, payment: b.payment, note: b.note, partyId, charges: b.charges, showName: b.showName === true, received: b.received, paidMode: b.paidMode, allowShort: b.allowShort === true, by: who.role === "staff" ? who.name : undefined });
     if (r.error) return send(res, 409, { error: r.error });
     return send(res, 200, { invoice: who.role === "staff" ? billForStaff(r.invoice) : r.invoice, url: `/bill/${r.invoice.id}` });
   }

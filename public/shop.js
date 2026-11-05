@@ -568,23 +568,7 @@
     lastY = y;
   }, { passive: true });
 
-  // ---- "Just sold" note: only real sales, no buyer details ----
-  const SEEN_KEY = "vx-sales-seen";
-  let seen = new Set();
-  try { seen = new Set(JSON.parse(sessionStorage.getItem(SEEN_KEY) || "[]")); } catch { /* private mode */ }
-  let shownThisVisit = 0;
-  const saleKey = (s) => `${s.id}@${s.at}`;
-  function showSale() {
-    const t = $("toast");
-    if (!t.hidden || shownThisVisit >= 3 || document.querySelector(".vx-hi")) return; // one note at a time
-    const s = sales.find((x) => !seen.has(saleKey(x)));
-    if (!s) return;
-    seen.add(saleKey(s));
-    try { sessionStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch { /* fine */ }
-    shownThisVisit++;
-    const fresh = Date.now() - new Date(s.at) < 3600e3;
-    toast(`<b>Sold</b><span>Someone ${fresh ? "just " : ""}bought ${esc(s.name)}${s.qty > 1 ? ` (×${s.qty})` : ""}${agoAt(s.at) === "just now" ? "" : ` · ${agoAt(s.at)}`}</span>`);
-  }
+  // Recent sales mark sold cards in the grid. The "just bought" banner is salebar.js.
   let salesJson = "";
   async function refreshSales() {
     try {
@@ -597,9 +581,8 @@
       if (products.length) renderGrid();
     } catch { /* server restarting */ }
   }
-  refreshSales().then(() => setTimeout(showSale, 6000));
+  refreshSales();
   setInterval(refreshSales, 15000);
-  setInterval(showSale, 30000);
 
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
   addEventListener("pageshow", (e) => { if (e.persisted) refresh(); });

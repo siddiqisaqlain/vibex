@@ -56,7 +56,7 @@ async function browser({ width, height, mobile }, port) {
   const key = async (k, mods = 0) => { const p = { key: k, code: k.length === 1 ? "Key" + k.toUpperCase() : k, windowsVirtualKeyCode: keyCodes[k], modifiers: mods }; await cdp("Input.dispatchKeyEvent", { type: "rawKeyDown", ...p }); if (k === "Enter" && !mods) await cdp("Input.dispatchKeyEvent", { type: "char", ...p, text: "\r" }); await cdp("Input.dispatchKeyEvent", { type: "keyUp", ...p }); await sleep(180); };
   const fill = async (sel, t) => { await tap(sel); await js(`document.querySelector(${JSON.stringify(sel)}).select?.()`); await type(t); };
   const text = (sel) => js(`document.querySelector(${JSON.stringify(sel)})?.textContent||""`);
-  const close = () => { ws.close(); proc.kill(); };
+  const close = () => { ws.close(); proc.once("exit", () => setTimeout(() => { try { fs.rmSync(prof, { recursive: true, force: true, maxRetries: 5 }); } catch { /* Chrome still closing: the OS temp folder clears it */ } }, 300)); proc.kill(); };
   return { js, until, nav, tap, type, key, fill, text, errors, close, sleep };
 }
 
@@ -205,6 +205,28 @@ try {
   await d.until(`!!document.querySelector('[data-oa=confirm]')`);
   await d.tap('[data-oc="VX-2002"][data-oa=confirm]'); await d.tap('[data-oc="VX-2002"][data-oa=confirm]');
   ok(await d.until(`document.querySelector('#side [data-badge=orders]').textContent==='1'`, 6000), "confirming clears it from the count");
+
+  // A counter sale reaches the website banner by itself; the name only if ticked.
+  const banner = async () => (await (await fetch(`${base}/api/recent-sales`)).json())[0];
+  await d.nav(`${base}/billing#/new`);
+  await d.tap("#results .item");
+  ok(await d.js(`document.getElementById('showNameRow').classList.contains('hide')`), "name tick stays hidden with no name");
+  await d.fill("#cName", "Hilal Wani");
+  ok(await d.js(`!document.getElementById('showNameRow').classList.contains('hide')&&!document.getElementById('showName').checked`), "name tick appears, off by default");
+  await d.tap("#make");
+  ok(await d.until(`!document.getElementById('done').classList.contains('hide')`), "bill with an unticked name is made");
+  await d.sleep(300);
+  ok((await banner()).who === "Someone in Srinagar", "unticked counter sale stays anonymous on the website");
+  await d.tap("#dNext");
+  await d.tap("#results .item");
+  await d.fill("#cName", "Hilal Wani");
+  await d.tap("#showName");
+  await d.tap("#make");
+  ok(await d.until(`!document.getElementById('done').classList.contains('hide')`), "bill with a ticked name is made");
+  await d.sleep(300);
+  ok((await banner()).who === "Hilal from Srinagar", "ticked counter sale shows the first name only");
+  await d.tap("#dNext");
+  ok(await d.js(`!document.getElementById('showName').checked`), "the tick clears for the next customer");
 
   // Items.
   await d.tap('#side [data-tab=stock]');

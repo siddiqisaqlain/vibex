@@ -111,6 +111,7 @@
               <label class="sub">Customer name<input type="text" id="cName" placeholder="Optional" maxlength="60" autocomplete="off"></label>
             </div>
             <div id="custHits" class="hide"></div>
+            <label class="sub showNameRow hide" id="showNameRow"><input type="checkbox" id="showName"> Show first name on website</label>
             <div id="custNote" class="sub"></div>
           </div>
           <div class="pay">
@@ -413,6 +414,7 @@
     $("partLeft").textContent = part ? (part > total ? "That's more than the bill." : `${inr(total - part)} goes in the ledger.`) : `All ${inr(total)} goes in the ledger.`;
   }
   function renderCart() {
+    paintShowName();
     const m = byId();
     blocked = false;
     $("lines").innerHTML = cart.length ? cart.map((l, i) => {
@@ -524,10 +526,17 @@
     $("custHits").innerHTML = list.map((p) => `<button data-c="${esc(p.id)}"><b>${esc(p.name)}</b><span class="sub">${esc(p.phone)}${p.balance > 0 ? ` · owes ${inr(p.balance)}` : ""}</span></button>`).join("");
     $("custHits").querySelectorAll("[data-c]").forEach((b) => (b.onmousedown = b.ontouchstart = (e) => { e.preventDefault(); const p = customers().find((x) => x.id === b.dataset.c); $("cName").value = p.name; $("cPhone").value = p.phone; $("custHits").classList.add("hide"); paintCustomer(); saveDraft(); }));
   }
+  // The website banner names a counter buyer only if they agreed, one bill at a time.
+  function paintShowName() {
+    const named = !!$("cName").value.trim();
+    $("showNameRow").classList.toggle("hide", !named);
+    if (!named) $("showName").checked = false;
+  }
   function paintCustomer() {
     const phone = $("cPhone").value.replace(/\D/g, "").slice(-10);
     const p = phone.length === 10 && customers().find((x) => x.phone === phone);
     $("custNote").innerHTML = !p ? "" : p.balance > 0 ? `<span class="owed-out">Already owes ${inr(p.balance)}</span>` : "Saved customer";
+    paintShowName();
   }
   for (const id of ["cPhone", "cName"]) {
     $(id).oninput = () => { custSearch($(id).value); paintCustomer(); saveDraft(); };
@@ -589,6 +598,7 @@
         charges: charges.map((c) => ({ label: c.label, amount: Number(c.amount) })),
         customer: { name: $("cName").value, phone },
         payment: pay,
+        showName: $("showName").checked && !!$("cName").value.trim(),
         received: pay === "credit" ? Number($("partPaid").value) || 0 : undefined,
         paidMode: pay === "credit" ? $("partMode").value : undefined,
         overLimit,
@@ -597,6 +607,7 @@
       overLimit = false; $("make").firstChild.textContent = "Create bill ";
       const inv = r.invoice;
       emptyBill();
+      $("showName").checked = false; // asked afresh for every buyer
       billDone(inv, r.url, gaveBack);
       await loadAll();
     } catch (e) {

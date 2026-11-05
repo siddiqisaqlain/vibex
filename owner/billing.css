@@ -317,3 +317,4 @@ table.dues td{padding:8px 4px}table.dues .click{cursor:pointer}table.dues .tbtn{
   table.dues tr{display:grid;grid-template-columns:1fr auto;border-bottom:1px solid var(--line);padding:6px 0}table.dues td{border:0;padding:2px}table.dues td:last-child{grid-column:1/-1}
 }
 @media print{#dock,#toasts,#cartBar{display:none!important}}
+.showNameRow{display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer}.showNameRow.hide{display:none}.showNameRow input{width:auto;margin:0}

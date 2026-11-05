@@ -65,8 +65,9 @@ window.VXCheckout = (() => {
         </div>
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
         <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
+        <label class="co-hide"><input type="checkbox" name="hideName" value="1" ${f.hideName ? "checked" : ""}><span>Don't show my name on the site</span></label>
         <button class="order co-cta" type="submit">Continue to payment · ${O().rupees(p.price)}</button>
-        <p class="consent">We use your name and number only for this order and its delivery. Your first name is also kept on this device, so we can say hello next time. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
+        <p class="consent">We use your name and number only for this order and its delivery. Unless you tick the box, the site may show your first name and city with what you bought. Your first name is also kept on this device, so we can say hello next time. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
       </form>`);
     const form = dlg.querySelector("form");
     form.addEventListener("change", (e) => {
