@@ -32,6 +32,7 @@ await check("the owner lock holds", async () => {
 await check("form timing keeps box names and counts, and never what was typed", () => {
   const f = clean({ e: "field", p: "/p/s1", x: "phone", n: 9000, ed: 12, del: 3, fl: 1, st2: "checkout", value: "9876543210", text: "my address" });
   assert.deepEqual(f, { e: "field", p: "/p/s1", x: "phone", n: 9000, ed: 12, del: 3, fl: 1, st2: "checkout" });
+  assert.equal(clean({ e: "tap", p: "/", x: "Filters", z: "Lal Chowk road", sx: 10, sy: 20 }).z, undefined, "a section name is never free text");
   assert.equal(clean({ e: "field", p: "/", x: "98765 43210", n: 1 }), null); // a box name is never free text
   assert.equal(clean({ e: "field", p: "/", x: "9876543210", n: 1 }), null);
   assert.equal(clean({ e: "sec", p: "/", x: "my secret words", n: 1 }), null);
@@ -68,6 +69,32 @@ await check("live shows the exact section and box", async () => {
   await post({ v, s, ev: [{ e: "field", p: "/", x: "phone", n: 3000, ed: 4, del: 0, fl: 1, st2: "checkout" }, { e: "leave", p: "/", n: 1 }] });
   me = (await (await owner("live")).json()).people.find((p) => p.id === s.slice(0, 6));
   assert.equal(me, undefined);
+});
+await check("a problem counts in the room it happened, not every room of the visit", () => {
+  const ev = (t, e, x = {}) => ({ t, v: "a", s: "a", e, p: "/", ...x });
+  const d = summarise([ev(1e12, "page", { dev: "Phone", br: "Chrome", nw: 1 }), ev(1e12 + 1, "in", {}), ev(1e12 + 2, "sec", { x: "hero", n: 3000 }), ev(1e12 + 3, "sec", { x: "rack", n: 3000 }), ev(1e12 + 4, "dead", { x: "rack: Photo" })], { from: "2026-01-01", to: "2026-01-01" });
+  const room = (k) => d.plan.find((r) => r.key === k);
+  assert.equal(room("z:rack").stuck, 1); assert.equal(room("z:hero").stuck, 0);
+});
+await check("something unproven never leads the fix list", () => {
+  const t = 1e12, list = [], add = (s, dev, buys) => { list.push({ t, v: s, s, e: "page", p: "/", dev, br: "Chrome", nw: 1 }); if (buys) list.push({ t, v: s, s, e: "paid", p: "/", n: 3000 }); };
+  for (let i = 0; i < 12; i++) add(`p${i}`, "Phone", i < 2);
+  for (let i = 0; i < 6; i++) add(`c${i}`, "Computer", i < 2);
+  const f = summarise(list, { from: "2026-01-01", to: "2026-01-01" }).fixes.find((x) => /buy less/.test(x.title));
+  assert.equal(f.chance, true); assert.equal(f.sure, "weak");
+});
+await check("what to fix first says how sure it is and what it's likely worth", () => {
+  const t = 1e12, ev = (s, e, x = {}) => ({ t, v: s, s, e, p: "/p/s1", ...x }), list = [];
+  for (let i = 0; i < 40; i++) {
+    const s = `v${i}`;
+    list.push(ev(s, "page", { dev: "Phone", br: "Chrome", nw: 1, pr: "s1" }), ev(s, "checkout", { pr: "s1", n: 3000 }), ev(s, "field", { x: "address", n: 30000, ed: 40, del: 2, fl: 1, st2: "checkout" }));
+    if (i % 4 === 0) list.push(ev(s, "abandon", { pr: "s1", x: "details", f: "address", n: 30000 }));
+    else { list.push(ev(s, "details", { pr: "s1", n: 3000 })); if (i % 2) list.push(ev(s, "paid", { pr: "s1", n: 3000 })); }
+  }
+  const d = summarise(list, { from: "2026-01-01", to: "2026-01-01" }), fix = d.fixes.find((f) => f.room === "f:address");
+  assert.equal(fix.people, 10);
+  assert.ok(fix.money > 0); assert.equal(fix.sure, "fair");
+  assert.ok(d.totals.conversionRange.low < d.totals.conversion && d.totals.conversionRange.high > d.totals.conversion);
 });
 await check("a visit shows up live, then goes", async () => {
   const r = await post({ v: id(1), s: id(2), ev: [{ e: "page", p: "/", title: "Vibe X", w: 390, nw: 1, st: 1, tz: "Asia/Kolkata" }] });
@@ -157,6 +184,41 @@ await check("an empty range works", () => {
   const e = summarise([], { from: "2026-11-05", to: "2026-11-05" });
   assert.equal(e.totals.visits, 0);
   assert.equal(e.totals.conversion, 0);
+});
+await check("the time an event happened comes from the browser, not the batch", async () => {
+  const v = id(3), s = id(4);
+  await post({ v, s, ev: [{ e: "page", p: "/", title: "x", nw: 1, st: 1, d: 12000 }, { e: "sec", p: "/", x: "rack", n: 5000, d: 1000 }] });
+  const r = await (await owner(`report?from=${day}&to=${day}`)).json(), me = r.visits.find((x) => x.s === s.slice(0, 6));
+  const [a, b] = me.steps;
+  assert.ok(b.t - a.t >= 10000 && b.t - a.t <= 12500, `gap was ${b.t - a.t}`);
+});
+await check("many people on one network address are all counted", async () => {
+  const before = (await (await owner(`report?from=${day}&to=${day}`)).json()).totals.visits;
+  for (let i = 0; i < 60; i++) { const h = (0x1000 + i).toString(16).padStart(16, "a"); await post({ v: h, s: h, ev: Array.from({ length: 10 }, (_, k) => (k ? { e: "beat", p: "/", n: 1000 } : { e: "page", p: "/", title: "x", nw: 1, st: 1 })) }); }
+  const after = (await (await owner(`report?from=${day}&to=${day}`)).json()).totals.visits;
+  assert.equal(after - before, 60);
+});
+await check("the report can be cut by device", async () => {
+  const phone = await (await owner(`report?from=${day}&to=${day}&seg=dev:Phone`)).json(), pc = await (await owner(`report?from=${day}&to=${day}&seg=dev:Computer`)).json();
+  assert.ok(phone.totals.visits > 0); assert.equal(pc.totals.visits, 0);
+});
+await check("analytics stays inside its disk budget, and never touches the shop's files", async () => {
+  const STORE = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-budget-")), dir2 = path.join(STORE, "analytics");
+  fs.mkdirSync(dir2); fs.writeFileSync(path.join(STORE, "orders.json"), "keep me");
+  const createAnalytics = require("../lib/analytics.js"), a = createAnalytics({ STORE, budgetMb: 400 });
+  const old = new Date(Date.now() + 5.5 * 3600e3 - 20 * 864e5).toISOString().slice(0, 10), t = Date.parse(old);
+  const line = (s2, e, x = {}) => JSON.stringify({ t, v: s2, s: s2, e, p: "/", ...x });
+  fs.writeFileSync(path.join(dir2, `${old}.jsonl`), [line("a", "page", { dev: "Phone", br: "Chrome", nw: 1 }), line("a", "sec", { x: "rack", n: 5000 })].join(String.fromCharCode(10)) + String.fromCharCode(10));
+  assert.equal((await a.report(old, old)).totals.visits, 1);
+  await a.prune();
+  assert.equal(fs.existsSync(path.join(dir2, `${old}.jsonl`)), false, "old raw file goes");
+  assert.equal((await a.report(old, old)).zones.home[0].totalTime, 5000, "the visit is still counted from its record");
+  a.close();
+  const tiny = createAnalytics({ STORE, budgetMb: 0 });
+  await tiny.prune();
+  assert.equal(fs.existsSync(path.join(dir2, `${old}.vis.gz`)), false, "over budget, the oldest records go");
+  assert.equal(fs.readFileSync(path.join(STORE, "orders.json"), "utf8"), "keep me");
+  tiny.close();
 });
 await check("a day's events survive a restart", async () => {
   await post({ v: id(7), s: id(8), ev: [{ e: "page", p: "/" }] });

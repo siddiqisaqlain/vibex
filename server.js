@@ -729,7 +729,7 @@ function previewRoute(req, res, name, rest) {
 }
 
 // Visitors, for the owner's /analytics page. Kept on the disk, and written out before a restart.
-const analytics = createAnalytics({ STORE, productName: (id) => load().find((p) => p.id === id)?.name || id });
+const analytics = createAnalytics({ STORE, productName: (id) => load().find((p) => p.id === id)?.name || id, productNames: () => Object.fromEntries(load().map((p) => [p.id, p.name])) });
 process.on("SIGTERM", () => { analytics.close(); process.exit(0); });
 
 // Newest video on the shop's channel: checked hourly here, so no visitor ever waits on YouTube.
@@ -1882,12 +1882,12 @@ http
       if (p.startsWith("/api/analytics/")) {
         if (!isOwner(req, url)) return send(res, 401, { error: "Owner key required." });
         const route = p.slice("/api/analytics/".length), day = /^\d{4}-\d{2}-\d{2}$/;
-        if (req.method === "GET" && route === "live") return send(res, 200, analytics.liveNow());
+        if (req.method === "GET" && route === "live") return send(res, 200, analytics.liveNow(url.searchParams.get("seg") || ""));
         if (req.method === "GET" && route === "report") {
           const from = url.searchParams.get("from") || "", to = url.searchParams.get("to") || "";
           if (!day.test(from) || !day.test(to) || from > to) return send(res, 400, { error: "Pick a date range." });
           if (Date.parse(to) - Date.parse(from) > 400 * 864e5) return send(res, 400, { error: "Pick 400 days or fewer." });
-          return send(res, 200, await analytics.report(from, to));
+          try { return send(res, 200, await analytics.report(from, to, url.searchParams.get("seg") || "")); } catch (e) { return send(res, 503, { error: e.message }); }
         }
         if (req.method === "GET" && route === "changes") return send(res, 200, await analytics.changeResults());
         if (req.method === "POST" && route === "changes") {

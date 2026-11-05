@@ -10,11 +10,11 @@
 <style>
   /* The shop's own look: warm paper, ink, one signal red. Red only ever means trouble, green only ever means a sale. */
   :root{color-scheme:light;--paper:#f4f2ee;--card:#fbfaf8;--ink:#121212;--ink2:#3d3c39;--mute:#6b6963;--line:rgba(18,18,18,.13);--wall:#121212;--hover:#ebe8e2;
-    --red:#e2382c;--redText:#b9271c;--redBg:#f9e6e1;--green:#1f7a52;--greenBg:#e3f0e9;--path:#121212;--neutral:#a5a297;--neutral2:#d3cfc6;
+    --water:#2f7ea6;--waterRim:#9fd0e6;--red:#e2382c;--redText:#b9271c;--redBg:#f9e6e1;--green:#1f7a52;--greenBg:#e3f0e9;--path:#121212;--neutral:#a5a297;--neutral2:#d3cfc6;
     --h0:#ebe8e2;--h1:#d3cfc6;--h2:#a5a297;--h3:#6b6963;--h4:#3d3c39;--h5:#121212;
     --mono:"Geist Mono",ui-monospace,Menlo,monospace}
   @media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){color-scheme:dark;--paper:#141312;--card:#1c1b19;--ink:#f2f0ea;--ink2:#c9c6bd;--mute:#9b988f;--line:rgba(255,255,255,.14);--wall:#c9c6bd;--hover:#272522;
-    --red:#f0604f;--redText:#f58a7c;--redBg:#33201c;--green:#4fbe86;--greenBg:#17291f;--path:#f2f0ea;--neutral:#79766e;--neutral2:#46443f;
+    --water:#3f97c4;--waterRim:#a9dcf2;--red:#f0604f;--redText:#f58a7c;--redBg:#33201c;--green:#4fbe86;--greenBg:#17291f;--path:#f2f0ea;--neutral:#79766e;--neutral2:#46443f;
     --h0:#272522;--h1:#46443f;--h2:#6b6963;--h3:#9b988f;--h4:#c9c6bd;--h5:#f2f0ea}}
   *{box-sizing:border-box}
   body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.4 "Schibsted Grotesk","Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
@@ -60,34 +60,16 @@
   tbody tr:hover{background:var(--hover)}
   .tag{font:11px var(--mono);padding:1px 6px;border-radius:2px;border:1px solid var(--line);color:var(--ink2);white-space:nowrap}
   .tag.bad{color:var(--redText);border-color:var(--red)}
-  /* floor plan */
-  .plan{position:relative}
-  .room{fill:none;stroke:var(--wall);stroke-width:1.5}
-  .floor{fill:var(--paper)}
-  .door{stroke:var(--paper);stroke-width:6}
-  .furn{fill:var(--hover);stroke:var(--line)}
-  .rl{font-size:11px;fill:var(--mute)}.rl.b{fill:var(--ink);font-weight:600}
-  .tally{font-size:30px;font-weight:600;fill:var(--ink)}
-  .worn{fill:none;stroke:var(--path);stroke-linecap:round;opacity:.13}
-  .who{transition:transform 1.3s cubic-bezier(.45,0,.3,1),opacity .6s;cursor:pointer}
-  .plan.fast .who{transition:transform .32s cubic-bezier(.45,0,.3,1),opacity .3s}
-  .who circle{fill:var(--ink);stroke:var(--paper);stroke-width:2}
-  .who .hit{fill:transparent;stroke:none}
-  .who.bad circle.b{fill:var(--red)}.who.good circle.b{fill:var(--green)}
-  .who.bad .halo{fill:none;stroke:var(--red);stroke-width:1.5;animation:ring 1.6s infinite}
-  .who:not(.bad) .halo{display:none}
-  @keyframes ring{from{r:7px;opacity:.9}to{r:15px;opacity:0}}
-  .who.sel circle.b{stroke:var(--ink);stroke-width:2.5}
-  .scuff{fill:var(--red);opacity:.65}
-  .zone{fill:var(--ink);opacity:0}
-  .zrule{stroke:var(--line)}
-  .zl{font-size:10.5px;fill:var(--ink2)}.zt{font-size:10.5px;fill:var(--mute)}
+  /* the water floor */
+  .waterBox{position:relative;touch-action:pan-y}
+  #waterCv{display:block;width:100%}
   .planHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
   .bigNow{font:600 44px/1 var(--mono);letter-spacing:-.04em}
   .planHead .say{font-size:14px;color:var(--ink2);flex:1 1 180px}
   .chips{display:flex;gap:4px;flex-wrap:wrap}
   .key{display:flex;gap:14px;flex-wrap:wrap;font:11px var(--mono);color:var(--mute);margin-top:8px}
   .key i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px;background:var(--ink)}
+  .key i.w{background:var(--water)}
   .key i.r{background:var(--red)}.key i.g{background:var(--green)}.key i.l{background:none;border-radius:0;height:3px;width:16px;vertical-align:3px;background:var(--path);opacity:.3}
   .deck{display:flex;align-items:center;gap:10px;margin-top:10px}
   .deck button{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:var(--ink);color:var(--paper);cursor:pointer;font-size:15px}
@@ -140,6 +122,26 @@
   .pair .t{height:7px;background:var(--neutral);border-radius:0 4px 4px 0;margin-top:3px;min-width:2px}.pair .t.now{background:var(--ink)}
   .pair small{font:11px var(--mono);color:var(--mute);display:block;margin-top:2px}
   .sub2{font:12px var(--mono);color:var(--mute)}
+  /* an opened room */
+  .rt{font-size:21px;letter-spacing:-.02em;margin:0}
+  .facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px}
+  .fact{border:1px solid var(--line);border-radius:3px;padding:8px 10px}
+  .fact small{display:block;font:11px var(--mono);color:var(--mute)}
+  .fact b{display:block;font:600 19px var(--mono);letter-spacing:-.03em}
+  .fact i{display:block;font:normal 10.5px var(--mono);color:var(--mute)}
+  .h3{font:12px var(--mono);color:var(--mute);margin:0 0 6px;font-weight:500}
+  .touch{margin-top:12px}.touch h3{font:12px var(--mono);color:var(--mute);margin:0 0 6px;font-weight:500}
+  .tgrid{display:grid;grid-template-columns:repeat(10,1fr);gap:1px;max-width:190px;aspect-ratio:10/16;border:1px solid var(--line)}
+  .pinFix{background:var(--redBg);padding:8px 10px;border-radius:3px;margin-top:8px;font-size:14px}.pinFix b{display:block}.pinFix span{font:12px var(--mono);color:var(--ink2)}
+  /* fix first */
+  .fix{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;padding:12px 0;border-top:1px solid var(--line);align-items:start}
+  .fix .no{font:600 18px var(--mono);color:var(--mute)}
+  .fix b{font-size:15.5px}.fix p{margin:2px 0 6px;font-size:13.5px;color:var(--ink2)}
+  .fix .tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .fix .val{text-align:right}.fix strong{display:block;font:600 19px var(--mono);letter-spacing:-.03em}.fix small{font:11px var(--mono);color:var(--mute)}
+  .fix.maybe{opacity:.72}
+  .tag.good{color:var(--green);border-color:var(--green)}
+  .seg-pick{background:none;border:1px solid var(--line);border-radius:3px;padding:6px 8px;min-height:36px;font:12px var(--mono);color:var(--ink2);max-width:150px}
   /* the order form, box by box */
   .chain{display:flex;gap:2px;margin:6px 0 4px}
   .chain>div{min-width:64px;padding:8px 10px;color:var(--paper);background:var(--h4);font-size:12.5px;overflow:hidden}
@@ -153,7 +155,7 @@
   .fb .sub2{margin-top:2px;display:flex;flex-wrap:wrap;gap:3px 12px}
   .fb .sub2 b{font-weight:500;color:var(--redText)}
   /* traffic */
-  .heroes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+  .heroes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
   .hero{background:var(--card);border:1px solid var(--line);border-radius:3px;padding:12px 16px}
   .hero small{display:block;font:12px var(--mono);color:var(--mute)}
   .hero b{display:block;font:600 clamp(24px,4.4vw,38px)/1.15 var(--mono);letter-spacing:-.04em}
@@ -241,14 +243,16 @@
   <div class="range" id="range">
     <button data-d="0">Today</button><button data-d="6">7 days</button><button data-d="29">30 days</button><button data-d="89">90 days</button>
     <input type="date" id="from" aria-label="From date"><input type="date" id="to" aria-label="To date">
+    <select id="seg" class="seg-pick" aria-label="Who to show"><option value="">Everyone</option><option value="dev:Phone">Phones</option><option value="dev:Computer">Computers</option><option value="new:1">New visitors</option><option value="new:0">Returning</option><option value="src:Instagram">From Instagram</option><option value="src:Search">From search</option><option value="src:Direct or shared link">Direct or shared</option></select>
   </div>
 </header>
 <nav class="tabs" id="tabs" aria-label="Sections">
-  <button data-v="now">Shop floor</button><button data-v="loop">The leak</button><button data-v="form">Order form</button><button data-v="traffic">Traffic</button>
+  <button data-v="now">Shop floor</button><button data-v="fix">Fix first</button><button data-v="loop">The leak</button><button data-v="form">Order form</button><button data-v="traffic">Traffic</button>
   <button data-v="behave">Scroll map</button><button data-v="products">Products</button><button data-v="visits">Visits</button>
 </nav>
 <main>
   <section class="view" id="v-now"></section>
+  <section class="view" id="v-fix"></section>
   <section class="view" id="v-loop"></section>
   <section class="view" id="v-form"></section>
   <section class="view" id="v-traffic"></section>
@@ -272,7 +276,6 @@
   const shift = (day, n) => new Date(Date.parse(day) + n * 864e5).toISOString().slice(0, 10);
   const short = (s, n) => { s = String(s ?? ""); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
   const hash = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
-  const stillMotion = () => matchMedia("(prefers-reduced-motion:reduce)").matches;
 
   // same key as the billing portal; the address never keeps it
   const u = new URL(location.href);
@@ -350,263 +353,320 @@
   const FRICTION = ["rage", "dead", "invalid", "formerr", "err", "abandon"];
   const tone = (e) => (FRICTION.includes(e) ? "bad" : ["paid", "enq"].includes(e) ? "good" : "");
 
-  // ---- the shop floor ----
-  // The website drawn as a shop. Every room is a real part of the journey; a dot is one visitor.
-  const floor = { mode: "live", wide: null, rooms: null, racks: [], dots: new Map(), day: null, dayData: null, replay: null, playing: false, raf: 0, last: 0, sel: "", dayAt: 0 };
-  const isWide = () => innerWidth >= 720;
-  const ZONES = [["hero", "Top of the page"], ["stats", "Why Vibe X"], ["feat", "Featured"], ["rack", "Fresh off the truck"], ["find", "Find your fit"], ["looks-sec", "Just landed"], ["how", "How it works"], ["visit", "The store"], ["latest", "Latest video"]];
-  const BOXES = [["name", "Name"], ["phone", "Phone number"], ["delivery", "Pick up/deliver"], ["address", "Address"], ["city", "City"], ["pin", "PIN code"]];
-  function layout(wide) {
-    const R = (x, y, w, h, label, sub) => ({ x, y, w, h, label, sub });
-    const out = wide
-      ? { W: 1000, H: 500, door: [70, 250], rooms: { front: R(70, 16, 320, 468, "Front room", "Home page, by section"), back: R(390, 364, 300, 120, "Back room", "Other pages"), till1: R(690, 16, 190, 214, "Till 1", "Filling in the form"), till2: R(880, 16, 100, 214, "Till 2", "Paying"), sold: R(690, 230, 290, 134, "Sold"), out: R(690, 364, 290, 120, "Walked out", "Left checkout") }, rack: [390, 16, 300, 348], gaps: [[70, 225, 70, 275], [390, 165, 390, 225], [690, 90, 690, 150], [760, 230, 820, 230], [760, 364, 820, 364], [880, 100, 880, 150]], street: true }
-      : { W: 358, H: 900, door: [179, 34], rooms: { front: R(4, 34, 350, 282, "Front room", "Home page, by section"), till1: R(4, 546, 234, 190, "Till 1", "Filling in the form"), till2: R(238, 546, 116, 190, "Till 2", "Paying"), sold: R(179, 736, 175, 90, "Sold"), out: R(4, 736, 175, 90, "Walked out"), back: R(4, 826, 350, 70, "Back room", "Other pages") }, rack: [4, 316, 350, 230], gaps: [[150, 34, 208, 34], [150, 316, 208, 316], [150, 546, 208, 546], [238, 620, 238, 660], [240, 736, 300, 736], [60, 736, 120, 736]], street: false };
-    const [x, y, w, h] = out.rack, cols = 2, rows = 4, cw = w / cols, ch = h / rows;
-    for (let i = 0; i < 8; i++) out.rooms[`r${i}`] = R(x + (i % cols) * cw, y + Math.floor(i / cols) * ch, cw, ch, "", "");
-    const stack = (room, list, prefix, bottom) => { const r = out.rooms[room], top = 38, each = (r.h - top - bottom) / list.length; list.forEach(([k, label], i) => (out.rooms[`${prefix}${k}`] = R(r.x, r.y + top + i * each, r.w, each, label, ""))); };
-    stack("front", ZONES, "z:", 4); stack("till1", BOXES, "f:", 4);
-    return out;
+  // ---- the water floor ----
+  // The shop as connected tanks. One person is one droplet; thousands run together into pools that flow from room
+  // to room. Rooms swell as people arrive and shrink as they leave, and press one to open it up.
+  const ROOMS = [
+    ...[["hero", "Top of the page"], ["stats", "Why Vibe X"], ["feat", "Featured"], ["rack", "Fresh off the truck"], ["find", "Find your fit"], ["looks-sec", "Just landed"], ["how", "How it works"], ["visit", "The store"], ["latest", "Latest video"]].map(([k, label]) => ({ key: `z:${k}`, label, group: "home" })),
+    ...[["name", "Name"], ["phone", "Phone number"], ["delivery", "Pick up or deliver"], ["address", "Address"], ["city", "City"], ["pin", "PIN code"]].map(([k, label]) => ({ key: `f:${k}`, label, group: "form" })),
+    { key: "pay", label: "Paying", group: "end" }, { key: "sold", label: "Sold", group: "end" }, { key: "left", label: "Walked out", group: "end" }, { key: "back", label: "Other pages", group: "end" },
+  ];
+  const GROUPS = { home: "Home page", products: "Products", form: "Order form", end: "The end" };
+  const water = { on: false, rooms: new Map(), drops: [], k: 1, focus: "", mode: "live", wide: true, W: 0, H: 0, edges: [], total: 0, slot: -1, replay: null, playing: false, last: 0, pos: 0, products: [], colors: null, day: "" };
+  const still = () => matchMedia("(prefers-reduced-motion:reduce)").matches;
+  const SCALE = 2, MAX_DROPS = () => (water.wide ? 1400 : 700);
+
+  function readColors() {
+    const c = getComputedStyle(document.documentElement), hex = (v) => { const h = c.getPropertyValue(v).trim().replace("#", ""); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; };
+    water.colors = { water: hex("--water"), rim: hex("--waterRim"), bad: hex("--red"), good: hex("--green"), ink: c.getPropertyValue("--ink").trim(), mute: c.getPropertyValue("--mute").trim(), line: c.getPropertyValue("--line").trim(), card: c.getPropertyValue("--card").trim(), paper: c.getPropertyValue("--paper").trim() };
   }
-  const topRoom = (k) => (k.startsWith("z:") ? "front" : k.startsWith("f:") ? "till1" : k);
-  function roomOf(path, step, zone, box) {
-    if (step === "Paid") return "sold"; if (step === "Left checkout") return "out"; if (step === "At checkout: paying") return "till2";
-    if (step === "At checkout: details") return floor.rooms[`f:${box}`] ? `f:${box}` : "f:name";
-    if (path === "/") return floor.rooms[`z:${zone}`] ? `z:${zone}` : "z:hero";
-    const m = /^\/p\/(.+)$/.exec(path || "");
-    if (m) { const i = floor.racks.findIndex((r) => r.id === m[1]); return `r${i >= 0 ? i : 7}`; }
-    return "back";
+  function roomFor(key) {
+    let r = water.rooms.get(key);
+    if (!r && key.startsWith("p:")) r = water.rooms.get(water.products.includes(key) ? key : "p:other");
+    return r;
   }
-  // grid inside a room, so people never sit on top of each other
-  function seat(room, i) {
-    const r = floor.rooms[room];
-    if (/^[zf]:/.test(room)) { const dx = r.x + (room[0] === "z" ? 176 : 150), cols = Math.max(1, Math.floor((r.x + r.w - dx - 6) / 18)); return [dx + 4 + (i % cols) * 18, r.y + r.h / 2]; }
-    const pad = 15, top = room.startsWith("r") ? 26 : 44, cols = Math.max(1, Math.floor((r.w - pad * 2) / 22)), rows = Math.max(1, Math.floor((r.h - top - 8) / 22));
-    const c = i % cols, l = Math.floor(i / cols) % rows;
-    return [r.x + pad + 8 + c * 22, r.y + top + 6 + l * 22];
+  function setProducts(list) {
+    const keys = list.slice(0, 7).map((p) => `p:${p.id}`);
+    if (keys.join() === water.products.join() && water.rooms.size) return;
+    water.products = keys;
+    const had = water.rooms, next = new Map();
+    const seed = [...ROOMS.slice(0, 9), ...list.slice(0, 7).map((p) => ({ key: `p:${p.id}`, label: p.name, group: "products" })), { key: "p:other", label: "Other products", group: "products" }, ...ROOMS.slice(9)];
+    for (const r of seed) next.set(r.key, had.get(r.key) ? { ...had.get(r.key), label: r.label } : { ...r, n: 0, bad: 0, good: 0, time: 0, x: 0, y: 0, w: 0, h: 0, vx: 0, vy: 0, vw: 0, vh: 0, tx: 0, ty: 0, tw: 0, th: 0, fresh: true });
+    water.rooms = next;
+    layout();
   }
-  function drawFloor() {
-    const wide = isWide(); floor.wide = wide;
-    const L = layout(wide); floor.rooms = L.rooms; floor.door = L.door; floor.dots.clear();
-    const label = (r, big) => `<text class="rl b" x="${r.x + 10}" y="${r.y + 18}">${esc(r.label)}</text>${r.sub ? `<text class="rl" x="${r.x + 10}" y="${r.y + 32}">${esc(r.sub)}</text>` : ""}`;
-    const rooms = ["front", "back", "till1", "till2", "sold", "out"].map((k) => { const r = L.rooms[k]; return `<rect class="floor" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/><rect class="room" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/>${label(r)}`; }).join("");
-    const racks = Array.from({ length: 8 }, (_, i) => { const r = L.rooms[`r${i}`], name = floor.racks[i]?.name || (i === 7 ? "Other racks" : ""); return `<rect class="floor" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/><rect class="room" style="stroke-width:.7" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/><rect class="furn" x="${r.x + 8}" y="${r.y + r.h - 9}" width="${r.w - 16}" height="4"/><text class="rl" x="${r.x + 9}" y="${r.y + 15}" data-rack="${i}">${esc(short(name, wide ? 19 : 21))}</text>`; }).join("");
-    const [fx, fy, fw, fh] = L.rack;
-    const counters = `<rect class="furn" x="${L.rooms.till2.x + 10}" y="${L.rooms.till2.y + L.rooms.till2.h - 16}" width="${L.rooms.till2.w - 20}" height="7"/>`;
-    const tallies = ["sold", "out"].map((k) => { const r = L.rooms[k]; return `<text class="tally" id="t-${k}" text-anchor="end" x="${r.x + r.w - 12}" y="${r.y + 40}"></text>`; }).join("");
-    const rowsOf = [...ZONES.map(([k]) => `z:${k}`), ...BOXES.map(([k]) => `f:${k}`)].map((k) => { const r = L.rooms[k], tx = r.x + (k[0] === "z" ? 138 : 118), id = k.replace(":", "-"); return `<rect class="zone" id="zs-${id}" x="${r.x + 1}" y="${r.y}" width="${r.w - 2}" height="${r.h}"/><line class="zrule" x1="${r.x}" x2="${r.x + r.w}" y1="${r.y}" y2="${r.y}"/><text class="zl" x="${r.x + 10}" y="${r.y + r.h / 2 + 4}">${esc(r.label)}</text><text class="zt" id="zt-${id}" x="${tx}" y="${r.y + r.h / 2 + 4}"></text>`; }).join("");
-    const street = L.street ? `<text class="rl" x="4" y="256" style="font-size:10px">STREET</text>` : `<text class="rl" x="4" y="24" style="font-size:10px">STREET</text>`;
-    $("planBox").innerHTML = `<svg id="planSvg" viewBox="0 0 ${L.W} ${L.H}" role="img" aria-label="Floor plan of the shop. Each dot is a visitor.">${street}${rooms}${rowsOf}${racks}<rect class="room" x="${fx}" y="${fy}" width="${fw}" height="${fh}"/>${counters}${L.gaps.map(([a, b, c, d]) => `<line class="door" x1="${a}" y1="${b}" x2="${c}" y2="${d}"/>`).join("")}<g id="worn"></g><g id="scuffs"></g>${tallies}<g id="people"></g></svg>`;
-    $("planBox").classList.toggle("fast", floor.mode === "replay");
+  // Rooms share the floor by how many people are in them, on a gentle curve so a crowd can't crush the others.
+  function layout() {
+    const rooms = [...water.rooms.values()], total = rooms.reduce((n, r) => n + r.n, 0) || 1;
+    const weight = (r) => 0.16 + (r.n ? Math.pow(r.n / total, 0.55) * 2.2 : 0) + (r.key === water.focus ? 3.2 : 0);
+    const by = {}; for (const r of rooms) (by[r.group] ||= []).push(r);
+    const { W, H } = water, GAP = 5, HEAD = 18;
+    const fill = (list, x, y, w, h, vertical = true) => {
+      const room = vertical ? h - GAP * (list.length - 1) : w - GAP * (list.length - 1), min = water.focus ? 13 : 20, sum_ = list.reduce((n, r) => n + weight(r), 0);
+      let spare = room - min * list.length, at = vertical ? y : x;
+      for (const r of list) {
+        const size = min + Math.max(0, spare) * (weight(r) / sum_);
+        if (vertical) { r.tx = x; r.ty = at; r.tw = w; r.th = size; } else { r.tx = at; r.ty = y; r.tw = size; r.th = h; }
+        at += size + GAP;
+      }
+    };
+    const order = ["home", "products", "form", "end"].filter((g) => by[g]);
+    if (water.wide) {
+      const colW = (g) => 0.75 + by[g].reduce((n, r) => n + weight(r), 0) * 0.28, sum_ = order.reduce((n, g) => n + colW(g), 0);
+      let x = 0, spare = W - GAP * 3 * (order.length - 1) - 96 * order.length;
+      for (const g of order) { const w = 96 + spare * (colW(g) / sum_); fill(by[g], x, HEAD, w, H - HEAD); by[g].head = [x, 12]; x += w + GAP * 3; }
+    } else {
+      const each = order.map((g) => ({ g, weight: by[g].reduce((n, r) => n + weight(r), 0) + by[g].length * 0.2 })), sum_ = each.reduce((n, g) => n + g.weight, 0);
+      let y = 0, spare = H - (HEAD + GAP * 2) * order.length;
+      for (const { g, weight: w_ } of each) { const h = spare * (w_ / sum_); fill(by[g], 0, y + HEAD, W, h); by[g].head = [0, y + 12]; y += h + HEAD + GAP * 2; }
+    }
+    water.heads = order.map((g) => ({ label: GROUPS[g], at: by[g].head }));
+    for (const r of rooms) if (r.fresh) { r.x = r.tx; r.y = r.ty; r.w = r.tw; r.h = r.th; r.fresh = false; }
+    if (still()) for (const r of rooms) { r.x = r.tx; r.y = r.ty; r.w = r.tw; r.h = r.th; }
+  }
+  // The drops follow the people: anyone moving rooms flows across, rather than one vanishing and another appearing.
+  function syncDrops() {
+    const rooms = [...water.rooms.values()], total = rooms.reduce((n, r) => n + r.n, 0);
+    water.total = total; water.k = Math.max(1, Math.ceil(total / MAX_DROPS()));
+    // the more drops there are, the closer they sit to a full tank; a few stay small
+    water.gap = Math.max(10, Math.min(13.5, Math.sqrt((0.42 * water.W * water.H) / Math.max(1, total / water.k))));
+    const want = new Map(), spare = [];
+    for (const r of rooms) if (r.n) want.set(r, Math.max(1, Math.round(r.n / water.k)));
+    const count = new Map();
+    for (const d of water.drops) { if (d.gone) continue; const have = count.get(d.room) || 0, cap = want.get(d.room) || 0; if (have < cap) count.set(d.room, have + 1); else spare.push(d); }
+    for (const [r, n] of want) for (let i = count.get(r) || 0; i < n; i++) {
+      const d = spare.pop();
+      if (d) d.room = r;
+      else { const [x, y] = water.wide ? [-10, water.H / 2] : [water.W / 2, -10]; water.drops.push({ x: r.x + r.w / 2 || x, y: r.y - 12 || y, vx: 0, vy: 0, room: r, kind: 0, a: 0, phase: Math.random() * 6.28 }); }
+    }
+    for (const d of spare) d.gone = true;
+    for (const r of rooms) {
+      const mine = water.drops.filter((d) => d.room === r && !d.gone), bad = r.n ? Math.round((r.bad / r.n) * mine.length) : 0, good = r.key === "sold" ? mine.length : r.n ? Math.round((r.good / r.n) * mine.length) : 0, reds = r.key === "sold" ? 0 : bad;
+      mine.forEach((d, i) => { d.kind = i < reds ? 1 : i < reds + good ? 2 : 0; d.i = i; d.of = mine.length; });
+    }
+  }
+  function stepWorld(time) {
+    const soft = still() ? 1 : 0.11;
+    for (const r of water.rooms.values()) {
+      if (soft === 1) { r.x = r.tx; r.y = r.ty; r.w = r.tw; r.h = r.th; continue; }
+      for (const [p, v, t] of [["x", "vx", "tx"], ["y", "vy", "ty"], ["w", "vw", "tw"], ["h", "vh", "th"]]) { r[v] = (r[v] + (r[t] - r[p]) * 0.06) * 0.76; r[p] += r[v]; } // a little overshoot, like water settling
+    }
+    for (let i = water.drops.length - 1; i >= 0; i--) {
+      const d = water.drops[i], r = d.room;
+      if (d.gone) { d.a -= 0.05; d.y += 1; if (d.a <= 0) water.drops.splice(i, 1); continue; }
+      d.a = Math.min(1, d.a + 0.06);
+      const s = Math.min(water.gap || 10, Math.sqrt(Math.max(60, (r.w - 8) * (r.h - 8) * 0.8) / Math.max(1, d.of))), cols = Math.max(1, Math.floor((r.w - 8) / s)), row = Math.floor(d.i / cols), rowN = Math.min(cols, d.of - row * cols), sp = d.of <= 3 ? s : (r.w - 8) / rowN, left = d.of <= 3 ? r.x + (r.w - rowN * s) / 2 : r.x + 4;
+      const tx = left + (d.i % cols + 0.5) * sp + (row % 2 ? s * 0.25 : 0), wave = still() ? 0 : Math.sin(d.phase + time / 480 + tx * 0.03) * Math.min(3, 0.6 + d.of * 0.02);
+      const ty = r.y + r.h - 7 - (row + 0.5) * s * 0.9 + wave;
+      if (soft === 1) { d.x = tx; d.y = ty; continue; }
+      d.vx = (d.vx + (tx - d.x) * 0.05) * 0.8; d.vy = (d.vy + (ty - d.y) * 0.05) * 0.8; d.x += d.vx; d.y += d.vy;
+    }
+  }
+  // Each drop adds to a soft field; wherever the field is strong enough there's water, so nearby drops run together.
+  const KR = 9, KERNEL = (() => { const size = KR * 2 + 1, k = new Float32Array(size * size); for (let y = -KR; y <= KR; y++) for (let x = -KR; x <= KR; x++) { const q = 1 - (x * x + y * y) / (KR * KR); k[(y + KR) * size + x + KR] = q > 0 ? q * q * q : 0; } return k; })();
+  function drawWater(ctx) {
+    const lw = water.low.width, lh = water.low.height, F = water.field, size = KR * 2 + 1;
+    F.fill(0);
+    const lone = water.drops.length < 40 ? 1.5 : 1;
+    for (const d of water.drops) {
+      const cx = Math.round(d.x / SCALE), cy = Math.round(d.y / SCALE), amp = d.a * lone, ch = d.kind;
+      for (let y = -KR; y <= KR; y++) { const py = cy + y; if (py < 0 || py >= lh) continue; for (let x = -KR; x <= KR; x++) { const px = cx + x; if (px < 0 || px >= lw) continue; const k = KERNEL[(y + KR) * size + x + KR]; if (k) F[(py * lw + px) * 3 + ch] += k * amp; } }
+    }
+    const px = water.img.data, c = water.colors, cols = [c.water, c.bad, c.good];
+    for (let i = 0, n = lw * lh; i < n; i++) {
+      const a = F[i * 3], b = F[i * 3 + 1], g = F[i * 3 + 2], f = a + b + g, o = i * 4;
+      if (f < 0.55) { px[o + 3] = 0; continue; }
+      const m = 1 / f, rimOn = f < 0.9 ? 0.5 : 0;
+      px[o] = (cols[0][0] * a + cols[1][0] * b + cols[2][0] * g) * m * (1 - rimOn) + c.rim[0] * rimOn;
+      px[o + 1] = (cols[0][1] * a + cols[1][1] * b + cols[2][1] * g) * m * (1 - rimOn) + c.rim[1] * rimOn;
+      px[o + 2] = (cols[0][2] * a + cols[1][2] * b + cols[2][2] * g) * m * (1 - rimOn) + c.rim[2] * rimOn;
+      px[o + 3] = Math.min(232, (f - 0.55) * 520);
+    }
+    water.lowCtx.putImageData(water.img, 0, 0);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+    ctx.save(); ctx.beginPath();
+    for (const r of water.rooms.values()) ctx.roundRect(r.x, r.y, Math.max(1, r.w), Math.max(1, r.h), 5);
+    ctx.clip(); ctx.drawImage(water.low, 0, 0, water.W, water.H); ctx.restore();
+  }
+  function fitText(ctx, text, width) { let t = text; if (ctx.measureText(t).width <= width) return t; while (t.length > 2 && ctx.measureText(`${t}…`).width > width) t = t.slice(0, -1); return `${t}…`; }
+  function drawFrame(time) {
+    const ctx = water.ctx, c = water.colors, { W, H } = water, dpr = water.dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = "500 10px 'Geist Mono',monospace"; ctx.fillStyle = c.mute; ctx.textBaseline = "alphabetic";
+    for (const h of water.heads || []) ctx.fillText(h.label.toUpperCase(), h.at[0] + 1, h.at[1]);
+    for (const r of water.rooms.values()) {
+      ctx.beginPath(); ctx.roundRect(r.x, r.y, Math.max(1, r.w), Math.max(1, r.h), 5);
+      ctx.fillStyle = c.card; ctx.fill(); ctx.strokeStyle = r.key === water.focus ? c.ink : c.line; ctx.lineWidth = r.key === water.focus ? 1.5 : 1; ctx.stroke();
+    }
+    // where people are flowing right now
+    const mid = (r) => [r.x + r.w / 2, r.y + r.h / 2], top = Math.max(1, ...water.edges.map((e) => e.n));
+    ctx.save(); ctx.lineCap = "round"; ctx.strokeStyle = c.ink;
+    for (const e of water.edges) {
+      const a = roomFor(e.a), b = roomFor(e.b); if (!a || !b || a === b || a.group === b.group) continue;
+      const [x1, y1] = mid(a), [x2, y2] = mid(b), dx = (x2 - x1) * 0.5, dy = (y2 - y1) * 0.5;
+      ctx.globalAlpha = 0.07 + 0.1 * (e.n / top); ctx.lineWidth = 1 + Math.sqrt(e.n / top) * 4; ctx.setLineDash(still() ? [] : [2, 11]); ctx.lineDashOffset = still() ? 0 : -time / 40;
+      ctx.beginPath(); ctx.moveTo(x1, y1); if (water.wide) ctx.bezierCurveTo(x1 + dx, y1, x2 - dx, y2, x2, y2); else ctx.bezierCurveTo(x1, y1 + dy, x2, y2 - dy, x2, y2); ctx.stroke();
+    }
+    ctx.restore();
+    drawWater(ctx);
+    ctx.save();
+    for (const r of water.rooms.values()) {
+      if (r.h < 11 || r.w < 30) continue;
+      const big = r.h >= 42 && r.w >= 110, fx = r.x + 7;
+      ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.save(); ctx.clip();
+      ctx.lineJoin = "round"; ctx.strokeStyle = c.card; ctx.lineWidth = 3;
+      ctx.font = `${r.key === water.focus ? 600 : 500} ${big ? 11.5 : 10}px 'Geist Mono',monospace`; ctx.fillStyle = r.n ? c.ink : c.mute;
+      const count = r.n ? num(r.n) : "", room = r.w - 14 - (count ? ctx.measureText(count).width + 8 : 0), y = big ? r.y + 15 : r.y + r.h / 2 + 3.5, name = fitText(ctx, r.label, room);
+      ctx.strokeText(name, fx, y); ctx.fillText(name, fx, y);
+      if (count) { ctx.textAlign = "right"; ctx.font = `600 ${big ? 13 : 10.5}px 'Geist Mono',monospace`; ctx.fillStyle = c.ink; ctx.strokeText(count, r.x + r.w - 7, y); ctx.fillText(count, r.x + r.w - 7, y); ctx.textAlign = "left"; }
+      if (big && r.time && r.key !== "sold" && r.key !== "left") { ctx.font = "10px 'Geist Mono',monospace"; ctx.fillStyle = c.mute; const t = `typically ${dur(r.time)}`; ctx.strokeText(t, fx, y + 13); ctx.fillText(t, fx, y + 13); }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  function loop(time) {
+    if (!water.on) return;
+    if (water.mode === "replay" && water.playing) {
+      const step = (time - water.last) / REPLAY_MS; water.last = time;
+      water.pos = Math.min(1, water.pos + step); applySlot();
+      if (water.pos >= 1) pauseReplay();
+    }
+    stepWorld(time); drawFrame(time);
+    requestAnimationFrame(loop);
+  }
+  function startWater() {
+    if (water.on) return;
+    water.on = true; requestAnimationFrame(loop);
+  }
+  function sizeWater() {
+    const box = $("waterBox"); if (!box) return;
+    const W = box.clientWidth, wide = W >= 720, H = wide ? Math.round(Math.min(640, Math.max(500, W * 0.5))) : 880, cv = $("waterCv"), dpr = Math.min(2, devicePixelRatio || 1);
+    water.W = W; water.H = H; water.wide = wide; water.dpr = dpr;
+    cv.style.height = `${H}px`; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    water.ctx = cv.getContext("2d");
+    if (!water.low) { water.low = document.createElement("canvas"); water.lowCtx = water.low.getContext("2d"); }
+    water.low.width = Math.ceil(W / SCALE); water.low.height = Math.ceil(H / SCALE);
+    water.img = water.lowCtx.createImageData(water.low.width, water.low.height);
+    water.field = new Float32Array(water.low.width * water.low.height * 3);
+    readColors(); layout(); syncDrops();
   }
   function ensureFloor() {
-    if (!$("planBox")) {
-      $("v-now").innerHTML = `<div class="card"><div class="planHead"><div class="bigNow" id="bigN">0</div><div class="say" id="planSay"></div><div class="chips" id="modes"><button type="button" data-m="live" class="on">Live</button><button type="button" data-m="0">Replay today</button><button type="button" data-m="1">Yesterday</button></div></div>
-        <div class="plan" id="planBox"></div><div class="deck hide" id="deck"><button type="button" id="playBtn" aria-label="Pause">❚❚</button><div class="rail"><div id="railArt"></div><input type="range" id="rail" min="0" max="1000" value="0" aria-label="Time of day"></div><time id="railT"></time></div>
-        <div class="key"><span><i></i>Someone in the shop</span><span><i class="r"></i>Stuck, and small red marks where they struggled</span><span><i class="g"></i>Bought</span><span><i class="l"></i>Worn path: the more people, the thicker</span><span>Darker row: more time spent there, with the typical time beside it</span></div><div id="whoBox"></div>
-        <div id="listBox"></div></div>`;
-      $("modes").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; b.dataset.m === "live" ? goLive() : startReplay(Number(b.dataset.m)); };
-      $("playBtn").onclick = () => { if (floor.playing) pause(); else play(); };
-      $("rail").oninput = (e) => { pause(); seek(Number(e.target.value) / 1000); };
-      drawFloor();
-    } else if (floor.wide !== isWide()) drawFloor();
+    if ($("waterBox")) return;
+    $("v-now").innerHTML = `<div class="card"><div class="planHead"><div class="bigNow" id="bigN">0</div><div class="say" id="planSay"></div><div class="chips" id="modes"><button type="button" data-m="live" class="on">Live</button><button type="button" data-m="all">Whole period</button><button type="button" data-m="0">Replay today</button><button type="button" data-m="1">Yesterday</button></div></div>
+      <div id="waterBox" class="waterBox"><canvas id="waterCv" role="img" aria-label="The shop drawn as connected tanks of water. Each tank is a part of the site, and its size and water show how many people are in it. A list of every room follows."></canvas></div>
+      <div class="deck hide" id="deck"><button type="button" id="playBtn" aria-label="Pause">❚❚</button><div class="rail"><div id="railArt"></div><input type="range" id="rail" min="0" max="1000" value="0" aria-label="Time of day"></div><time id="railT"></time></div>
+      <div class="key"><span><i class="w"></i><span id="scaleKey">One drop is one person</span></span><span><i class="r"></i>Hit a problem in that room</span><span><i class="g"></i>Bought</span><span>Press any room to open it</span><span id="lostKey" class="hide"></span></div><div id="whoBox"></div></div>
+      <div id="roomBox"></div><div class="card" id="listCard"><div id="listBox"></div></div>`;
+    $("modes").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; const m = b.dataset.m; m === "live" ? goLive() : m === "all" ? showPeriod() : startReplay(Number(m)); };
+    $("playBtn").onclick = () => { if (water.playing) pauseReplay(); else playReplay(); };
+    $("rail").oninput = (e) => { pauseReplay(); water.pos = Number(e.target.value) / 1000; applySlot(); };
+    const cv = $("waterCv"), hit = (e) => { const b = cv.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top; for (const r of water.rooms.values()) if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return r; return null; };
+    cv.onpointermove = (e) => { const r = hit(e); if (!r) { cv.removeAttribute("data-tip"); cv.style.cursor = ""; return; } cv.style.cursor = "pointer"; cv.dataset.tip = `${r.label}: ${num(r.n)}${r.time ? `, typically ${dur(r.time)}` : ""}`; };
+    cv.onclick = (e) => { const r = hit(e); openRoom(r && r.key !== water.focus ? r.key : ""); };
+    sizeWater();
   }
-  addEventListener("resize", () => { if (state.view === "now" && $("planBox") && floor.wide !== isWide()) { drawFloor(); if (floor.replay) { seek(floor.pos || 0, true); paintZones(floor.dayData); } else paintWorn(); tick(); } });
-  document.addEventListener("click", (e) => {
-    const w = e.target.closest?.(".who");
-    if (!w || !$("whoBox")) return;
-    floor.sel = w.dataset.id; floor.dots.forEach((d, id) => d.el.classList.toggle("sel", id === floor.sel));
-    $("whoBox").textContent = w.dataset.say || "";
-  });
-  // Everyone in the same room sits in order, then moves if the room changes.
-  function place(people) {
-    const box = $("people"); if (!box) return;
-    const byRoom = {}, seen = new Set();
-    for (const p of people) (byRoom[p.room] ||= []).push(p);
-    for (const list of Object.values(byRoom)) {
-      list.sort((a, b) => a.id.localeCompare(b.id));
-      list.forEach((p, i) => {
-        seen.add(p.id);
-        const [x, y] = seat(p.room, i);
-        let d = floor.dots.get(p.id);
-        if (!d) {
-          const el = document.createElementNS("http://www.w3.org/2000/svg", "g");
-          el.innerHTML = `<circle class="halo" r="7"/><circle class="b" r="7"/><circle class="hit" r="14"/>`;
-          el.dataset.id = p.id;
-          el.style.transform = `translate(${floor.door[0]}px,${floor.door[1]}px)`;
-          box.appendChild(el);
-          d = { el }; floor.dots.set(p.id, d);
-          el.getBoundingClientRect(); // so the walk in from the door animates
-        }
-        d.el.setAttribute("class", `who ${p.tone || ""} ${p.id === floor.sel ? "sel" : ""}`);
-        d.el.dataset.tip = p.tip; d.el.dataset.say = p.tip;
-        d.el.style.transform = `translate(${x}px,${y}px)`;
-      });
-    }
-    for (const [id, d] of floor.dots) if (!seen.has(id)) {
-      d.el.style.transform = `translate(${floor.door[0]}px,${floor.door[1]}px)`; d.el.style.opacity = 0;
-      setTimeout(() => d.el.remove(), 1400); floor.dots.delete(id);
-    }
-  }
-  // Worn paths: a line between two rooms, thicker the more people walked it.
-  function drawWorn(counts) {
-    const g = $("worn"); if (!g) return;
-    const both = {};
-    for (const [k, n] of Object.entries(counts)) { const pair = k.split(">"), key = pair[0] === "door" ? k : [...pair].sort().join(">"); both[key] = (both[key] || 0) + n; }
-    const top = Math.max(1, ...Object.values(both)), wide = floor.wide;
-    const mid = (k) => {
-      const r = floor.rooms[k];
-      if (k === "front") return wide ? [r.x + r.w - 6, r.y + r.h / 2] : [r.x + r.w / 2, r.y + r.h - 6];
-      if (k === "till1") return wide ? [r.x + r.w - 40, r.y + 22] : [r.x + r.w - 40, r.y + 22];
-      return [r.x + r.w / 2, r.y + r.h / 2];
-    };
-    g.innerHTML = Object.entries(both).map(([k, n]) => {
-      const [a, b] = k.split(">");
-      if (a === "door" || !floor.rooms[b] || !floor.rooms[a]) return "";
-      const [x1, y1] = a === "door" ? floor.door : mid(a), [x2, y2] = mid(b), dx = (x2 - x1) * 0.55, dy = (y2 - y1) * 0.55;
-      const c = wide ? `C${x1 + dx} ${y1} ${x2 - dx} ${y2}` : `C${x1} ${y1 + dy} ${x2} ${y2 - dy}`;
-      return `<path class="worn" d="M${x1} ${y1}${c} ${x2} ${y2}" stroke-width="${(1.5 + (Math.sqrt(n / top) * 16)).toFixed(1)}" data-tip="${n} walked this way"/>`;
-    }).join("");
-  }
-  function drawMarks(scuffs, sold, out) {
-    const g = $("scuffs"); if (!g) return;
-    g.innerHTML = Object.entries(scuffs).map(([room, n]) => {
-      const r = floor.rooms[room]; if (!r) return "";
-      return Array.from({ length: Math.min(n, 14) }, (_, i) => { const h = hash(`${room}${i}`); return `<circle class="scuff" r="2.6" cx="${r.x + 10 + (h % Math.max(1, r.w - 20))}" cy="${r.y + 28 + ((h >> 8) % Math.max(1, r.h - 36))}"/>`; }).join("");
-    }).join("");
-    if ($("t-sold")) { $("t-sold").textContent = sold || ""; $("t-out").textContent = out || ""; }
-  }
-  // The floor itself shows where the time goes: darker rows, with the typical time for each.
-  function paintZones(d) {
-    const paint = (list, prefix, weigh) => {
-      const top = Math.max(1, ...list.map(weigh));
-      for (const z of list) {
-        const id = `${prefix}-${z.key}`, sh = $(`zs-${id}`), t = $(`zt-${id}`);
-        if (sh) sh.style.opacity = (0.03 + (weigh(z) / top) * 0.19).toFixed(3);
-        if (t) t.textContent = dur(z.medianTime);
-      }
-    };
-    paint(d?.zones?.home || [], "z", (z) => z.totalTime);
-    paint(d?.forms?.checkout.boxes || [], "f", (z) => z.medianTime);
-  }
-  function pathsOf(v) { // the rooms one visit passed through, with times
-    const tl = []; let step = "", path = "/", zone = "", box = "";
-    for (const s of [...v.steps].sort((a, b) => a.t - b.t)) {
-      if (s.e === "page") { path = s.p; step = ""; zone = ""; box = ""; }
-      else if (s.e === "sec") zone = s.key; else if (s.e === "field") box = s.key;
-      else if (s.e === "checkout") step = "At checkout: details"; else if (s.e === "details") step = "At checkout: paying"; else if (s.e === "paid") step = "Paid"; else if (s.e === "abandon") step = "Left checkout";
-      else if (!FRICTION.includes(s.e)) continue;
-      const room = roomOf(path, step, zone, box), hurt = FRICTION.includes(s.e);
-      if (!tl.length || tl[tl.length - 1].room !== room || hurt) tl.push({ t: s.t, room, hurt, sold: s.e === "paid", walked: s.e === "abandon" });
-    }
-    return tl;
-  }
-  function pickRacks(d) { floor.racks = d.products.slice(0, 7).map((p) => ({ id: p.id, name: p.name })); }
-  async function loadDay(back) {
-    const day = shift(today(), -back);
-    const d = await api(`report?from=${day}&to=${day}`);
-    floor.day = day; floor.dayData = d; floor.dayAt = Date.now();
-    const had = floor.racks.map((r) => r.id).join();
-    pickRacks(d);
-    if (had !== floor.racks.map((r) => r.id).join() && $("planBox")) drawFloor();
-    return d;
-  }
-  // Today's paths stay on the floor, so the shop still says something when it's empty.
-  function paintWorn() {
-    const d = floor.dayData; if (!d) return;
-    const counts = {}, scuffs = {}; let sold = 0, out = 0;
-    for (const v of d.visits) {
-      let prev = "door";
-      for (const s of pathsOf(v)) {
-        const r = topRoom(s.room);
-        if (r !== prev) { const k = `${prev}>${r}`; counts[k] = (counts[k] || 0) + 1; prev = r; }
-        if (s.hurt && !s.walked) scuffs[r] = (scuffs[r] || 0) + 1;
-        if (s.sold) sold++; if (s.walked) out++;
-      }
-    }
-    drawWorn(counts); drawMarks(scuffs, sold, out); paintZones(d);
-  }
-  function setMode(m) {
-    floor.mode = m === "live" ? "live" : "replay";
-    $("modes").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.m === String(m)));
-    $("deck").classList.toggle("hide", floor.mode === "live"); $("planBox").classList.toggle("fast", floor.mode === "replay");
-    $("listBox").classList.toggle("hide", floor.mode !== "live");
-    $("whoBox").textContent = ""; floor.sel = "";
-  }
-  async function goLive() {
-    pause(); floor.replay = null; setMode("live");
-    place([]);
-    try { await loadDay(0); paintWorn(); } catch { /* the plan still shows who's here */ }
-    tick();
-  }
-  // ---- replay ----
-  const REPLAY_MS = 60e3; // a whole day in one minute
-  async function startReplay(back) {
-    pause(); setMode(back);
-    let d; try { d = await loadDay(back); } catch { return; }
-    const list = d.visits.map((v) => ({ id: v.s, v, tl: pathsOf(v) })).filter((x) => x.tl.length);
-    if (!list.length) { await goLive(); $("planSay").textContent = back ? "Nobody came in yesterday." : "Nobody has come in yet today."; return; }
-    const t0 = Math.min(...list.map((x) => x.tl[0].t)) - 12e5, t1 = Math.max(...list.map((x) => x.tl[x.tl.length - 1].t)) + 18e5;
-    // A real visit lasts seconds, which a one-minute day would hide, so each stop is held long enough to see.
-    const hold = (t1 - t0) / 140;
-    for (const x of list) { let at = x.tl[0].t; x.tl.forEach((s) => { at = s.at = Math.max(at, s.t); at += hold; }); x.end = at + hold; }
-    const moves = [];
-    for (const x of list) { let prev = "door"; for (const s of x.tl) { const r = topRoom(s.room); moves.push({ at: s.at, a: prev, b: r, s }); prev = r; } }
-    moves.sort((a, b) => a.at - b.at);
-    const hours = {}; for (const x of list) { const k = Math.floor(((x.tl[0].t - t0) / (t1 - t0)) * 60); hours[k] = (hours[k] || 0) + 1; }
-    const top = Math.max(...Object.values(hours));
-    $("railArt").innerHTML = `<svg viewBox="0 0 600 34" preserveAspectRatio="none" aria-hidden="true">${Object.entries(hours).map(([k, n]) => `<rect x="${k * 10}" y="${30 - (n / top) * 28}" width="8" height="${(n / top) * 28}" fill="var(--neutral)"/>`).join("")}</svg>`;
-    floor.replay = { list, moves, t0, t1, cap: d.visits.length >= 200 };
-    paintZones(d);
-    $("bigN").textContent = "0"; seek(0); play();
-  }
-  function seek(pos, force) {
-    const r = floor.replay; if (!r) return;
-    floor.pos = pos;
-    const T = r.t0 + pos * (r.t1 - r.t0);
-    $("railT").textContent = clock(T);
-    if (document.activeElement !== $("rail")) $("rail").value = Math.round(pos * 1000);
-    const people = [];
-    for (const x of r.list) {
-      if (T < x.tl[0].at || T > x.end) continue;
-      let s = x.tl[0], hurt = false; for (const e of x.tl) { if (e.at <= T) { s = e; hurt = hurt || e.hurt; } }
-      people.push({ id: x.id, room: s.room, tone: s.sold ? "good" : hurt ? "bad" : "", tip: `${x.v.source}, ${x.v.device}. ${clock(x.v.start)}. ${x.v.outcome}` });
-    }
-    place(people);
-    $("bigN").textContent = people.length;
-    const counts = {}, scuffs = {}; let sold = 0, out = 0;
-    for (const m of r.moves) {
-      if (m.at > T) break;
-      if (m.a !== m.b) { const k = `${m.a}>${m.b}`; counts[k] = (counts[k] || 0) + 1; }
-      if (m.s.sold) sold++; if (m.s.walked) out++; if (m.s.hurt && !m.s.walked) scuffs[m.b] = (scuffs[m.b] || 0) + 1;
-    }
-    if (force || !floor.wornAt || Date.now() - floor.wornAt > 240) { drawWorn(counts); drawMarks(scuffs, sold, out); floor.wornAt = Date.now(); }
-    $("planSay").textContent = `${floor.day === today() ? "Today" : "Yesterday"}, sped up. Each stop is held long enough to see.${r.cap ? " Latest 200 visits." : ""}`;
-  }
-  function frame(now) {
-    if (!floor.playing) return;
-    const step = (now - floor.last) / REPLAY_MS; floor.last = now;
-    const pos = Math.min(1, (floor.pos || 0) + step);
-    seek(pos);
-    if (pos >= 1) { pause(); seek(1, true); return; }
-    floor.raf = requestAnimationFrame(frame);
-  }
-  function play() { if (!floor.replay) return; if ((floor.pos || 0) >= 1) floor.pos = 0; floor.playing = true; floor.last = performance.now(); $("playBtn").textContent = "❚❚"; $("playBtn").setAttribute("aria-label", "Pause"); floor.raf = requestAnimationFrame(frame); }
-  function pause() { floor.playing = false; cancelAnimationFrame(floor.raf); if ($("playBtn")) { $("playBtn").textContent = "▶"; $("playBtn").setAttribute("aria-label", "Play"); } }
+  addEventListener("resize", () => { if (state.view === "now" && $("waterBox")) sizeWater(); });
+  matchMedia("(prefers-color-scheme:dark)").addEventListener?.("change", () => { if ($("waterBox")) readColors(); });
 
+  function setRooms(fill, edges) {
+    for (const r of water.rooms.values()) { r.n = 0; r.bad = 0; r.good = 0; }
+    for (const [k, q] of Object.entries(fill)) { const r = roomFor(k); if (!r) continue; r.n += q.n; r.bad += q.bad || 0; r.good += q.good || 0; if (q.time) r.time = q.time; }
+    water.edges = edges.sort((a, b) => b.n - a.n).slice(0, 14);
+    layout(); syncDrops();
+    $("scaleKey").textContent = water.k > 1 ? `One drop is about ${num(water.k)} people` : "One drop is one person";
+    $("bigN").textContent = num(water.total);
+  }
+  const timesFrom = (d) => { for (const p of d?.plan || []) { const r = roomFor(p.key); if (r) r.time = p.medianTime; } };
+  function modeOn(m) {
+    water.mode = m === "live" ? "live" : m === "all" ? "all" : "replay";
+    $("modes").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.m === String(m)));
+    $("deck").classList.toggle("hide", water.mode !== "replay");
+    $("listCard").classList.toggle("hide", water.mode !== "live");
+    $("whoBox").textContent = "";
+  }
+  function goLive() { pauseReplay(); water.replay = null; modeOn("live"); tick(); }
+  function showPeriod() {
+    pauseReplay(); modeOn("all");
+    const d = state.data; if (!d) { loadReport().then(() => { if (water.mode === "all" && state.data) showPeriod(); }); return; }
+    const fill = Object.fromEntries(d.plan.map((p) => [p.key, { n: p.people, bad: p.stuck, good: p.key === "sold" ? p.people : 0, time: p.medianTime }]));
+    setRooms(fill, d.edges.map((e) => ({ ...e })));
+    $("planSay").textContent = `Everyone from ${state.from} to ${state.to}: how many passed through each room, and where they went next.`;
+  }
+  // ---- replay: the whole day, however many people came ----
+  const REPLAY_MS = 60e3;
+  async function startReplay(back) {
+    pauseReplay(); modeOn(back);
+    const day = shift(today(), -back);
+    let d; try { d = await api(`report?from=${day}&to=${day}${segQ()}`); } catch { return; }
+    const T = d.timeline, busy = T?.slots.map((s) => Object.values(s.rooms).reduce((n, c) => n + c[0], 0)) || [];
+    if (!busy.some(Boolean)) { goLive(); $("planSay").textContent = back ? "Nobody came in yesterday." : "Nobody has come in yet today."; return; }
+    setProducts(d.products); timesFrom(d);
+    const a = busy.findIndex(Boolean), z = busy.length - 1 - [...busy].reverse().findIndex(Boolean), top = Math.max(...busy);
+    water.replay = { T, a, z, day };
+    $("railArt").innerHTML = `<svg viewBox="0 0 ${z - a + 1} 34" preserveAspectRatio="none" aria-hidden="true">${busy.slice(a, z + 1).map((n, i) => `<rect x="${i + 0.08}" y="${30 - (n / top) * 28}" width=".84" height="${(n / top) * 28}" fill="var(--neutral)"/>`).join("")}</svg>`;
+    water.pos = 0; water.slot = -1; applySlot(); playReplay();
+  }
+  function applySlot() {
+    const R = water.replay; if (!R) return;
+    const i = Math.min(R.z, R.a + Math.floor(water.pos * (R.z - R.a + 1))), at = R.T.t0 + (R.a + water.pos * (R.z - R.a + 1)) * R.T.step;
+    $("railT").textContent = clock(at);
+    if (document.activeElement !== $("rail")) $("rail").value = Math.round(water.pos * 1000);
+    if (i === water.slot) return;
+    water.slot = i;
+    const s = R.T.slots[i], fill = Object.fromEntries(Object.entries(s.rooms).map(([k, c]) => [k, { n: c[0], bad: c[1], good: c[2] }]));
+    setRooms(fill, Object.entries(s.edges).map(([k, n]) => { const [a, b] = k.split(">"); return { a, b, n }; }));
+    $("planSay").textContent = `${R.day === today() ? "Today" : "Yesterday"}, a minute for the whole day. Shown in 15-minute steps.`;
+  }
+  function playReplay() { if (!water.replay) return; if (water.pos >= 1) { water.pos = 0; water.slot = -1; } water.playing = true; water.last = performance.now(); $("playBtn").textContent = "❚❚"; $("playBtn").setAttribute("aria-label", "Pause"); }
+  function pauseReplay() { water.playing = false; if ($("playBtn")) { $("playBtn").textContent = "▶"; $("playBtn").setAttribute("aria-label", "Play"); } }
+
+  // ---- a room, opened up ----
+  const fact = (a, b, sub) => `<div class="fact"><small>${esc(a)}</small><b>${esc(b)}</b>${sub ? `<i>${esc(sub)}</i>` : ""}</div>`;
+  function touchMap(grid) {
+    if (!grid.length) return "";
+    const top = Math.max(...grid.map((g) => g[2])), cells = new Map(grid.map(([x, y, n]) => [`${x},${y}`, n]));
+    let html = ""; for (let y = 0; y < 16; y++) for (let x = 0; x < 10; x++) { const n = cells.get(`${x},${y}`) || 0, l = n ? Math.min(5, 1 + Math.floor((n / top) * 4.99)) : 0; html += `<div style="background:var(--h${l})" ${n ? `data-tip="${n} presses here"` : ""}></div>`; }
+    return `<div class="touch"><h3>Where fingers land in this section</h3><div class="tgrid">${html}</div></div>`;
+  }
+  function renderRoom() {
+    const box = $("roomBox"); if (!box) return;
+    const key = water.focus, r = key && water.rooms.get(key), d = state.data;
+    if (!r) { box.innerHTML = ""; return; }
+    const keys = key === "p:other" ? water.products : [key], p = d?.plan.find((x) => keys.includes(x.key)), fx = (d?.fixes || []).filter((f) => f.room === key || (key.startsWith("p:") && f.room === "p:"));
+    const head = `<div class="cardHead"><div><h2 class="rt">${esc(r.label)}</h2><p class="sub2">${esc(state.from)} to ${esc(state.to)}${state.seg ? `, ${esc($("seg").selectedOptions[0].textContent)}` : ""}</p></div><button class="plain" id="roomX" type="button">Close</button></div>`;
+    if (!p) { box.innerHTML = card("", `${head}<p class="empty">Nobody has been here in these dates.</p>`); $("roomX").onclick = () => openRoom(""); return; }
+    const z = p.detail, facts = [fact("People", num(p.people)), fact("Typical time", dur(p.medianTime), `middle half ${dur(p.p25)} to ${dur(p.p75)}`), fact("Went on to buy", `${p.buyRate}%`, `could be ${p.buyRange.low} to ${p.buyRange.high}%`), fact("Left the site here", `${p.exitRate}%`), fact("Hit a problem here", num(p.stuck))];
+    if (z && key.startsWith("z:")) facts.push(fact("Reached this section", `${z.reach}%`), fact("Stopped to read", `${z.readRate}%`, "4 seconds or more"), fact("Came back to it", `${z.backRate}%`), fact("Saw of the section", `${z.seenDepth}%`), fact("Scrolled back up", `${z.reversals}×`, "per person"));
+    if (z && key.startsWith("f:")) facts.push(fact("Before first key", dur(z.hesitate), "looking at the box"), fact("Keys pressed", num(z.keys), "per person"), fact("Corrected it", num(z.corrected)), fact("Pasted", num(z.pasted)), fact("Filled by the phone", num(z.autofilled)), fact("Came back to it", num(z.refocused)), fact("Still wrong on leaving", num(z.invalid)), fact("Error messages", num(z.errors)), fact("Left empty", num(z.empty)), fact("Quit here", num(z.quit)));
+    const pr = key.startsWith("p:") && key !== "p:other" ? d.products.find((x) => `p:${x.id}` === key) : null;
+    if (pr) facts.push(fact("Saw it in the rack", num(pr.seen), `on screen ${dur(pr.seenTime)}`), fact("Tapped after seeing", `${pr.tapRate}%`), fact("Pressed Order now", num(pr.checkout)), fact("Bought", num(pr.paid), `could be ${pr.convRange.low} to ${pr.convRange.high}%`), fact("Sales", inr(pr.value)), fact("Chats", num(pr.chat)));
+    if (key === "pay") { const s = d.stepTimes.range?.paying; if (s) facts.push(fact("Slowest", dur(s.slowest))); }
+    const press = key.startsWith("z:") ? d.presses.filter((x) => x.label.startsWith(`${r.label}:`)).slice(0, 8).map((x) => ({ label: x.label.slice(r.label.length + 2), n: x.n })) : [];
+    const after = p.next.map((x) => ({ label: x.label, n: x.n }));
+    box.innerHTML = card("", `${head}<div class="facts">${facts.join("")}</div>
+      ${fx.map((f) => `<div class="pinFix"><b>${esc(f.title)}</b><span>${f.money ? `Up to ${inr(f.money)} ${f.assume ? `(${esc(f.assume)})` : ""}` : ""}</span></div>`).join("")}
+      <div class="grid" style="margin:12px 0 0"><div><h3 class="h3">Where they went next</h3>${bars(after)}</div>${press.length ? `<div><h3 class="h3">What they pressed here</h3>${bars(press)}</div>` : p.grid.length ? "<div></div>" : ""}</div>${touchMap(p.grid)}`);
+    $("roomX").onclick = () => openRoom("");
+  }
+  function openRoom(key) {
+    water.focus = key; layout();
+    renderRoom();
+    if (key && innerWidth < 720) $("roomBox")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  const whereNow = (p) => (p.boxLabel ? `Filling in ${p.boxLabel}, ${dur(p.boxFor)} so far` : p.zoneLabel ? `${p.zoneLabel}, ${dur(p.zoneFor)} so far` : p.since < 8000 ? "Just arrived" : "Browsing");
   function renderNow(l) {
-    $("nowCount").textContent = l.active;
+    $("nowCount").textContent = num(l.active);
     if (state.view !== "now") return;
     ensureFloor();
-    if (floor.mode !== "live") return;
-    $("bigN").textContent = l.active;
-    $("planSay").textContent = l.active ? (l.active === 1 ? "person in the shop right now." : "people in the shop right now.") : (floor.dayData?.visits.length ? "The shop is quiet. Replay today to watch it fill." : "The shop is quiet. Nobody has come in yet today.");
-    const whereNow = (p) => (p.boxLabel ? `Filling in ${p.boxLabel}, ${dur(p.boxFor)} so far` : p.zoneLabel ? `${p.zoneLabel}, ${dur(p.zoneFor)} so far` : p.since < 8000 ? "Just arrived" : "Browsing");
-    place(l.people.map((p) => ({ id: p.id, room: roomOf(p.path, p.step, p.zone, p.box), tone: p.step === "Paid" ? "good" : p.friction ? "bad" : "", tip: `${whereNow(p)}. ${p.label}${p.step ? ` (${p.step})` : ""}. ${p.source || "Unknown"}, ${p.device || ""}. Here ${dur(p.since)}, ${p.pages} page${p.pages === 1 ? "" : "s"}, scrolled ${p.scroll}%.${p.friction ? ` Stuck ${p.friction}×.` : ""}` })));
-    const box = $("listBox");
-    const inner = `${l.feed.length ? `<ul class="ticker">${l.feed.slice(0, 4).map((e) => `<li class="${tone(e.e)}"><time>${clock(e.t)}</time><span>${esc((WORD[e.e] || (() => e.e))(e))}</span></li>`).join("")}</ul>` : ""}
-      ${more(table("people", [{ h: "Who", k: "id" }, { h: "Viewing", html: (r) => `${esc(r.label)}${r.step ? ` <span class="tag">${esc(r.step)}</span>` : ""}${r.friction ? ` <span class="tag bad">stuck ${r.friction}×</span>` : ""}` }, { h: "Exactly where", f: whereNow }, { h: "From", k: "source" }, { h: "Device", f: (r) => `${r.device || ""}, ${r.browser || ""}` }, { h: "Here for", f: (r) => dur(r.since), n: 1 }, { h: "Pages", k: "pages", n: 1 }, { h: "Scrolled", f: (r) => `${r.scroll}%`, n: 1 }, { h: "", f: (r) => (r.returning ? "returning" : "new") }], l.people, "Nobody here at the moment."), "See everyone as a list")}`;
-    keepOpen(box, inner);
-    if (!floor.dayData || Date.now() - floor.dayAt > 60e3) loadDay(0).then(paintWorn).catch(() => {});
+    $("lostKey").classList.toggle("hide", !l.dropped);
+    $("lostKey").textContent = l.dropped ? `${num(l.dropped)} events over the safety limit since the last restart weren't counted` : "";
+    if (water.mode !== "live") return;
+    if (state.data && !water.products.length) { setProducts(state.data.products); timesFrom(state.data); }
+    if (!water.rooms.size) setProducts([]);
+    setRooms(l.rooms || {}, Object.entries(l.edges || {}).map(([k, n]) => { const [a, b] = k.split(">"); return { a, b, n }; }));
+    $("planSay").textContent = l.active ? (l.active === 1 ? "person in the shop right now." : "people in the shop right now.") : "The shop is quiet right now. Try Whole period, or replay today.";
+    keepOpen($("listBox"), `${l.feed.length ? `<ul class="ticker">${l.feed.slice(0, 4).map((e) => `<li class="${tone(e.e)}"><time>${clock(e.t)}</time><span>${esc((WORD[e.e] || (() => e.e))(e))}</span></li>`).join("")}</ul>` : ""}
+      ${more(table("people", [{ h: "Who", k: "id" }, { h: "Viewing", html: (r) => `${esc(r.label)}${r.step ? ` <span class="tag">${esc(r.step)}</span>` : ""}${r.friction ? ` <span class="tag bad">stuck ${r.friction}×</span>` : ""}` }, { h: "Exactly where", f: whereNow }, { h: "From", k: "source" }, { h: "Device", f: (r) => `${r.device || ""}, ${r.browser || ""}` }, { h: "Here for", f: (r) => dur(r.since), n: 1 }, { h: "Pages", k: "pages", n: 1 }, { h: "Scrolled", f: (r) => `${r.scroll}%`, n: 1 }, { h: "", f: (r) => (r.returning ? "returning" : "new") }], l.people, "Nobody here at the moment."), l.active > l.people.length ? `See ${l.people.length} of ${num(l.active)} people, those stuck first` : "See everyone as a list")}`);
+  }
+
+  // ---- fix first ----
+  function renderFix(d) {
+    const list = d.fixes, money = list.filter((f) => !f.chance).reduce((n, f) => Math.max(n, f.money), 0), SURE = { strong: "Strong evidence", fair: "Fair evidence", weak: "Weak evidence, watch it" };
+    const row = (f, i) => `<div class="fix ${f.chance ? "maybe" : ""}"><span class="no">${i + 1}</span><div class="body"><b>${esc(f.title)}</b><p>${esc(f.why)}</p><div class="tags"><span class="tag ${f.sure === "strong" ? "good" : ""}">${esc(SURE[f.sure])}</span>${f.chance ? `<span class="tag">Could be chance</span>` : ""}${f.assume ? `<span class="tag">${esc(f.assume)}</span>` : ""}${f.room && f.room !== "p:" ? `<button class="plain" data-goto="${esc(f.room)}" type="button">Show me</button>` : ""}</div></div><div class="val">${f.money ? `<strong>${inr(f.money)}</strong><small>at most</small>` : ""}</div></div>`;
+    keepOpen($("v-fix"), card("", `<p class="leakHead">${list.length ? esc(list[0].title) : "Nothing to fix yet."}</p><p class="leakFix">${list.length ? `Ranked by the most each could be costing from ${esc(d.from)} to ${esc(d.to)}. The biggest one alone: up to ${inr(money)}.` : "It needs a few more visits before it can say anything."}</p>${list.map(row).join("")}
+      ${list.length ? `<p class="sub2" style="margin-top:12px">These are upper limits worked out from your own numbers, not promises: they assume the people lost would have bought at the rate of those who carried on. "Strong" means 100 or more people.</p>` : ""}`));
+    $("v-fix").querySelectorAll("[data-goto]").forEach((b) => (b.onclick = () => { show("now"); showPeriod(); openRoom(b.dataset.goto); }));
   }
 
   // ---- the leak ----
@@ -669,7 +729,7 @@
     box.innerHTML = card("Did your fix work?", `
       <form class="row" id="chForm"><input type="date" id="chDay" aria-label="Date of the change" value="${today()}"><input type="text" id="chNote" maxlength="140" placeholder="e.g. Moved the video to the bottom" aria-label="What changed" required><button class="primary">Add</button></form>
       <div id="chList" style="margin-top:12px">${list.map((c) => `<div class="chg"><div><b>${esc(c.note)}</b> <span class="sub2">${esc(c.day)}</span> <button class="plain" data-rm="${esc(c.id)}" type="button">remove</button></div>
-        <div class="sub2">${c.after ? `Grey: ${num(c.before.visits)} visits before. Black: ${num(c.after.visits)} visits over ${c.days} day${c.days === 1 ? "" : "s"} after. Few visits can easily be chance.` : "Results start tomorrow."}</div>
+        <div class="sub2">${c.after ? `Grey: ${num(c.before.visits)} visits before. Black: ${num(c.after.visits)} visits over ${c.days} day${c.days === 1 ? "" : "s"} after. ${c.proven ? "The change in orders looks real." : "The change in orders could still be chance."}` : "Results start tomorrow."}</div>
         <div class="ba">${pair("Ended in an order", c.before.conversion, c.after?.conversion)}${pair("Got stuck", c.before.frictionRate, c.after?.frictionRate)}${pair("Left straight away", c.before.bounceRate, c.after?.bounceRate)}${pair("Median time on site", c.before.medianEngaged, c.after?.medianEngaged, dur)}</div></div>`).join("") || `<p class="empty">Write down each change you make. This shows the 7 days before against the days after.</p>`}</div>`);
     $("chForm").onsubmit = async (e) => { e.preventDefault(); await api("changes", { method: "POST", body: JSON.stringify({ day: $("chDay").value, note: $("chNote").value }) }); renderChanges(); };
     box.querySelectorAll("[data-rm]").forEach((b) => (b.onclick = async () => { await api(`changes/${b.dataset.rm}/remove`, { method: "POST" }); renderChanges(); }));
@@ -684,8 +744,8 @@
       ${t.gaveUpDetails || t.gaveUpPaying ? `<p class="sub2">People who gave up: ${[t.gaveUpDetails && `${dur(t.gaveUpDetails)} on the form`, t.gaveUpPaying && `${dur(t.gaveUpPaying)} on payment`].filter(Boolean).join(", ")}, typically.</p>` : ""}` : `<p class="empty">No orders started in these dates yet.</p>`;
     const list = f.boxes, slow = [...list].sort((a, b) => b.medianTime - a.medianTime)[0], lost = [...list].filter((b) => b.quit).sort((a, b) => b.quit - a.quit)[0], top = Math.max(1, ...list.map((b) => b.medianTime));
     const head = !list.length ? "" : `<p class="leakHead">${esc(slow.label)} is the slowest box: ${esc(dur(slow.medianTime))}</p><p class="leakFix">${lost ? `Most people who quit were in ${esc(lost.label)}: ${num(lost.quit)}.` : "Nobody has quit inside a box in these dates."}</p>`;
-    const fb = (b) => { const facts = [`${num(b.people)} of ${num(f.opened)} reached it`, b.keys && `${num(b.keys)} keys`, b.corrected && `<b>${num(b.corrected)} corrected</b>`, b.errors && `<b>${num(b.errors)} errors</b>`, b.empty && `<b>${num(b.empty)} left empty</b>`, b.quit && `<b>${num(b.quit)} quit here</b>`].filter(Boolean); return `<div class="fb" data-tip="${esc(b.label)}: typically ${esc(dur(b.medianTime))}, slowest ${esc(dur(b.slowest))}"><span class="sh" style="width:${(b.medianTime / top) * 100}%"></span><div class="top">${esc(b.label)}<span>${esc(dur(b.medianTime))}</span></div><div class="sub2">${facts.join("<span>·</span>")}</div></div>`; };
-    const cols = [{ h: "Box", k: "label" }, { h: "Reached", k: "people", n: 1 }, { h: "Typical time", f: (r) => dur(r.medianTime), n: 1 }, { h: "Slowest", f: (r) => dur(r.slowest), n: 1 }, { h: "Keys", k: "keys", n: 1 }, { h: "Corrected", k: "corrected", n: 1 }, { h: "Errors", k: "errors", n: 1 }, { h: "Left empty", k: "empty", n: 1 }, { h: "Quit here", k: "quit", n: 1 }];
+    const fb = (b) => { const facts = [`${num(b.people)} of ${num(f.opened)} reached it`, b.hesitate && `${esc(dur(b.hesitate))} before typing`, b.keys && `${num(b.keys)} keys`, b.pasted && `${num(b.pasted)} pasted`, b.autofilled && `${num(b.autofilled)} filled by phone`, b.refocused && `${num(b.refocused)} came back`, b.corrected && `<b>${num(b.corrected)} corrected</b>`, b.errors && `<b>${num(b.errors)} errors</b>`, b.empty && `<b>${num(b.empty)} left empty</b>`, b.quit && `<b>${num(b.quit)} quit here</b>`].filter(Boolean); return `<div class="fb" data-tip="${esc(b.label)}: typically ${esc(dur(b.medianTime))}, slowest ${esc(dur(b.slowest))}"><span class="sh" style="width:${(b.medianTime / top) * 100}%"></span><div class="top">${esc(b.label)}<span>${esc(dur(b.medianTime))}</span></div><div class="sub2">${facts.join("<span>·</span>")}</div></div>`; };
+    const cols = [{ h: "Box", k: "label" }, { h: "Reached", k: "people", n: 1 }, { h: "Typical time", f: (r) => dur(r.medianTime), n: 1 }, { h: "Slowest", f: (r) => dur(r.slowest), n: 1 }, { h: "Middle half", f: (r) => `${dur(r.p25)} to ${dur(r.p75)}`, n: 1 }, { h: "Before typing", f: (r) => dur(r.hesitate), n: 1 }, { h: "Keys", k: "keys", n: 1 }, { h: "Corrected", k: "corrected", n: 1 }, { h: "Pasted", k: "pasted", n: 1 }, { h: "Filled by phone", k: "autofilled", n: 1 }, { h: "Came back", k: "refocused", n: 1 }, { h: "Still wrong", k: "invalid", n: 1 }, { h: "Errors", k: "errors", n: 1 }, { h: "Left empty", k: "empty", n: 1 }, { h: "Quit here", k: "quit", n: 1 }];
     const DEL = { pickup: "Pick up in Srinagar", ship: "Deliver to me" };
     keepOpen($("v-form"), `${card("How long buying takes", chain)}
       ${card("", `${sw}${head}${list.length ? list.map(fb).join("") : `<p class="empty">Nobody has used this form in these dates yet.</p>`}${list.length ? more(table(`form-${kind}`, cols, list)) : ""}`)}
@@ -737,7 +797,7 @@
     const hero = (label, val, dl) => `<div class="hero"><small>${esc(label)}</small><b>${esc(val)}</b><i class="${dl[1]}">${esc(dl[0])}</i></div>`;
     const group = (title) => [{ h: title, k: "key" }, { h: "Visits", k: "n", n: 1 }, { h: "Orders", k: "paid", n: 1 }, { h: "To order", f: (r) => `${r.conv}%`, n: 1 }, { h: "Got stuck", f: (r) => `${r.frictionRate}%`, n: 1 }, { h: "Avg time", f: (r) => dur(r.avgEngaged), n: 1 }];
     const allRows = [["Visits", num(t.visits)], ["Pages viewed", num(t.pages)], ["Median time on site", dur(t.medianEngaged)], ["Left straight away", `${t.bounceRate}%`], ["Got stuck", `${t.frictionRate}%`], ["Visits to orders", `${t.conversion}%`], ["Enquiries", num(t.enquiries)]].map(([a, b]) => ({ a, b }));
-    keepOpen($("v-traffic"), `<div class="heroes">${hero("People", num(t.visitors), delta(t.visitors, p.visitors))}${hero("Orders", num(t.orders), delta(t.orders, p.orders))}${hero("Order value", inr(t.value), delta(t.value, p.value))}</div>
+    keepOpen($("v-traffic"), `<div class="heroes">${hero("People", num(t.visitors), delta(t.visitors, p.visitors))}${hero("Orders", num(t.orders), delta(t.orders, p.orders))}${hero("Order value", inr(t.value), delta(t.value, p.value))}${hero("Visits that buy", `${t.conversion}%`, [`could be ${t.conversionRange.low} to ${t.conversionRange.high}%`, ""])}</div>
       ${card("", `${trendChart(d)}${more(table("totals", [{ h: "Measure", k: "a" }, { h: "Value", k: "b", n: 1 }], allRows), "All the totals")}`)}
       ${card("The week's rhythm", heatmap(d))}
       ${card("Who comes, and who buys", `${sourceRows(d.sources)}${more(`${table("sources", group("Source"), d.sources, "No visits yet.")}${table("devices", group("Device"), d.devices, "No visits yet.")}<div class="grid" style="margin-top:12px"><div><h2>Browsers</h2>${bars(d.browsers)}</div><div><h2>Phones and computers</h2>${bars(d.systems)}</div><div><h2>Languages</h2>${bars(d.languages)}</div><div><h2>Time zones</h2>${bars(d.places)}</div><div><h2>Other sites and campaigns</h2>${bars([...d.campaigns.map((r) => ({ ...r, label: `Campaign: ${r.key}` })), ...d.referrers])}</div></div>`, "Sources, devices, browsers and more")}`)}`);
@@ -772,7 +832,7 @@
       ${card("How each visit ended", d.outcomes.length ? segments(d.outcomes.map((o) => ({ label: o.key, n: o.n, c: OUT[o.key] || "var(--neutral)" }))) : `<p class="empty">No data yet.</p>`)}
       <div class="grid">${card("What they press", bars(acts))}${card("What they hunt for", bars(d.filters))}</div>
       ${card("Everything they pressed", `${bars((d.presses || []).slice(0, 10).map((r) => ({ label: r.label, n: r.n })))}${d.presses?.length ? more(table("presses", [{ h: "Button or link", k: "label" }, { h: "Presses", k: "n", n: 1 }, { h: "People", k: "people", n: 1 }], d.presses), "See all of them") : ""}`)}
-      ${card("How fast it loads", `${speedGauge(d.speed)}${d.speed.n ? `<p class="sub2">${num(d.speed.n)} page loads measured.</p>` : ""}`)}
+      ${card("How fast it loads", `${speedGauge(d.speed)}${d.speed.n ? `<p class="sub2">${num(d.speed.n)} page loads measured.</p>` : ""}${d.vitals?.lcp.n ? `<div class="facts" style="margin-top:12px">${fact("Main content appears", `${(d.vitals.lcp.median / 1000).toFixed(1)}s`, "good is under 2.5s")}${fact("Slowest 1 in 4", `${(d.vitals.lcp.p75 / 1000).toFixed(1)}s`)}${fact("Answers a press in", `${Math.round(d.vitals.inp.median)}ms`, "good is under 200ms")}${fact("Page jumps around", (d.vitals.cls.median / 1000).toFixed(2), "good is under 0.10")}${fact("Server replies in", `${Math.round(d.vitals.ttfb.median)}ms`)}</div>` : ""}${d.networks?.length ? `<div class="grid" style="margin:12px 0 0"><div><h3 class="h3">Their connection</h3>${bars(d.networks.map((r) => ({ label: r.key.toUpperCase(), n: r.n })))}</div><div><h3 class="h3">Their screen</h3>${bars(d.screens)}</div></div>` : ""}`)}
       ${card("Every page", more(table("pages", [{ h: "Page", k: "label" }, { h: "Views", k: "views", n: 1 }, { h: "People", k: "visits", n: 1 }, { h: "Avg time", f: (r) => dur(r.avgTime), n: 1 }, { h: "Arrived here", k: "lands", n: 1 }, { h: "Left from here", k: "exits", n: 1 }, { h: "Left rate", f: (r) => `${r.exitRate}%`, n: 1 }], d.pages, "No visits yet.")))}`);
   }
 
@@ -843,16 +903,16 @@
   }
 
   // ---- page control ----
-  const state = { view: "now", from: today(), to: today(), data: null, visitFilter: "all", formKind: "checkout" };
-  const RENDER = { loop: renderLoop, form: renderForm, traffic: renderTraffic, behave: renderBehave, products: renderProducts, visits: renderVisits };
+  const state = { view: "now", from: today(), to: today(), data: null, visitFilter: "all", formKind: "checkout", seg: "", took: 0 };
+  const segQ = () => (state.seg ? `&seg=${encodeURIComponent(state.seg)}` : "");
+  const RENDER = { fix: renderFix, loop: renderLoop, form: renderForm, traffic: renderTraffic, behave: renderBehave, products: renderProducts, visits: renderVisits };
   function show(v) {
     state.view = v;
     document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.v === v));
     document.querySelectorAll("section.view").forEach((s) => s.classList.toggle("on", s.id === `v-${v}`));
-    $("range").classList.toggle("hide", v === "now");
     store.set("vx-an-view", v);
-    if (v !== "now") pause();
-    if (v === "now") { ensureFloor(); tick(); if (!floor.dayData) loadDay(0).then(paintWorn).catch(() => {}); } else if (state.data) RENDER[v](state.data); else loadReport();
+    water.on = v === "now" && water.on;
+    if (v === "now") { ensureFloor(); sizeWater(); startWater(); tick(); if (state.data) { setProducts(state.data.products); timesFrom(state.data); renderRoom(); } else loadReport(); } else if (state.data) RENDER[v](state.data); else loadReport();
   }
   $("tabs").onclick = (e) => { const b = e.target.closest("button"); if (b) show(b.dataset.v); };
   function setRange(from, to) {
@@ -860,37 +920,41 @@
     const span = Math.round((Date.parse(to) - Date.parse(from)) / 864e5);
     document.querySelectorAll("#range button").forEach((b) => b.classList.toggle("on", to === today() && Number(b.dataset.d) === span));
     state.data = null; store.set("vx-an-span", to === today() ? String(span) : "0");
-    if (state.view !== "now") loadReport();
+    loadReport();
   }
+  $("seg").onchange = () => { state.seg = $("seg").value; state.data = null; openRoomQuiet(); loadReport(); tick(); };
+  const openRoomQuiet = () => { if (water.mode === "all" || water.mode === "replay") goLive(); };
   $("range").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setRange(shift(today(), -Number(b.dataset.d)), today()); });
   $("from").onchange = $("to").onchange = () => { if ($("from").value && $("to").value && $("from").value <= $("to").value) setRange($("from").value, $("to").value); };
 
   async function loadReport() {
-    const opened = document.querySelector(".vd:not(.hide)");
+    const opened = document.querySelector(".vd:not(.hide)"), asked = performance.now(), seg = state.seg;
     try {
-      const d = await api(`report?from=${state.from}&to=${state.to}`);
-      if (d.from !== state.from || d.to !== state.to) return;
-      state.data = d;
+      const d = await api(`report?from=${state.from}&to=${state.to}${segQ()}`);
+      if (d.from !== state.from || d.to !== state.to || seg !== state.seg) return;
+      state.data = d; state.took = performance.now() - asked;
+      if (state.view === "now" && $("waterBox")) { setProducts(d.products); timesFrom(d); renderRoom(); if (water.mode === "all") showPeriod(); }
       // Don't redraw under someone reading a visit or typing a change.
       const busy = opened || document.activeElement?.closest?.("#chForm");
-      if (state.view !== "now" && !busy) RENDER[state.view](d);
+      if (state.view !== "now" && !busy) await RENDER[state.view](d);
     } catch (e) { if (e.message !== "key") $("dot").classList.add("off"); }
   }
   async function tick() {
     if (document.hidden) return;
-    try { renderNow(await api("live")); $("dot").classList.remove("off"); }
+    try { renderNow(await api(`live${state.seg ? `?seg=${encodeURIComponent(state.seg)}` : ""}`)); $("dot").classList.remove("off"); }
     catch (e) { if (e.message !== "key") $("dot").classList.add("off"); }
   }
-  let started = false;
+  let started = false, lastReport = Date.now();
   function boot() {
     store.set("vx-no-track", "1"); // the owner's own browsing shouldn't count as a customer
-    show(store.get("vx-an-view") || "now");
+    const was = store.get("vx-an-view");
     setRange(shift(today(), -Number(store.get("vx-an-span") || 6)), today());
+    show(was && $(`v-${was}`) ? was : "now");
     if (started) return;
     started = true;
-    if (stillMotion()) document.documentElement.dataset.still = "1";
     setInterval(tick, 3000);
-    setInterval(() => { if (!document.hidden && state.view !== "now") loadReport(); }, 30000);
+    // A big report refreshes less often, so the numbers stay fresh without working the server hard.
+    setInterval(() => { if (!document.hidden && Date.now() - lastReport > Math.max(30000, state.took * 12)) { lastReport = Date.now(); loadReport(); } }, 5000);
     document.addEventListener("visibilitychange", tick);
   }
   boot();
