@@ -162,14 +162,8 @@ body.menu-open { overflow: hidden; }
 .hero h1 span { color: var(--faint); }
 .lede { max-width: 46ch; margin: clamp(22px, 2.6vw, 34px) 0 0; font-size: clamp(15.5px, 1.25vw, 18px); line-height: 1.5; color: var(--ink-2); }
 .cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
-.hero-stats { display: grid; grid-template-columns: repeat(3, auto); justify-content: start; gap: 0; margin: clamp(32px, 4vw, 56px) 0 0; }
-.hero-stats div { padding: 14px 32px 0 0; margin-right: 32px; border-top: 1px solid var(--line-2); }
-.hero-stats div:last-child { margin-right: 0; }
-.hero-stats dt { font: 600 clamp(28px, 2.8vw, 40px)/1 var(--display); letter-spacing: -.04em; }
-.hero-stats dd { margin: 8px 0 0; font: 500 10.5px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
 @media (max-width: 900px) {
   .hero { grid-template-columns: 1fr; align-items: start; }
-  .hero-stats div { padding-right: 18px; margin-right: 18px; }
 }
 
 /* trust strip: four facts on hairlines */
@@ -189,21 +183,9 @@ body.menu-open { overflow: hidden; }
   .trust b { font-size: 15px; }
 }
 
-section.range, section.vid, section.rack, section.find, section.looks, section.how, section.store { margin-bottom: clamp(64px, 8vw, 120px); }
+section.vid, section.rack, section.find, section.looks, section.how, section.store { margin-bottom: clamp(64px, 8vw, 120px); }
 
 /* shop by category: photo tiles with labels on them */
-.range-row { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 12px; }
-@media (max-width: 1100px) and (min-width: 761px) { .range-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 760px) { .range-row { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: 62%; overflow-x: auto; scrollbar-width: none; margin: 0 calc(var(--gut) * -1); padding: 0 var(--gut); scroll-snap-type: x mandatory; } .range-row::-webkit-scrollbar { display: none; } .range-tile { scroll-snap-align: start; } }
-.range-tile { position: relative; display: block; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; color: #fff; border-radius: var(--r); overflow: hidden; }
-.range-pic { position: relative; display: block; aspect-ratio: 4 / 5; background: var(--paper-2); }
-.range-pic img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .9s var(--ease); }
-.range-tile:hover .range-pic img { transform: scale(1.05); }
-.range-pic .art { position: absolute; inset: 14%; width: 72%; height: 72%; }
-.range-pic::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,.55)); }
-.range-pic.art-bg::after { background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,.35)); }
-.range-name { position: absolute; left: 16px; bottom: 16px; z-index: 1; font: 600 24px/1 var(--display); letter-spacing: -.035em; }
-.range-n { position: absolute; right: 16px; bottom: 18px; z-index: 1; font: 500 10.5px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em; opacity: .85; }
 
 /* rack */
 .rack { scroll-margin-top: 66px; }
@@ -710,8 +692,7 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .motion .sec-head[data-rv].in > * { opacity: 1; transform: none; }
 .top { transition: box-shadow .3s; }
 .top.scrolled { box-shadow: 0 1px 0 var(--line), 0 10px 30px rgba(18,18,18,.05); }
-.range-tile, .look { transition: transform .4s var(--ease), opacity .9s var(--ease) var(--rv-d, 0ms); will-change: transform; }
-.motion .range-tile[data-rv]:not(.in), .motion .look[data-rv]:not(.in) { transition: opacity .9s var(--ease) var(--rv-d, 0ms), transform 1s var(--ease) var(--rv-d, 0ms); }
+.motion .look[data-rv]:not(.in) { transition: opacity .9s var(--ease) var(--rv-d, 0ms), transform 1s var(--ease) var(--rv-d, 0ms); }
 .tilting { z-index: 1; box-shadow: 0 24px 50px rgba(18,18,18,.18); }
 
 /* ===== entrance: the page arrives in step with the opening map's hand-off (intro.js sets the classes) =====
@@ -721,7 +702,7 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .vx-pre .top .nav a, .vx-pre .top .icon, .vx-pre .top .menu-btn { opacity: 0; transform: translateY(-8px); }
 .vx-pre .cat-tab { opacity: 0; transform: translateY(10px); }
 .vx-pre .hero h1 { opacity: 0; transform: translateY(.18em); }
-.vx-pre .eyebrow, .vx-pre .lede, .vx-pre .cta, .vx-pre .hero-stats { opacity: 0; transform: translateY(16px); }
+.vx-pre .eyebrow, .vx-pre .lede, .vx-pre .cta { opacity: 0; transform: translateY(16px); }
 .vx-pre .trust { opacity: 0; }
 
 .vx-enter .ticker { transition: transform .55s var(--ease) .2s; }
@@ -741,12 +722,11 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .vx-enter .eyebrow { transition: opacity .6s ease .05s, transform .8s var(--ease) .05s; }
 .vx-enter .lede { transition: opacity .6s ease .28s, transform .8s var(--ease) .28s; }
 .vx-enter .cta { transition: opacity .6s ease .36s, transform .8s var(--ease) .36s; }
-.vx-enter .hero-stats { transition: opacity .6s ease .46s, transform .8s var(--ease) .46s; }
 .vx-enter .trust { transition: opacity .7s ease .55s; }
 
 /* sections below the first screen are not laid out or painted until they come near (faster start) */
-.range, .rack, .find, .looks, .how, .store, .foot { content-visibility: auto; contain-intrinsic-size: auto 900px; }
-.vx-full :is(.range, .rack, .find, .looks, .how, .store, .foot) { content-visibility: visible; } /* real heights, so in-page links land true (shop.js) */
+.rack, .find, .looks, .how, .store, .foot { content-visibility: auto; contain-intrinsic-size: auto 900px; }
+.vx-full :is(.rack, .find, .looks, .how, .store, .foot) { content-visibility: visible; } /* real heights, so in-page links land true (shop.js) */
 
 /* "Thanks For The Purchase" */
 .co-fx { position: fixed; top: 0; left: 0; z-index: 20; pointer-events: none; }

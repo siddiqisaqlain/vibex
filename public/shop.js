@@ -302,14 +302,6 @@
         <i>${p.price ? `${manyPrices(p) ? "From " : ""}${rupees(p.price)}` : ""}</i></a>`).join("") : "";
   }
 
-  function renderHeroStats() {
-    const live = products.filter((p) => p.status === "available");
-    const labels = new Set(live.map((p) => p.brand).filter(Boolean)).size;
-    const fresh = products.filter(isNew).length;
-    const rows = [[live.length, live.length === 1 ? "piece on the rail" : "pieces on the rail"], [fresh, "new in 48 hours"], [labels, labels === 1 ? "label in stock" : "labels in stock"]].filter(([n]) => n > 0);
-    $("hero-stats").innerHTML = rows.map(([n, l]) => `<div><dt>${n}</dt><dd>${l}</dd></div>`).join("");
-  }
-
   function renderCatTabs() {
     const fresh = products.filter(isNew).length;
     const tabs = [
@@ -367,30 +359,6 @@
     featTimer = setInterval(() => {
       if (featSeen.now && !videoPlaying && !box.matches(":hover") && !box.querySelector(":focus-visible") && !document.hidden) go(cur() + 1);
     }, 5500);
-  }
-
-  // ---- "Shop our range": category + style tiles ----
-  function renderRange() {
-    const tiles = [];
-    for (const c of CATS) {
-      const list = products.filter((p) => p.category === c);
-      if (!list.length) continue;
-      tiles.push({ label: c, n: list.length, p: list.find((p) => p.image) || list[0], jump: c });
-      const subs = {};
-      for (const p of list) if (p.subcategory && p.subcategory.toLowerCase() !== c.toLowerCase()) (subs[p.subcategory] ||= []).push(p);
-      // a style that is the whole category (every fragrance is a "Perfume") would just repeat it
-      for (const [s, items] of Object.entries(subs).filter(([, items]) => items.length < list.length).sort((a, b) => b[1].length - a[1].length).slice(0, 3)) {
-        tiles.push({ label: s, n: items.length, p: items.find((p) => p.image) || items[0], jump: c, sub: s });
-      }
-    }
-    $("range").innerHTML = tiles.map((t) => `
-      <button type="button" class="range-tile" data-jump="${esc(t.jump)}"${t.sub ? ` data-sub="${esc(t.sub)}"` : ""}>
-        <span class="range-pic ${t.p.image ? "" : "art-bg"}">${pic(t.p)}</span>
-        <span class="range-name">${esc(t.label)}</span><span class="range-n">${t.n} ${t.n === 1 ? "piece" : "pieces"}</span>
-      </button>`).join("");
-    $("range").parentElement.hidden = tiles.length < 2;
-    // one clean row for up to six tiles, otherwise two even rows
-    $("range").style.setProperty("--cols", tiles.length <= 6 ? tiles.length : Math.ceil(tiles.length / 2));
   }
 
   // ---- shop by size / price / brand ----
@@ -536,9 +504,7 @@
       products = next;
       renderGrid(fresh);
       renderCatTabs();
-      renderHeroStats();
       renderHeroFeed();
-      renderRange();
       renderLooks();
       renderFeatured();
       if (first) renderTicker();

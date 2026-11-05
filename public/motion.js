@@ -7,7 +7,7 @@
 
   // What rises in. Items in the same row start one after another.
   const PICK = [
-    ".sec-head", ".trust > div", ".range-tile", "#grid .card", ".panel",
+    ".sec-head", ".trust > div", "#grid .card", ".panel",
     ".look", ".vid-row", ".how li", ".store-card", ".foot-grid > div", ".more-wrap",
   ].join(",");
 
@@ -85,7 +85,7 @@
 
   if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
     document.addEventListener("pointermove", (e) => {
-      const t = e.target.closest(".range-tile, .look");
+      const t = e.target.closest(".look");
       document.querySelectorAll(".tilting").forEach((x) => { if (x !== t) { x.classList.remove("tilting"); x.style.transform = ""; } });
       if (!t) return;
       const r = t.getBoundingClientRect();

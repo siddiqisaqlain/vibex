@@ -31,10 +31,10 @@
   try { seen = sessionStorage.getItem("vx-intro") === "1"; sessionStorage.setItem("vx-intro", "1"); } catch { /* private mode */ }
   if ((!force && seen) || !document.createElement("canvas").getContext) {
     // no intro: just the entrance, once the first paint is ready
-    // wait (up to 2.5 s) for the hero numbers and category buttons to be drawn, so there is something to arrive
+    // wait (up to 2.5 s) for the category buttons to be drawn, so there is something to arrive
     const t = performance.now();
     const wait = () => {
-      if (document.querySelector("#hero-stats div") && document.querySelector(".cat-tab") || performance.now() - t > 2500) { clearTimeout(safety); requestAnimationFrame(enter); }
+      if (document.querySelector(".cat-tab") || performance.now() - t > 2500) { clearTimeout(safety); requestAnimationFrame(enter); }
       else requestAnimationFrame(wait);
     };
     requestAnimationFrame(wait);
