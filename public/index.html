@@ -76,8 +76,66 @@
     <div class="range-row" id="range"></div>
   </section>
 
+  <section class="rack wrap" id="rack">
+    <header class="sec-head rack-head">
+      <span class="sec-no">02</span>
+      <h2 class="sec-h">Fresh off the truck</h2>
+      <p class="live-note"><span class="dot"></span>Posted on WhatsApp, listed here in seconds</p>
+    </header>
+    <div class="tabs" id="filters" role="tablist" aria-label="Category"></div>
+    <div class="subs" id="subs" hidden></div>
+    <div class="active-filters" id="active" hidden></div>
+    <div id="grid"></div>
+    <p class="empty" id="empty" hidden>Nothing here right now. New stock lands most days.</p>
+    <div class="more-wrap"><span class="count" id="count"></span></div>
+  </section>
+
+  <section class="find wrap" aria-labelledby="find-h">
+    <header class="sec-head"><span class="sec-no">03</span><h2 class="sec-h" id="find-h">Find your fit</h2></header>
+    <div class="shop-by">
+      <div class="panel" id="by-size"><h3 class="panel-h">By size</h3><div class="pills" id="sizes"></div></div>
+      <div class="panel" id="by-price"><h3 class="panel-h">By price</h3><div class="pills" id="prices"></div></div>
+    </div>
+    <div class="panel brands-panel" id="by-brand" hidden><h3 class="panel-h">By label</h3><div class="pills brand-list" id="brands"></div></div>
+  </section>
+
+  <section class="looks wrap" id="looks-sec" aria-labelledby="looks-h" hidden>
+    <header class="sec-head"><span class="sec-no">04</span><h2 class="sec-h" id="looks-h">Just landed</h2></header>
+    <div class="looks-grid" id="looks"></div>
+  </section>
+
+  <section class="how wrap" aria-labelledby="how-h">
+    <header class="sec-head"><span class="sec-no">05</span><h2 class="sec-h" id="how-h">How it works</h2></header>
+    <ol>
+      <li><span>01</span><b>Spot it here</b><p>Every piece is real stock in our Srinagar store, posted the moment it's unpacked.</p></li>
+      <li><span>02</span><b>Order or enquire</b><p>Pay by UPI in a minute, or message us on WhatsApp about the exact piece.</p></li>
+      <li><span>03</span><b>Wear it</b><p>Pick it up from the store, or get it shipped anywhere in India.</p></li>
+    </ol>
+  </section>
+
+  <section class="store wrap" id="visit" aria-labelledby="store-h">
+    <header class="sec-head"><span class="sec-no">06</span><h2 class="sec-h" id="store-h">The store</h2></header>
+    <div class="store-card">
+      <div class="store-pic" id="store-pic" aria-hidden="true"></div>
+      <div class="store-info">
+        <p class="store-tag">Flagship · Khanyaar, Srinagar</p>
+        <h3>Come try it on.</h3>
+        <p id="store-addr"></p>
+        <dl class="store-facts">
+          <div><dt>Call / WhatsApp</dt><dd><a id="store-phone"></a></dd></div>
+          <div><dt>New stock</dt><dd>Unpacked most days</dd></div>
+          <div><dt>Ships</dt><dd>Anywhere in India</dd></div>
+        </dl>
+        <div class="store-cta">
+          <a class="btn btn-ink" id="map-visit" target="_blank" rel="noopener">Get directions <span aria-hidden="true">↗</span></a>
+          <a class="btn btn-line" id="ig-visit" target="_blank" rel="noopener">@vibex.india</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="vid wrap" id="latest" aria-labelledby="vid-h" hidden>
-    <header class="sec-head"><span class="sec-no">02</span><h2 class="sec-h" id="vid-h">Latest from the store</h2></header>
+    <header class="sec-head"><span class="sec-no">07</span><h2 class="sec-h" id="vid-h">Latest from the store</h2></header>
     <div class="vid-row">
       <div class="vid-main">
         <div class="vid-frame" id="vid-frame">
@@ -105,64 +163,6 @@
         </div>
         <div class="feat-track" id="feat-track"></div>
       </aside>
-    </div>
-  </section>
-
-  <section class="rack wrap" id="rack">
-    <header class="sec-head rack-head">
-      <span class="sec-no">03</span>
-      <h2 class="sec-h">Fresh off the truck</h2>
-      <p class="live-note"><span class="dot"></span>Posted on WhatsApp, listed here in seconds</p>
-    </header>
-    <div class="tabs" id="filters" role="tablist" aria-label="Category"></div>
-    <div class="subs" id="subs" hidden></div>
-    <div class="active-filters" id="active" hidden></div>
-    <div id="grid"></div>
-    <p class="empty" id="empty" hidden>Nothing here right now. New stock lands most days.</p>
-    <div class="more-wrap"><span class="count" id="count"></span></div>
-  </section>
-
-  <section class="find wrap" aria-labelledby="find-h">
-    <header class="sec-head"><span class="sec-no">04</span><h2 class="sec-h" id="find-h">Find your fit</h2></header>
-    <div class="shop-by">
-      <div class="panel" id="by-size"><h3 class="panel-h">By size</h3><div class="pills" id="sizes"></div></div>
-      <div class="panel" id="by-price"><h3 class="panel-h">By price</h3><div class="pills" id="prices"></div></div>
-    </div>
-    <div class="panel brands-panel" id="by-brand" hidden><h3 class="panel-h">By label</h3><div class="pills brand-list" id="brands"></div></div>
-  </section>
-
-  <section class="looks wrap" id="looks-sec" aria-labelledby="looks-h" hidden>
-    <header class="sec-head"><span class="sec-no">05</span><h2 class="sec-h" id="looks-h">Just landed</h2></header>
-    <div class="looks-grid" id="looks"></div>
-  </section>
-
-  <section class="how wrap" aria-labelledby="how-h">
-    <header class="sec-head"><span class="sec-no">06</span><h2 class="sec-h" id="how-h">How it works</h2></header>
-    <ol>
-      <li><span>01</span><b>Spot it here</b><p>Every piece is real stock in our Srinagar store, posted the moment it's unpacked.</p></li>
-      <li><span>02</span><b>Order or enquire</b><p>Pay by UPI in a minute, or message us on WhatsApp about the exact piece.</p></li>
-      <li><span>03</span><b>Wear it</b><p>Pick it up from the store, or get it shipped anywhere in India.</p></li>
-    </ol>
-  </section>
-
-  <section class="store wrap" id="visit" aria-labelledby="store-h">
-    <header class="sec-head"><span class="sec-no">07</span><h2 class="sec-h" id="store-h">The store</h2></header>
-    <div class="store-card">
-      <div class="store-pic" id="store-pic" aria-hidden="true"></div>
-      <div class="store-info">
-        <p class="store-tag">Flagship · Khanyaar, Srinagar</p>
-        <h3>Come try it on.</h3>
-        <p id="store-addr"></p>
-        <dl class="store-facts">
-          <div><dt>Call / WhatsApp</dt><dd><a id="store-phone"></a></dd></div>
-          <div><dt>New stock</dt><dd>Unpacked most days</dd></div>
-          <div><dt>Ships</dt><dd>Anywhere in India</dd></div>
-        </dl>
-        <div class="store-cta">
-          <a class="btn btn-ink" id="map-visit" target="_blank" rel="noopener">Get directions <span aria-hidden="true">↗</span></a>
-          <a class="btn btn-line" id="ig-visit" target="_blank" rel="noopener">@vibex.india</a>
-        </div>
-      </div>
     </div>
   </section>
 </main>
