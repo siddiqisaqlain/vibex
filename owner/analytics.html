@@ -358,7 +358,7 @@
   // to room. Rooms swell as people arrive and shrink as they leave, and press one to open it up.
   const ROOMS = [
     ...[["hero", "Top of the page"], ["stats", "Why Vibe X"], ["feat", "Featured"], ["rack", "Fresh off the truck"], ["find", "Find your fit"], ["looks-sec", "Just landed"], ["how", "How it works"], ["visit", "The store"], ["latest", "Latest video"]].map(([k, label]) => ({ key: `z:${k}`, label, group: "home" })),
-    ...[["name", "Name"], ["phone", "Phone number"], ["delivery", "Pick up or deliver"], ["address", "Address"], ["city", "City"], ["pin", "PIN code"]].map(([k, label]) => ({ key: `f:${k}`, label, group: "form" })),
+    ...[["name", "Name"], ["phone", "Phone number"], ["delivery", "Pick up or deliver"], ["address", "Address"], ["city", "City"], ["pin", "PIN code"], ["hideName", "Hide my name"]].map(([k, label]) => ({ key: `f:${k}`, label, group: "form" })),
     { key: "pay", label: "Paying", group: "end" }, { key: "sold", label: "Sold", group: "end" }, { key: "left", label: "Walked out", group: "end" }, { key: "back", label: "Other pages", group: "end" },
   ];
   const GROUPS = { home: "Home page", products: "Products", form: "Order form", end: "The end" };
@@ -373,6 +373,7 @@
   function roomFor(key) {
     let r = water.rooms.get(key);
     if (!r && key.startsWith("p:")) r = water.rooms.get(water.products.includes(key) ? key : "p:other");
+    if (!r) r = water.rooms.get(key.startsWith("z:") ? "z:hero" : key.startsWith("f:") ? "f:name" : "back"); // nobody goes missing from the count
     return r;
   }
   function setProducts(list) {

@@ -83,6 +83,15 @@ await check("something unproven never leads the fix list", () => {
   const f = summarise(list, { from: "2026-01-01", to: "2026-01-01" }).fixes.find((x) => /buy less/.test(x.title));
   assert.equal(f.chance, true); assert.equal(f.sure, "weak");
 });
+await check("a buyer's name from the sales banner is never stored", () => {
+  for (const x of ["Aamir from Srinagar just grabbed Lattafa Khamrah", "Sana from Delhi bought Nuptse Puffer", "rack: Aamir from Srinagar just bought x"]) {
+    assert.equal(clean({ e: "tap", p: "/", x }).x, "Just bought banner");
+    assert.equal(clean({ e: "rage", p: "/", x }).x, "Just bought banner");
+  }
+  const saved = { t: 1e12, v: "a", s: "a", e: "tap", p: "/", x: "Aamir from Srinagar just grabbed Lattafa" };
+  const d = summarise([{ t: 1e12, v: "a", s: "a", e: "page", p: "/", dev: "Phone", nw: 1 }, saved], { from: "2026-01-01", to: "2026-01-01" });
+  assert.ok(!JSON.stringify(d).includes("Aamir"), "older saved taps are cleaned when read");
+});
 await check("what to fix first says how sure it is and what it's likely worth", () => {
   const t = 1e12, ev = (s, e, x = {}) => ({ t, v: s, s, e, p: "/p/s1", ...x }), list = [];
   for (let i = 0; i < 40; i++) {
