@@ -183,7 +183,7 @@ body.menu-open { overflow: hidden; }
   .trust b { font-size: 15px; }
 }
 
-section.vid, section.rack, section.find, section.looks, section.how, section.store { margin-bottom: clamp(64px, 8vw, 120px); }
+section.feat, section.vid, section.rack, section.find, section.looks, section.how, section.store { margin-bottom: clamp(64px, 8vw, 120px); }
 
 /* shop by category: photo tiles with labels on them */
 
@@ -319,7 +319,7 @@ section.vid, section.rack, section.find, section.looks, section.how, section.sto
 /* the store */
 /* Latest video: a picture with a play button; the YouTube player replaces it on press (shop.js).
    The fixed shape keeps the page from jumping when the player arrives. */
-.vid-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: clamp(20px, 2.4vw, 36px); }
+.vid-row { display: grid; grid-template-columns: minmax(0, 1fr); max-width: 980px; }
 .vid-main { min-width: 0; display: flex; flex-direction: column; }
 .vid-frame { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--r); background: var(--ink); }
 .vid-frame.is-short { aspect-ratio: 9 / 16; height: min(640px, 80vh); justify-self: center; }
@@ -335,18 +335,17 @@ section.vid, section.rack, section.find, section.looks, section.how, section.sto
 .vid-info { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; margin-top: 16px; }
 .vid-info h3 { margin: 10px 0 0; font: 600 clamp(22px, 2.2vw, 32px)/1.05 var(--display); letter-spacing: -.035em; }
 .vid-info .btn { flex: none; }
-.feat { min-width: 0; display: flex; flex-direction: column; }
-.feat-head { display: flex; align-items: center; gap: 12px; min-height: 40px; margin-bottom: 10px; }
-.feat-head h3 { margin: 0 auto 0 0; font: 600 20px/1 var(--display); letter-spacing: -.03em; }
+.feat-ctl { display: flex; align-items: center; gap: 12px; }
+@media (max-width: 600px) { .feat-ctl { grid-column: 1 / -1; } }
 .feat-arrows { display: flex; gap: 6px; }
 .feat-arrows button { width: 40px; height: 40px; padding: 0; border: 1px solid var(--line-2); border-radius: 50%; background: none; color: var(--ink); font-size: 16px; cursor: pointer; transition: background .2s, color .2s; }
 .feat-arrows button:hover { background: var(--ink); color: var(--paper); }
 .feat-arrows button:focus-visible, .feat-slide:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
-.feat-track { flex: 1; min-height: 0; display: flex; gap: 0; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+.feat-track { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
 .feat-track::-webkit-scrollbar { display: none; }
 .slide-count { font: 500 11px/1 var(--mono); color: var(--muted); letter-spacing: .06em; }
-.feat-slide { flex: 0 0 100%; min-width: 0; display: flex; flex-direction: column; scroll-snap-align: start; text-decoration: none; color: var(--ink); }
-.feat-pic { position: relative; flex: 1; min-height: 240px; overflow: hidden; border-radius: var(--r); background: var(--paper-2); }
+.feat-slide { flex: 0 0 calc((100% - 36px) / 4); min-width: 0; display: flex; flex-direction: column; scroll-snap-align: start; text-decoration: none; color: var(--ink); }
+.feat-pic { position: relative; display: block; aspect-ratio: 4 / 5; overflow: hidden; border-radius: var(--r); background: var(--paper-2); }
 .feat-pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .9s var(--ease); }
 .feat-slide:hover img { transform: scale(1.04); }
 .feat-cap { display: grid; gap: 5px; padding-top: 12px; }
@@ -359,7 +358,6 @@ section.vid, section.rack, section.find, section.looks, section.how, section.sto
   .feat-arrows { display: none; }
   .feat-track { gap: 10px; margin: 0 calc(var(--gut) * -1); padding: 0 var(--gut); scroll-padding: 0 var(--gut); }
   .feat-slide { flex-basis: 62%; }
-  .feat-pic { flex: none; aspect-ratio: 4 / 5; min-height: 0; }
 }
 
 .store { scroll-margin-top: 66px; }

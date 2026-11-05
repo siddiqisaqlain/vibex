@@ -70,9 +70,24 @@
 
   <section class="trust wrap" id="stats" aria-label="Why Vibe X"></section>
 
+  <section class="feat wrap" id="feat" aria-labelledby="feat-h" hidden>
+    <header class="sec-head feat-head">
+      <span class="sec-no">01</span>
+      <h2 class="sec-h" id="feat-h">Featured</h2>
+      <div class="feat-ctl">
+        <span class="slide-count" id="feat-count"></span>
+        <div class="feat-arrows">
+          <button type="button" id="feat-prev" aria-label="Previous pieces">←</button>
+          <button type="button" id="feat-next" aria-label="Next pieces">→</button>
+        </div>
+      </div>
+    </header>
+    <div class="feat-track" id="feat-track"></div>
+  </section>
+
   <section class="rack wrap" id="rack">
     <header class="sec-head rack-head">
-      <span class="sec-no">01</span>
+      <span class="sec-no">02</span>
       <h2 class="sec-h rack-title"><span>Fresh off the truck</span>
         <span class="road" aria-hidden="true">
           <svg class="truck" viewBox="0 0 112 54" width="34" height="16">
@@ -104,7 +119,7 @@
   </section>
 
   <section class="find wrap" aria-labelledby="find-h">
-    <header class="sec-head"><span class="sec-no">02</span><h2 class="sec-h" id="find-h">Find your fit</h2></header>
+    <header class="sec-head"><span class="sec-no">03</span><h2 class="sec-h" id="find-h">Find your fit</h2></header>
     <div class="shop-by">
       <div class="panel" id="by-size"><h3 class="panel-h">By size</h3><div class="pills" id="sizes"></div></div>
       <div class="panel" id="by-price"><h3 class="panel-h">By price</h3><div class="pills" id="prices"></div></div>
@@ -113,12 +128,12 @@
   </section>
 
   <section class="looks wrap" id="looks-sec" aria-labelledby="looks-h" hidden>
-    <header class="sec-head"><span class="sec-no">03</span><h2 class="sec-h" id="looks-h">Just landed</h2></header>
+    <header class="sec-head"><span class="sec-no">04</span><h2 class="sec-h" id="looks-h">Just landed</h2></header>
     <div class="looks-grid" id="looks"></div>
   </section>
 
   <section class="how wrap" aria-labelledby="how-h">
-    <header class="sec-head"><span class="sec-no">04</span><h2 class="sec-h" id="how-h">How it works</h2></header>
+    <header class="sec-head"><span class="sec-no">05</span><h2 class="sec-h" id="how-h">How it works</h2></header>
     <ol>
       <li><span>01</span><b>Spot it here</b><p>Every piece is real stock in our Srinagar store, posted the moment it's unpacked.</p></li>
       <li><span>02</span><b>Order or enquire</b><p>Pay by UPI in a minute, or message us on WhatsApp about the exact piece.</p></li>
@@ -127,7 +142,7 @@
   </section>
 
   <section class="store wrap" id="visit" aria-labelledby="store-h">
-    <header class="sec-head"><span class="sec-no">05</span><h2 class="sec-h" id="store-h">The store</h2></header>
+    <header class="sec-head"><span class="sec-no">06</span><h2 class="sec-h" id="store-h">The store</h2></header>
     <div class="store-card">
       <div class="store-pic" id="store-pic" aria-hidden="true"></div>
       <div class="store-info">
@@ -148,7 +163,7 @@
   </section>
 
   <section class="vid wrap" id="latest" aria-labelledby="vid-h" hidden>
-    <header class="sec-head"><span class="sec-no">06</span><h2 class="sec-h" id="vid-h">Latest from the store</h2></header>
+    <header class="sec-head"><span class="sec-no">07</span><h2 class="sec-h" id="vid-h">Latest from the YouTube</h2></header>
     <div class="vid-row">
       <div class="vid-main">
         <div class="vid-frame" id="vid-frame">
@@ -165,17 +180,6 @@
           <a class="btn btn-line" id="vid-more" target="_blank" rel="noopener">More on YouTube <span aria-hidden="true">↗</span></a>
         </div>
       </div>
-      <aside class="feat" id="feat" aria-label="Featured pieces" hidden>
-        <div class="feat-head">
-          <h3>Featured</h3>
-          <span class="slide-count" id="feat-count"></span>
-          <div class="feat-arrows">
-            <button type="button" id="feat-prev" aria-label="Previous piece">←</button>
-            <button type="button" id="feat-next" aria-label="Next piece">→</button>
-          </div>
-        </div>
-        <div class="feat-track" id="feat-track"></div>
-      </aside>
     </div>
   </section>
 </main>

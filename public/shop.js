@@ -314,13 +314,13 @@
     $("cat-tabs").innerHTML = `<div class="cat-tabs-in">${tabs.join("")}</div>`;
   }
 
-  // ---- Featured, beside the video: pieces ticked in the portal, then the priciest in stock.
+  // ---- Featured, above the rack: pieces ticked in the portal, then the priciest in stock.
   // Skips repeats of a name (several Tender Ambers). ----
   const FEATURED = 6;
   let featKey = "", featTimer = null, featSeen = null;
   function renderFeatured() {
     const box = $("feat");
-    if (!box || $("latest").hidden) return;
+    if (!box) return;
     const ok = products.filter((p) => p.image && p.status === "available");
     const chosen = ok.filter((p) => p.featured);
     const rest = ok.filter((p) => !p.featured).sort((a, b) => (b.price || 0) - (a.price || 0));
@@ -346,18 +346,19 @@
     const step = () => track.firstElementChild?.getBoundingClientRect().width + parseFloat(getComputedStyle(track).columnGap || 0) || 1;
     const cur = () => Math.round(track.scrollLeft / step());
     const mark = () => { count.textContent = many ? `${String(Math.min(cur(), list.length - 1) + 1).padStart(2, "0")} / ${String(list.length).padStart(2, "0")}` : ""; };
+    const atEnd = () => track.scrollLeft + track.clientWidth >= track.scrollWidth - 2; // several show at once, so the last few can't reach the left edge
     const go = (i) => track.scrollTo({ left: ((i + list.length) % list.length) * step(), behavior: "smooth" });
     track.onscroll = mark; mark();
     $("feat-prev").onclick = () => go(cur() - 1);
-    $("feat-next").onclick = () => go(cur() + 1);
-    // Moves on its own only where it's one piece at a time, on screen, and nobody is busy with it
+    $("feat-next").onclick = () => go(atEnd() ? 0 : cur() + 1);
+    // Moves on its own only on desktop, on screen, and when nobody is busy with it
     // or watching the video. Phones show the next piece peeking in, and swipe.
     clearInterval(featTimer);
     if (!many || matchMedia("(prefers-reduced-motion: reduce)").matches || !matchMedia("(min-width: 761px)").matches) return;
     if (!featSeen) { featSeen = { now: false }; new IntersectionObserver(([e]) => { featSeen.now = e.isIntersecting; }, { threshold: .5 }).observe(box); }
     // :focus-visible, not :focus-within: a clicked arrow keeps focus, which would stop it for good
     featTimer = setInterval(() => {
-      if (featSeen.now && !videoPlaying && !box.matches(":hover") && !box.querySelector(":focus-visible") && !document.hidden) go(cur() + 1);
+      if (featSeen.now && !videoPlaying && !box.matches(":hover") && !box.querySelector(":focus-visible") && !document.hidden) go(atEnd() ? 0 : cur() + 1);
     }, 5500);
   }
 
