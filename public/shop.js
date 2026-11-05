@@ -1,4 +1,4 @@
-// Vibe X homepage, v5 (department-store layout: category pills, banner slider, dense grid,
+// Vibe X homepage, v5 (department-store layout: category pills, dense grid,
 // shop by size / price / brand). Everything is drawn from /api/products and stays live.
 (() => {
   const S = window.SHOP;
@@ -149,7 +149,7 @@
     card.className = "vx-hi"; card.setAttribute("role", "status");
 
     let timer = null, hovering = false;
-    const close = () => { clearTimeout(timer); removeEventListener("keydown", onKey); card.classList.remove("on"); setTimeout(() => card.remove(), 400); };
+    const close = () => { clearTimeout(timer); removeEventListener("keydown", onKey); removeEventListener("scroll", place); card.classList.remove("on"); setTimeout(() => card.remove(), 400); };
     const busy = () => hovering || card.querySelector("form");
     const wait = (ms = HELLO_MS) => { clearTimeout(timer); timer = setTimeout(() => (busy() ? wait(1500) : close()), ms); }; // never closes on someone reading or typing
     const onKey = (e) => { if (e.key === "Escape") close(); };
@@ -208,7 +208,9 @@
 
     hello();
     const head = document.querySelector(".top");
-    if (head) card.style.setProperty("--hi-top", `${Math.max(0, head.getBoundingClientRect().bottom) + 8}px`);
+    const place = () => { if (head) card.style.setProperty("--hi-top", `${Math.max(0, head.getBoundingClientRect().bottom) + 8}px`); }; // phones: stays under the header as the ticker scrolls by
+    place();
+    addEventListener("scroll", place, { passive: true });
     document.body.append(card);
     requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add("on")));
     wait();
@@ -287,6 +289,19 @@
 
   // ---- category pills under the header ----
   // Hero numbers: counted from the rack right now, so they are always true.
+  // The hero's latest posts: newest real pieces, one line each, no repeats of a name.
+  function renderHeroFeed() {
+    const box = $("hl-feed");
+    const seen = new Set();
+    const list = products.filter((p) => p.image && p.status === "available" && !seen.has(p.name) && seen.add(p.name))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 3);
+    box.hidden = !list.length;
+    box.innerHTML = list.length ? `<span>Just posted</span>` + list.map((p) => `
+      <a class="hl-post" href="${pdp(p)}"><img src="${esc(p.image)}" alt="" loading="lazy" decoding="async">
+        <span><b>${esc(p.name)}</b><em>${esc(agoAt(p.createdAt))}</em></span>
+        <i>${p.price ? `${manyPrices(p) ? "From " : ""}${rupees(p.price)}` : ""}</i></a>`).join("") : "";
+  }
+
   function renderHeroStats() {
     const live = products.filter((p) => p.status === "available");
     const labels = new Set(live.map((p) => p.brand).filter(Boolean)).size;
@@ -307,77 +322,20 @@
     $("cat-tabs").innerHTML = `<div class="cat-tabs-in">${tabs.join("")}</div>`;
   }
 
-  // ---- banner slider, built from real photos ----
-  let slideTimer = null;
-  function renderSlider() {
-    const photos = (list) => list.filter((p) => p.image && p.status === "available");
-    const byNew = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
-    // the newest pieces with photos, one per slide (a mix of categories when there is one)
-    const all = photos(products).sort(byNew);
-    const picks = [];
-    for (const c of CATS) { const p = all.find((x) => x.category === c); if (p) picks.push(p); }
-    for (const p of all) if (picks.length < 5 && !picks.includes(p)) picks.push(p);
-    const slides = picks.sort(byNew).slice(0, 5);
-    const el = $("slider");
-    el.hidden = !slides.length;
-    if (!slides.length) return;
-    $("slides").innerHTML = slides.map((p, i) => `
-      <a class="slide" href="${pdp(p)}" role="group" aria-roledescription="slide" aria-label="${esc(p.name)}, ${i + 1} of ${slides.length}">
-        <div class="slide-pics"><img src="${esc(p.image)}" alt="${esc(p.name)}" ${i === 0 ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async"></div>
-        ${isNew(p) ? `<span class="slide-flag">${hoursOld(p) < 24 ? "New today" : "Just in"}</span>` : ""}
-        ${hasOffer(p) ? `<span class="slide-off">${offBadge(p)}</span>` : ""}
-      </a>`).join("");
-    const caption = (i) => {
-      const p = slides[i];
-      $("slide-cap").href = pdp(p);
-      $("slide-cap").innerHTML = `<span>${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><em>${p.price ? rupees(p.price) : "Price on request"}${wasPrice(p)}</em>`;
-      $("slide-count").textContent = `${String(i + 1).padStart(2, "0")} / ${String(slides.length).padStart(2, "0")}`;
-    };
-    caption(0);
-    $("slider-dots").innerHTML = slides.length > 1 ? slides.map((_, i) => `<button type="button" aria-label="Slide ${i + 1}" data-slide="${i}"${i ? "" : ' aria-current="true"'}></button>`).join("") : "";
-    const track = $("slides");
-    const go = (i) => track.scrollTo({ left: i * track.clientWidth, behavior: "smooth" });
-    const cur = () => Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
-    const mark = () => {
-      const i = cur();
-      $("slider-dots").querySelectorAll("button").forEach((b, j) => b.toggleAttribute("aria-current", j === i));
-      track.querySelectorAll(".slide").forEach((s, j) => s.classList.toggle("on", j === i));
-      caption(Math.min(i, slides.length - 1));
-    };
-    track.onscroll = mark;
-    requestAnimationFrame(mark);
-    $("slider-dots").onclick = (e) => { const b = e.target.closest("[data-slide]"); if (b) { go(+b.dataset.slide); restart(); } };
-    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    function restart() {
-      clearInterval(slideTimer);
-      // hold the first slide while the opening map is up, and for a full turn after it lifts
-      let introGone = document.querySelector(".vxi") ? 0 : 1;
-      if (slides.length > 1 && !reduce) slideTimer = setInterval(() => {
-        if (document.querySelector(".vxi")) { introGone = 0; return; }
-        if (introGone === 0) { introGone = Date.now(); return; }            // the map just lifted: give slide 1 a full turn
-        if (introGone > 1 && Date.now() - introGone < 4000) return;
-        go((cur() + 1) % slides.length);
-      }, 5500);
-    }
-    track.onpointerdown = restart;
-    restart();
-  }
-
   // ---- Featured, beside the video: pieces ticked in the portal, then the priciest in stock.
-  // Skips what the hero slider already shows, and repeats of a name (several Tender Ambers). ----
+  // Skips repeats of a name (several Tender Ambers). ----
   const FEATURED = 6;
   let featKey = "", featTimer = null, featSeen = null;
   function renderFeatured() {
     const box = $("feat");
     if (!box || $("latest").hidden) return;
     const ok = products.filter((p) => p.image && p.status === "available");
-    const inHero = new Set([...document.querySelectorAll("#slides .slide")].map((a) => a.getAttribute("href")));
     const chosen = ok.filter((p) => p.featured);
     const rest = ok.filter((p) => !p.featured).sort((a, b) => (b.price || 0) - (a.price || 0));
     const picks = [...chosen];
-    for (const skipHero of [true, false]) for (const p of rest) {
+    for (const p of rest) {
       if (picks.length >= FEATURED) break;
-      if (picks.includes(p) || (skipHero && inHero.has(pdp(p))) || picks.some((x) => x.name === p.name)) continue;
+      if (picks.includes(p) || picks.some((x) => x.name === p.name)) continue;
       picks.push(p);
     }
     const list = picks.slice(0, FEATURED);
@@ -484,6 +442,17 @@
     return true;
   }
 
+  function renderTabs() {
+    const tabs = ["All", "New", ...CATS.filter((c) => products.some((p) => p.category === c))];
+    if (view.tab === "Deals") tabs.push("Deals");
+    $("filters").innerHTML = tabs.map((t) => {
+      const n = t === "All" ? products.length : t === "New" ? products.filter(isNew).length : t === "Deals" ? products.filter((p) => offPct(p) >= 40).length : products.filter((p) => p.category === t).length;
+      if (t === "New" && !n) return "";
+      const label = t === "All" ? "All" : t === "New" ? "New in" : t === "Deals" ? "40%+ off" : t;
+      return `<button role="tab" aria-selected="${t === view.tab}" data-tab="${t}">${label}<sup>${n}</sup></button>`;
+    }).join("");
+  }
+
   function renderSubs() {
     const el = $("subs");
     if (!CATS.includes(view.tab)) { el.hidden = true; el.innerHTML = ""; return; }
@@ -493,7 +462,7 @@
     if (names.length < 2) { el.hidden = true; el.innerHTML = ""; return; }
     el.hidden = false;
     el.innerHTML = [`<button data-sub="" aria-pressed="${!view.sub}">All ${esc(view.tab.toLowerCase())}</button>`]
-      .concat(names.map((n) => `<button data-sub="${esc(n)}" aria-pressed="${view.sub === n}">${esc(n)}</button>`)).join("");
+      .concat(names.map((n) => `<button data-sub="${esc(n)}" aria-pressed="${view.sub === n}">${esc(n)}<sup>${counts[n]}</sup></button>`)).join("");
   }
 
   function renderActive() {
@@ -531,10 +500,11 @@
     $("empty").hidden = shown.length > 0;
     moreLeft = list.length > view.shown;
     $("count").textContent = list.length ? `Showing ${shown.length} of ${list.length}` : "";
+    renderTabs();
     renderSubs();
     renderActive();
     renderShopBy();
-    document.querySelectorAll(".cat-tab").forEach((b) => b.classList.toggle("on", b.dataset.jump === view.tab && !view.band || (b.dataset.band && view.band === b.dataset.band)));
+    document.querySelectorAll(".cat-tab").forEach((b) => b.classList.toggle("on", Boolean(b.dataset.jump === view.tab && !view.band || (b.dataset.band && view.band === b.dataset.band))));
     try { sessionStorage.setItem(SHOWN_KEY, String(view.shown)); } catch { /* private mode */ }
     requestAnimationFrame(loadMore); // a tall screen may need more than one page to fill it
   }
@@ -579,9 +549,9 @@
       renderGrid(fresh);
       renderCatTabs();
       renderHeroStats();
+      renderHeroFeed();
       renderRange();
       renderLooks();
-      if (first || fresh.size) renderSlider();
       renderFeatured();
       if (first) renderTicker();
       if (fresh.size) {
@@ -627,6 +597,10 @@
       return;
     }
     if (e.target.closest('[data-dock="home"]')) { e.preventDefault(); scrollTo({ top: 0, behavior: "smooth" }); }
+  });
+  $("filters").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-tab]");
+    if (b) setView({ tab: b.dataset.tab, sub: null });
   });
   $("subs").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-sub]");
