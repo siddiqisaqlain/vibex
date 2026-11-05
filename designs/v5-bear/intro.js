@@ -3,12 +3,38 @@
 // country, each city raising a pin. Then the camera dives into the map while the banner opens out
 // of the same spot, the VIBE X mark flies up into the header, and the rest of the page arrives in step.
 // Once per visit (tab); ?intro replays it. Tap or Skip to go straight to the hand-off.
+// When the map has lifted, the customer is greeted (greet() below).
 // Without the intro (repeat visits) the page still makes the same entrance.
 // Map: India's official boundary (@svg-maps/india, simplified), Mercator.
 (() => {
   const root = document.documentElement;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reduce) return;
+  // Hello to the customer, by their own clock. Styled in shop.css (.vx-greet); sits under the
+  // header, clear of the phone dock and the sale notes. Tap to dismiss.
+  function greet() {
+    const h = new Date().getHours();
+    const part = h >= 5 && h < 12 ? "morning" : h >= 12 && h < 17 ? "afternoon" : "evening";
+    let back = false;
+    try { back = localStorage.getItem("vx-been") === "1"; localStorage.setItem("vx-been", "1"); } catch { /* private mode */ }
+    const top = document.querySelector(".top");
+    const card = document.createElement("div");
+    card.className = "vx-greet";
+    card.setAttribute("role", "status");
+    card.style.top = `${Math.max(0, top ? top.getBoundingClientRect().bottom : 58) + 12}px`;
+    card.innerHTML = `<b>Good ${part}</b><span>Welcome ${back ? "back " : ""}to Vibe X. Have a look around, new pieces land most days.</span>`;
+    document.body.appendChild(card);
+    const close = () => { card.classList.remove("on"); setTimeout(() => card.remove(), 450); };
+    card.addEventListener("click", close);
+    requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add("on")));
+    setTimeout(close, 5000);
+  }
+  if (reduce) {
+    // no map for these visitors, so the greeting comes straight after the page opens
+    let first = true;
+    try { first = sessionStorage.getItem("vx-intro") !== "1"; sessionStorage.setItem("vx-intro", "1"); } catch { /* private mode */ }
+    if (first) addEventListener("load", () => setTimeout(greet, 600));
+    return;
+  }
   // The page waits, hidden, for its entrance (shop.css: .vx-pre / .vx-enter). Safety net: never stay hidden.
   root.classList.add("vx-pre");
   const enter = () => {
@@ -105,7 +131,7 @@
   @keyframes vxiDrive { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
   .vxi.leaving .vxi-ship { opacity: 0; }
   /* after the deliveries: the intro waits for the customer (tap / click / scroll / Enter) */
-  .vxi-go { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; padding: 10px 18px; border: 1px solid rgba(18,18,18,.22); border-radius: 999px; background: rgba(255,255,255,.7); backdrop-filter: blur(6px); font: 500 11.5px 'Geist Mono', ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; color: ${INK}; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity .3s; }
+  .vxi-go { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; padding: 10px 18px; border: 1px solid rgba(18,18,18,.22); border-radius: 999px; background: rgba(255,255,255,.7); backdrop-filter: blur(6px); font: 500 12.5px 'Geist Mono', ui-monospace, monospace; letter-spacing: .02em; color: ${INK}; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity .3s; }
   .vxi-go.on { animation: vxiUp .8s cubic-bezier(.2,.8,.2,1) forwards; }
   .vxi-go i { width: 7px; height: 7px; border-radius: 50%; background: ${RED}; animation: vxiBeat 2.8s ease-out infinite; }
   .vxi-go svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -113,7 +139,7 @@
   @keyframes vxiBeat { 0% { box-shadow: 0 0 0 0 rgba(226,56,44,.5); } 80%, 100% { box-shadow: 0 0 0 9px rgba(226,56,44,0); } }
   .vxi.ready .vxi-skip { opacity: 0; pointer-events: none; }
   .vxi.leaving .vxi-go { opacity: 0; }
-  @media (max-width: 600px) { .vxi-go { font-size: 10.5px; padding: 9px 16px; margin-top: 14px; } }
+  @media (max-width: 600px) { .vxi-go { font-size: 12px; padding: 9px 16px; margin-top: 14px; } }
   @media (max-width: 600px) { .vxi-ship { font-size: 10px; padding: 7px 12px 7px 10px; } }
   /* orders counter: ticks up as parcels land, then flips to the headline figure with a flash */
   .vxi-count { position: relative; margin-top: 12px; font: 700 50px/1 'Schibsted Grotesk', Arial, sans-serif; letter-spacing: -.05em; color: ${INK}; font-variant-numeric: tabular-nums; white-space: nowrap; transition: opacity .25s; }
@@ -131,7 +157,7 @@
   el.setAttribute("aria-label", "Vibe X ships from Srinagar to cities across India");
   el.innerHTML = `<style>${css}</style><div class="vxi-bg"></div><canvas></canvas>
     <div class="vxi-compass" aria-hidden="true"><div class="vxi-compass-in"><i></i><span>N</span></div></div>
-    <div class="vxi-copy"><div class="vxi-logo">VIBE<span>X</span></div><div class="vxi-count" hidden><b>0</b></div><p>From Srinagar to <b>all of India</b></p><div class="vxi-ship" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 6.5h11v9h-11zM13.5 9.5h4l3 3.2v2.8h-7z"/><circle cx="6.5" cy="17" r="1.7"/><circle cx="17" cy="17" r="1.7"/></svg><b></b><span></span></div><div class="vxi-go" role="button" aria-label="Enter the shop"><i></i><span class="vxi-go-t">Tap to enter</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div></div>
+    <div class="vxi-copy"><div class="vxi-logo">VIBE<span>X</span></div><div class="vxi-count" hidden><b>0</b></div><p>From Srinagar to <b>all of India</b></p><div class="vxi-ship" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 6.5h11v9h-11zM13.5 9.5h4l3 3.2v2.8h-7z"/><circle cx="6.5" cy="17" r="1.7"/><circle cx="17" cy="17" r="1.7"/></svg><b></b><span></span></div><div class="vxi-go" role="button" aria-label="Continue to the shop"><i></i><span>Tap to Continue</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div></div>
     <button class="vxi-skip" type="button">Skip</button>`;
   document.body.prepend(el);
   document.body.classList.add("vxi-on");
@@ -385,6 +411,7 @@
       el.style.transition = "opacity .5s cubic-bezier(.4,0,.2,1)";
       el.style.opacity = "0";
     }, lift);
+    setTimeout(greet, lift + 1000);                         // once the logo has landed in the header
     // the VIBE X mark flies into the header logo
     const target = document.querySelector(".top .logo");
     if (target) {
@@ -399,7 +426,6 @@
     setTimeout(() => { over = true; cancelAnimationFrame(raf); el.remove(); removeEventListener("resize", resize); }, EXIT + 120);
   }
   const go = el.querySelector(".vxi-go");
-  if (matchMedia("(hover: hover) and (pointer: fine)").matches) go.querySelector(".vxi-go-t").textContent = "Click to enter";
   let ready = false;
   const timer = 0;
   const enterNow = () => leave(!ready);                     // before the deliveries finish: the quick version

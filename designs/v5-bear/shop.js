@@ -23,6 +23,12 @@
   let products = [];
   // What the rack shows: a tab (All / New / a category) plus optional narrowing.
   const view = { tab: "All", sub: null, size: null, band: null, brand: null, shown: PAGE };
+  let moreLeft = false, holdLoad = 0;
+  // Back from a product page: same number of pieces, so the customer lands where they were.
+  const SHOWN_KEY = "vx-shown";
+  try {
+    if (performance.getEntriesByType("navigation")[0]?.type === "back_forward") view.shown = Math.max(PAGE, Number(sessionStorage.getItem(SHOWN_KEY)) || PAGE);
+  } catch { /* private mode */ }
   let known = null;
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -322,14 +328,33 @@
     for (const id of cardCache.keys()) if (!byId.has(id)) cardCache.delete(id);
     $("grid").replaceChildren(...(shown.length ? [grid] : []));
     $("empty").hidden = shown.length > 0;
-    $("more").hidden = list.length <= view.shown;
+    moreLeft = list.length > view.shown;
     $("count").textContent = list.length ? `Showing ${shown.length} of ${list.length}` : "";
     renderTabs();
     renderSubs();
     renderActive();
     renderShopBy();
     document.querySelectorAll(".cat-tab").forEach((b) => b.classList.toggle("on", b.dataset.jump === view.tab && !view.band || (b.dataset.band && view.band === b.dataset.band)));
+    try { sessionStorage.setItem(SHOWN_KEY, String(view.shown)); } catch { /* private mode */ }
+    requestAnimationFrame(loadMore); // a tall screen may need more than one page to fill it
   }
+
+  // ---- endless catalogue: the next page arrives before the customer reaches the end ----
+  // Only when the end of the list is on its way up from below. Coming back up from the sections
+  // under the rack it stays put, or the page would shift under the customer's finger.
+  function loadMore() {
+    if (!moreLeft || Date.now() < holdLoad) return;
+    const y = $("count").getBoundingClientRect().top;
+    if (y <= 0 || y > innerHeight + 700) return;
+    view.shown += PAGE;
+    renderGrid();
+  }
+  let loadQueued = false;
+  addEventListener("scroll", () => {
+    if (loadQueued) return;
+    loadQueued = true;
+    requestAnimationFrame(() => { loadQueued = false; loadMore(); });
+  }, { passive: true });
 
   function setView(patch, scroll) {
     Object.assign(view, patch, { shown: PAGE });
@@ -367,6 +392,12 @@
 
   // ---- clicks ----
   document.addEventListener("click", (e) => {
+    // "Visit the store" and friends fly past the rack: draw the real page first, and don't grow
+    // the rack mid-flight, or they land in the wrong place
+    if (e.target.closest('a[href^="#"]:not([data-jump]):not([data-dock])')) {
+      document.documentElement.classList.add("vx-full");
+      holdLoad = Date.now() + 1500;
+    }
     const jump = e.target.closest("[data-jump]");
     if (jump) {
       e.preventDefault();
@@ -404,7 +435,6 @@
     const b = e.target.closest("button[data-sub]");
     if (b) setView({ sub: b.dataset.sub || null });
   });
-  $("more").addEventListener("click", () => { view.shown += PAGE; renderGrid(); });
 
   window.VXOrder.install((id) => products.find((p) => p.id === id));
 

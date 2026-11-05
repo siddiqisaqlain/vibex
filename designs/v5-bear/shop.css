@@ -248,8 +248,6 @@ section.range, section.rack, section.find, section.looks, section.how, section.s
 
 .empty { text-align: center; padding: 56px 0; color: var(--muted); }
 .more-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 52px; }
-.more { height: 48px; padding: 0 30px; font: 500 14px/1 var(--body); color: var(--ink); background: transparent; border: 1px solid var(--line-2); border-radius: 999px; cursor: pointer; transition: all .25s var(--ease); }
-.more:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .count { font: 500 10.5px/1 var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
 
 /* find your fit */
@@ -686,6 +684,7 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 
 /* sections below the first screen are not laid out or painted until they come near (faster start) */
 .range, .rack, .find, .looks, .how, .store, .foot { content-visibility: auto; contain-intrinsic-size: auto 900px; }
+.vx-full :is(.range, .rack, .find, .looks, .how, .store, .foot) { content-visibility: visible; } /* real heights, so in-page links land true (shop.js) */
 
 /* "Thanks For The Purchase" */
 .co-fx { position: fixed; top: 0; left: 0; z-index: 20; pointer-events: none; }
@@ -704,3 +703,10 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .pdp-sizes { margin: 18px 0 4px; }
 .pdp-sizes .label { margin: 0 0 8px; }
 .pdp-sizes .ask-err { margin: 8px 0 0; }
+
+/* greeting, right after the opening map (intro.js) */
+.vx-greet { position: fixed; z-index: 45; left: 50%; width: min(360px, calc(100vw - 32px)); padding: 14px 18px 15px; border-radius: 16px; background: var(--ink); color: var(--paper); box-shadow: 0 14px 34px rgba(0,0,0,.22); cursor: pointer; opacity: 0; transform: translate(-50%, -14px); transition: opacity .4s ease, transform .55s var(--ease); }
+.vx-greet.on { opacity: 1; transform: translate(-50%, 0); }
+.vx-greet b { display: block; font: 600 22px/1.1 var(--display); letter-spacing: -.03em; }
+.vx-greet span { display: block; margin-top: 6px; font: 400 13.5px/1.4 var(--body); opacity: .78; }
+@media (prefers-reduced-motion: reduce) { .vx-greet { transition: opacity .2s; transform: translate(-50%, 0); } }
