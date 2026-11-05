@@ -24,17 +24,19 @@
   }
 
   const optionsOf = (p) => p.options || [];
-  const chosenOf = (p) => { const o = optionsOf(p); return o.length === 1 ? o[0] : o.find((x) => x.size === pick && x.left !== 0) || null; };
+  // Only one size can be bought: that's chosen for them. Otherwise never guess, a wrong size means a return.
+  const chosenOf = (p) => { const o = optionsOf(p).filter((x) => x.left !== 0); return o.length === 1 ? o[0] : o.find((x) => x.size === pick) || null; };
   const multiPrice = (p) => new Set(optionsOf(p).map((o) => o.price)).size > 1;
 
   function sizePicker(p) {
     const opts = optionsOf(p);
     if (opts.length < 2 || p.status !== "available") return "";
+    const on = chosenOf(p)?.size;
     const label = (o) => esc(o.size) + (o.left === 0 ? " · sold out" : multiPrice(p) ? ` · ${rupees(o.price)}` : "");
     return `<div class="pdp-sizes" role="group" aria-label="Choose size">
         <p class="label">Choose size</p>
-        <div class="pills">${opts.map((o) => `<button type="button" class="pill${o.size === pick ? " on" : ""}" data-pick="${esc(o.size)}" aria-pressed="${o.size === pick}" ${o.left === 0 ? "disabled" : ""}>${label(o)}</button>`).join("")}</div>
-        ${needPick ? `<p class="ask-err" role="alert">Choose a size first.</p>` : ""}
+        <div class="pills">${opts.map((o) => `<button type="button" class="pill${o.size === on ? " on" : ""}" data-pick="${esc(o.size)}" aria-pressed="${o.size === on}" ${o.left === 0 ? "disabled" : ""}>${label(o)}</button>`).join("")}</div>
+        ${needPick ? `<p class="ask-err" role="alert">Choose your size to order</p>` : ""}
       </div>`;
   }
 
@@ -98,7 +100,12 @@
     if (optionsOf(p).length > 1 && !chosen) {
       needPick = true;
       render();
-      root.querySelector(".pdp-sizes")?.scrollIntoView({ block: "center", behavior: "smooth" });
+      // Added here, not in render(): the 5-second refresh would replay the jiggle otherwise.
+      root.querySelector(".pdp-info .order-now")?.classList.add("nudge");
+      const sizes = root.querySelector(".pdp-sizes");
+      sizes?.classList.add("nudge");
+      const box = sizes?.getBoundingClientRect();
+      if (box && (box.top < 80 || box.bottom > innerHeight - 100)) sizes.scrollIntoView({ block: "center", behavior: "smooth" });
       return null;
     }
     return chosen ? { ...p, price: chosen.price, sizes: chosen.size, chosenSize: chosen.size } : p;

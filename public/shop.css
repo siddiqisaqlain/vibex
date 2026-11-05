@@ -606,8 +606,8 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 /* ===== modernist finish for the shared order and checkout rules ===== */
 .order { display: flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 10px; text-decoration: none; font: 500 13px/1 var(--body); letter-spacing: -.005em; background: var(--ink); color: var(--paper); border: 1px solid var(--ink); border-radius: 999px; transition: background .2s, border-color .2s, color .2s; text-align: center; }
 .order svg { width: 14px; height: 14px; flex: none; }
-.order-now { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.order-now:hover { background: var(--red); border-color: var(--red); color: #fff; }
+.order-now { background: var(--red); color: #fff; border-color: var(--red); }  /* same red as the X in the header logo */
+.order-now:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 .order.is-sold { background: transparent; color: var(--muted); border-color: var(--line); }
 .order.is-hold { background: transparent; color: var(--red); border-color: var(--red); }
 .enq { display: flex; align-items: center; justify-content: center; gap: 7px; height: 40px; padding: 0 10px; background: transparent; color: var(--ink); border: 1px solid var(--line-2); border-radius: 999px; font: 500 13px/1 var(--body); text-transform: none; letter-spacing: -.005em; cursor: pointer; transition: border-color .2s, background .2s; }
@@ -623,8 +623,6 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 @media (max-width: 640px) { .card .actions { grid-template-columns: 1fr 36px; } .card .order, .card .enq { height: 36px; } .card .order { font-size: 12px; } .card .order svg { width: 12px; height: 12px; } .card .actions > .enq:only-child { font-size: 12px; } }
 .pdp-info .actions { grid-template-columns: 1.4fr 1fr; gap: 8px; }
 .pdp-info .actions .order, .pdp-info .actions .enq { height: 54px; font-size: 15px; }
-.pdp-info .actions .order-now { background: var(--ink); }
-.pdp-info .actions .order-now:hover { background: var(--red); border-color: var(--red); }
 @media (max-width: 520px) { .pdp-info .actions { grid-template-columns: 1fr; } }
 .ask { font: 400 13px/1.2 var(--body); color: var(--muted); }
 .ask:hover { color: var(--ink); }
@@ -780,8 +778,21 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 }
 @media (prefers-reduced-motion: reduce) { .vx-hi { transition: opacity .2s; transform: none; } .vx-hi-wave { animation: none; } }
 
-/* Phones: the photo fills the first screen, so the buy buttons sit in a bar that's always in reach. */
-@media (max-width: 640px) {
+/* Order now tapped with no size chosen: the button shakes and the sizes light up with the prompt under them. */
+@keyframes vx-jiggle { 0%, 100% { transform: translateX(0); } 15%, 55% { transform: translateX(-6px); } 35%, 75% { transform: translateX(6px); } 90% { transform: translateX(-2px); } }
+@keyframes vx-pill-ring { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 35% { box-shadow: 0 0 0 3px var(--red); } }
+.order-now.nudge { animation: vx-jiggle .5s ease; }
+.pdp-sizes.nudge .pill:not([disabled]) { animation: vx-pill-ring .9s ease; border-color: var(--red); }
+@media (prefers-reduced-motion: reduce) { .order-now.nudge, .pdp-sizes.nudge .pill:not([disabled]) { animation: none; } }
+@media (hover: none) { .order-now:hover { background: var(--red); border-color: var(--red); color: #fff; } }  /* a tap shouldn't leave it black */
+
+/* Buy buttons come straight after the size, ahead of the facts, so a laptop sees them without scrolling. */
+.pdp-info { display: flex; flex-direction: column; }
+.pdp-info > .pdp-facts { order: 1; margin-top: 24px; }
+.pdp-info > .actions { margin-top: 20px; }
+
+/* Single-column pages (phones, tablets): the photo fills the first screen, so the buy buttons sit in a bar that's always in reach. */
+@media (max-width: 820px) {
   .pdp-info .actions { position: fixed; z-index: 25; left: 0; right: 0; bottom: 0; margin: 0; padding: 10px var(--gut) calc(10px + env(safe-area-inset-bottom)); grid-template-columns: 1.6fr 1fr; gap: 8px; background: color-mix(in srgb, var(--paper) 92%, transparent); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); border-top: 1px solid var(--line); }
   .pdp-info .actions .order, .pdp-info .actions .enq { height: 50px; font-size: 14.5px; }
   .pdp-info .actions > :only-child { grid-column: 1 / -1; }
