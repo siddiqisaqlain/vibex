@@ -83,9 +83,11 @@ window.VXCheckout = (() => {
         const out = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(out.error || "Couldn't start the order. Please try again.");
         state.order = out;
+        window.VXTrack?.("details", { pr: p.id, n: p.price });
         window.VXOrder.rememberName(state.form.name);
         stepPay();
       } catch (ex) {
+        window.VXTrack?.("formerr", { x: ex.message });
         stepDetails(ex.message);
       }
     });
@@ -137,9 +139,11 @@ window.VXCheckout = (() => {
       const res = await fetch(`/api/orders/${o.id}/paid`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const out = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(out.error || "Couldn't reach the shop. Please try again.");
+      window.VXTrack?.("paid", { pr: state.p.id, n: state.p.price });
       stepDone(out.status);
       if (out.status !== "cancelled") celebrate();
     } catch (ex) {
+      window.VXTrack?.("formerr", { x: ex.message });
       stepPay(state.tab, ex.message);
     }
   }
@@ -290,10 +294,10 @@ window.VXCheckout = (() => {
       dlg = document.createElement("dialog");
       dlg.className = "ask-dialog co-dialog";
       document.body.appendChild(dlg);
-      dlg.addEventListener("close", () => { clearInterval(poll); stopFx(); });
+      dlg.addEventListener("close", () => { clearInterval(poll); stopFx(); window.VXTrack?.("co_close"); });
       dlg.addEventListener("click", (e) => {
         if (e.target === dlg || e.target.closest("[data-close]")) return dlg.close();
-        const t = e.target.closest("[data-tab]"); if (t) return stepPay(t.dataset.tab);
+        const t = e.target.closest("[data-tab]"); if (t) { window.VXTrack?.("pay_tab", { x: t.dataset.tab }); return stepPay(t.dataset.tab); }
         const c = e.target.closest("[data-copy]"); if (c) return copyText(c);
         const paid = e.target.closest("[data-paid]"); if (paid) return markPaid(paid);
         if (e.target.closest("[data-back]")) return stepDetails();
@@ -303,6 +307,7 @@ window.VXCheckout = (() => {
     state = { p, form: state && state.form ? { ...state.form } : {}, order: null, tab: "upi" };
     stepDetails();
     dlg.showModal();
+    window.VXTrack?.("checkout", { pr: p.id, n: p.price });
   }
 
   return { open };

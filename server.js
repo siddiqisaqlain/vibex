@@ -18,6 +18,7 @@ const createBilling = require("./lib/billing");
 const { sizePairs, withoutSizePairs, optionsOf, applySizePairs, autoDescription, formatSizes, setSizeStock, fitSizeStock } = require("./lib/sizes");
 const { readJson, writeJson, dailyBackup } = require("./lib/jsonstore");
 const { videoFeed } = require("./lib/youtube");
+const createAnalytics = require("./lib/analytics");
 const SHOP_NAME = "Vibe X";
 
 const PORT = Number(process.env.PORT) || 4300;
@@ -619,7 +620,7 @@ ${head}
 <nav class="nav"><a href="/#rack">New drops</a><a class="nav-ig" href="https://www.instagram.com/vibex.india/" target="_blank" rel="noopener">Instagram ↗</a></nav></div></header>
 <main class="wrap pdp" id="pdp" data-id="${escHtml(id)}"></main>
 <div class="toast" id="toast" role="status" hidden></div>
-<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/pdp.js"></script><script src="/newtab.js"></script>
+<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/pdp.js"></script><script src="/newtab.js"></script><script src="/track.js"></script>
 </body></html>`;
 }
 
@@ -648,7 +649,7 @@ ${head}
 <nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a></nav></div>
 <p class="foot-note">© 2026 Vibe X · The Surplus Room, Srinagar, Kashmir</p></div></footer>
 <div class="toast" id="toast" role="status" hidden></div>
-<script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}<script src="/ui.js"></script><script src="/newtab.js"></script>
+<script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}<script src="/ui.js"></script><script src="/newtab.js"></script><script src="/track.js"></script>
 </body></html>`;
 }
 
@@ -670,7 +671,7 @@ ${head}
 <footer class="foot"><div class="wrap"><div class="foot-mark">VIBE<span>X</span></div>
 <div class="foot-row mono"><span>© Vibe X · The Surplus Room</span><span>World brands, one destination</span></div>
 <nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a></nav></div></footer>
-<script src="/newtab.js"></script>
+<script src="/newtab.js"></script><script src="/track.js"></script>
 </body></html>`;
 }
 
@@ -726,6 +727,10 @@ function previewRoute(req, res, name, rest) {
   if (rest === "/newtab.js") return serveFile(res, path.join(ROOT, "lib"), "newtab.js");
   return serveFile(res, dir, rest.slice(1));
 }
+
+// Visitors, for the owner's /analytics page. Kept on the disk, and written out before a restart.
+const analytics = createAnalytics({ STORE, productName: (id) => load().find((p) => p.id === id)?.name || id });
+process.on("SIGTERM", () => { analytics.close(); process.exit(0); });
 
 // Newest video on the shop's channel: checked hourly here, so no visitor ever waits on YouTube.
 const latestVideo = videoFeed({ ...SHOP.youtube, file: path.join(STORE, "latest-video.json") });
@@ -1845,6 +1850,35 @@ http
         const r = staff.login(b, req.socket.remoteAddress || "?");
         return r.error ? send(res, r.status, { error: r.error }) : send(res, 200, r);
       }
+      // Visitors' browsers report here. It only ever answers "got it", and refuses other websites.
+      if (req.method === "POST" && p === "/api/t") {
+        const from = req.headers.origin;
+        if (from && new URL(from).host !== req.headers.host) return send(res, 403, { error: "Not allowed." });
+        let b; try { b = JSON.parse(await readBody(req, 32 * 1024)); } catch { return send(res, 400, { error: "Bad request." }); }
+        analytics.ingest(b, { ua: req.headers["user-agent"] || "", ip: String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0] });
+        res.writeHead(204); return res.end();
+      }
+      if (p.startsWith("/api/analytics/")) {
+        if (!isOwner(req, url)) return send(res, 401, { error: "Owner key required." });
+        const route = p.slice("/api/analytics/".length), day = /^\d{4}-\d{2}-\d{2}$/;
+        if (req.method === "GET" && route === "live") return send(res, 200, analytics.liveNow());
+        if (req.method === "GET" && route === "report") {
+          const from = url.searchParams.get("from") || "", to = url.searchParams.get("to") || "";
+          if (!day.test(from) || !day.test(to) || from > to) return send(res, 400, { error: "Pick a date range." });
+          if (Date.parse(to) - Date.parse(from) > 400 * 864e5) return send(res, 400, { error: "Pick 400 days or fewer." });
+          return send(res, 200, await analytics.report(from, to));
+        }
+        if (req.method === "GET" && route === "changes") return send(res, 200, await analytics.changeResults());
+        if (req.method === "POST" && route === "changes") {
+          let b; try { b = JSON.parse((await readBody(req, 4096)) || "{}"); } catch { return send(res, 400, { error: "Bad request." }); }
+          const r = analytics.addChange(b);
+          return send(res, r.error ? 400 : 200, r);
+        }
+        const cm = /^changes\/([a-f0-9]{16})\/remove$/.exec(route);
+        if (req.method === "POST" && cm) { const r = analytics.removeChange(cm[1]); return send(res, r.error ? 404 : 200, r); }
+        return send(res, 404, { error: "not found" });
+      }
+      if (p === "/analytics") return serveFile(res, path.join(ROOT, "owner"), "analytics.html");
       // Owner key, or a staff login limited to the counter (lib/staff.js).
       if (p.startsWith("/api/billing/")) {
         const route = p.slice("/api/billing/".length);
@@ -1907,6 +1941,7 @@ http
       if (p.startsWith("/uploads/")) return serveFile(res, UPLOADS, p.slice("/uploads/".length));
       if (p === "/config.js") return sendConfig(res);
       if (p === "/newtab.js") return serveFile(res, path.join(ROOT, "lib"), "newtab.js");
+      if (p === "/track.js") return serveFile(res, path.join(ROOT, "lib"), "track.js");
       const pv = /^\/preview\/(classic|modern)(\/.*)?$/.exec(p);
       if (pv) return previewRoute(req, res, pv[1], pv[2] || "");
       if (p === "/" ) return serveFile(res, PUBLIC, "index.html");

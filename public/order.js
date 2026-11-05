@@ -100,11 +100,13 @@ window.VXOrder = (() => {
         });
         const out = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(out.error || "Couldn't send. Please try again.");
+        window.VXTrack?.("enq", { pr: p.id });
         form.innerHTML = `<button type="button" class="ask-x" data-close aria-label="Close">×</button>
           <div class="ask-done"><span class="ask-tick">✓</span><h2>Enquiry sent</h2>
           <p>Vibe X will WhatsApp you at <b>${esc(out.phone || "")}</b> about the ${esc(p.name)}.</p>
           <button type="button" class="btn btn-ink" data-close>Back to the rack</button></div>`;
       } catch (ex) {
+        window.VXTrack?.("formerr", { x: ex.message });
         err.textContent = ex.message;
         err.hidden = false;
         btn.disabled = false;

@@ -14,8 +14,8 @@ button,input,select{font:inherit;color:inherit}
 #createMenu{position:absolute;left:0;right:0;top:44px;background:#fff;color:var(--ink);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:6px;z-index:9}
 #createMenu button{display:block;width:100%;text-align:left;background:none;font-weight:500;border-radius:6px;padding:8px 10px}#createMenu button:hover{background:var(--bg)}
 #side h6{margin:12px 8px 4px;font-size:11px;letter-spacing:.06em;color:#8d99b0;text-transform:uppercase}
-#side button.nv{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:none;color:var(--sideText);font-size:14px;padding:9px 12px;border-radius:9px;cursor:pointer;text-align:left}
-#side button.nv:hover{background:#1b2a45}#side button.nv.on{background:#233a63;color:#fff;font-weight:600}
+#side button.nv,#side a.nv{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:none;color:var(--sideText);font-size:14px;padding:9px 12px;border-radius:9px;cursor:pointer;text-align:left}
+#side button.nv:hover,#side a.nv:hover{background:#1b2a45}#side button.nv.on{background:#233a63;color:#fff;font-weight:600}
 #side .sub{margin:0 0 4px 12px;color:inherit}#side .subgroup{display:none;margin-left:10px}#side .subgroup.open{display:block}
 #side .arrow{transition:transform .15s;font-size:11px}#side .head.open .arrow{transform:rotate(90deg)}
 #side .bottom{margin-top:auto;padding-top:10px}

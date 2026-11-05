@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400..800&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<title>Vibe X Analytics</title>
+<style>
+  /* The shop's own look: warm paper, ink, one signal red. Red only ever means trouble, green only ever means a sale. */
+  :root{color-scheme:light;--paper:#f4f2ee;--card:#fbfaf8;--ink:#121212;--ink2:#3d3c39;--mute:#6b6963;--line:rgba(18,18,18,.13);--wall:#121212;--hover:#ebe8e2;
+    --red:#e2382c;--redText:#b9271c;--redBg:#f9e6e1;--green:#1f7a52;--greenBg:#e3f0e9;--path:#121212;--neutral:#a5a297;--neutral2:#d3cfc6;
+    --h0:#ebe8e2;--h1:#d3cfc6;--h2:#a5a297;--h3:#6b6963;--h4:#3d3c39;--h5:#121212;
+    --mono:"Geist Mono",ui-monospace,Menlo,monospace}
+  @media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){color-scheme:dark;--paper:#141312;--card:#1c1b19;--ink:#f2f0ea;--ink2:#c9c6bd;--mute:#9b988f;--line:rgba(255,255,255,.14);--wall:#c9c6bd;--hover:#272522;
+    --red:#f0604f;--redText:#f58a7c;--redBg:#33201c;--green:#4fbe86;--greenBg:#17291f;--path:#f2f0ea;--neutral:#79766e;--neutral2:#46443f;
+    --h0:#272522;--h1:#46443f;--h2:#6b6963;--h3:#9b988f;--h4:#c9c6bd;--h5:#f2f0ea}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.4 "Schibsted Grotesk","Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  button,input,select{font:inherit;color:inherit}
+  .hide{display:none!important}
+  .m{font-family:var(--mono);letter-spacing:-.01em}
+  header.top{position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--line);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header.top h1{font-size:17px;margin:0;font-weight:800;letter-spacing:-.02em}
+  header.top a{color:var(--mute);font:12px var(--mono)}
+  .pill{display:inline-flex;align-items:center;gap:7px;font:500 13px var(--mono)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+  .dot.off{background:var(--red);animation:none}
+  @keyframes pulse{50%{opacity:.35}}
+  .range{margin-left:auto;display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+  .range button,.chips button{border:1px solid var(--line);background:none;border-radius:3px;padding:6px 10px;min-height:36px;cursor:pointer;font:12px var(--mono);color:var(--ink2)}
+  .range button.on,.chips button.on{background:var(--ink);color:var(--paper);border-color:var(--ink);font-weight:600}
+  .range input{background:none;border:1px solid var(--line);border-radius:3px;padding:5px 6px;font:12px var(--mono);min-height:36px}
+  nav.tabs{background:var(--paper);border-bottom:1px solid var(--line);display:flex;gap:2px;overflow-x:auto;padding:0 12px;position:sticky;top:57px;z-index:4;scrollbar-width:none}
+  nav.tabs button{border:0;background:none;padding:12px 12px;min-height:44px;font-weight:600;color:var(--mute);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+  nav.tabs button.on{color:var(--ink);border-bottom-color:var(--ink)}
+  main{padding:16px 20px 60px;max-width:1180px;margin:0 auto}
+  section.view{display:none}section.view.on{display:block}
+  .grid{display:grid;gap:14px;grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:3px;padding:14px 16px;min-width:0;margin-bottom:14px}
+  .grid>.card{margin-bottom:0}
+  .card h2{margin:0 0 10px;font-size:15px;font-weight:700;letter-spacing:-.01em}
+  .cardHead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .empty{color:var(--mute);font-size:14px;padding:18px 4px;text-align:center}
+  svg{display:block;width:100%;height:auto}
+  svg text{font-family:var(--mono)}
+  /* the numbers, always one tap away */
+  details.more{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+  details.more>summary{cursor:pointer;font:12px var(--mono);color:var(--mute);min-height:28px;display:flex;align-items:center;gap:6px;list-style:none}
+  details.more>summary::-webkit-details-marker{display:none}
+  details.more>summary::before{content:"+";font-weight:600}details.more[open]>summary::before{content:"−"}
+  .csv{border:1px solid var(--line);background:none;border-radius:3px;font:11px var(--mono);padding:3px 8px;cursor:pointer;color:var(--ink2);margin:6px 0}
+  .scroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:13.5px}
+  th{font:11px var(--mono);color:var(--mute);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.n,th.n{text-align:right;font-family:var(--mono);font-size:12.5px}
+  tbody tr:hover{background:var(--hover)}
+  .tag{font:11px var(--mono);padding:1px 6px;border-radius:2px;border:1px solid var(--line);color:var(--ink2);white-space:nowrap}
+  .tag.bad{color:var(--redText);border-color:var(--red)}
+  /* floor plan */
+  .plan{position:relative}
+  .room{fill:none;stroke:var(--wall);stroke-width:1.5}
+  .floor{fill:var(--paper)}
+  .door{stroke:var(--paper);stroke-width:6}
+  .furn{fill:var(--hover);stroke:var(--line)}
+  .rl{font-size:11px;fill:var(--mute)}.rl.b{fill:var(--ink);font-weight:600}
+  .tally{font-size:30px;font-weight:600;fill:var(--ink)}
+  .worn{fill:none;stroke:var(--path);stroke-linecap:round;opacity:.13}
+  .who{transition:transform 1.3s cubic-bezier(.45,0,.3,1),opacity .6s;cursor:pointer}
+  .plan.fast .who{transition:transform .32s cubic-bezier(.45,0,.3,1),opacity .3s}
+  .who circle{fill:var(--ink);stroke:var(--paper);stroke-width:2}
+  .who .hit{fill:transparent;stroke:none}
+  .who.bad circle.b{fill:var(--red)}.who.good circle.b{fill:var(--green)}
+  .who.bad .halo{fill:none;stroke:var(--red);stroke-width:1.5;animation:ring 1.6s infinite}
+  .who:not(.bad) .halo{display:none}
+  @keyframes ring{from{r:7px;opacity:.9}to{r:15px;opacity:0}}
+  .who.sel circle.b{stroke:var(--ink);stroke-width:2.5}
+  .scuff{fill:var(--red);opacity:.65}
+  .planHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .bigNow{font:600 44px/1 var(--mono);letter-spacing:-.04em}
+  .planHead .say{font-size:14px;color:var(--ink2);flex:1 1 180px}
+  .chips{display:flex;gap:4px;flex-wrap:wrap}
+  .key{display:flex;gap:14px;flex-wrap:wrap;font:11px var(--mono);color:var(--mute);margin-top:8px}
+  .key i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px;background:var(--ink)}
+  .key i.r{background:var(--red)}.key i.g{background:var(--green)}.key i.l{background:none;border-radius:0;height:3px;width:16px;vertical-align:3px;background:var(--path);opacity:.3}
+  .deck{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .deck button{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:var(--ink);color:var(--paper);cursor:pointer;font-size:15px}
+  .deck .rail{flex:1;min-width:0;position:relative}
+  .deck .rail svg{height:34px}
+  .deck input{position:absolute;inset:auto 0 -6px 0;width:100%;margin:0;accent-color:var(--ink)}
+  .deck time{font:12px var(--mono);min-width:66px;text-align:right}
+  #whoBox{font-size:13.5px;color:var(--ink2);min-height:22px;margin-top:8px}
+  .ticker{font-size:13.5px;margin:0;padding:0;list-style:none}
+  .ticker li{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}.ticker li:last-child{border:0}
+  .ticker time{font:11px var(--mono);color:var(--mute);flex:none;padding-top:2px;min-width:58px}
+  .ticker li.bad{color:var(--redText)}.ticker li.good{color:var(--green);font-weight:600}
+  /* river, verdict */
+  .leakHead{font-size:clamp(20px,3.4vw,30px);font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0 0 4px}
+  .leakFix{color:var(--ink2);margin:0 0 12px;font-size:14px}
+  .band{fill:var(--ink)}.band:hover{opacity:.85}
+  .leak{fill:var(--red);opacity:.38}.leak.worst{opacity:1}.leak:hover{opacity:.8}
+  .rv{font-size:12px;fill:var(--mute)}.rvb{font-size:20px;font-weight:600;fill:var(--ink);paint-order:stroke;stroke:var(--card);stroke-width:5px;stroke-linejoin:round}
+  .rvs{font-size:11px;fill:var(--ink2);paint-order:stroke;stroke:var(--card);stroke-width:4px;stroke-linejoin:round}
+  .rvl{font-size:13px;font-weight:600;fill:var(--redText)}
+  .rain{fill:var(--green)}
+  .pins{display:flex;flex-direction:column;gap:6px}
+  details.pin{border-radius:3px;padding:7px 10px;font-size:14px}
+  details.pin>summary{cursor:pointer;list-style:none;display:flex;gap:8px;align-items:baseline;font-weight:600}
+  details.pin>summary::-webkit-details-marker{display:none}
+  details.pin.bad{background:var(--redBg)}details.pin.good{background:var(--greenBg)}
+  details.pin p{margin:4px 0 0 20px;font-size:13px;color:var(--ink2)}
+  .ic{flex:none;font:600 12px var(--mono)}.bad>summary .ic{color:var(--redText)}.good>summary .ic{color:var(--green)}
+  /* each dot is one person */
+  .unit{margin-bottom:9px}.unit .l{display:flex;justify-content:space-between;gap:8px;font-size:13.5px}.unit .l span{font:12px var(--mono);color:var(--mute);flex:none}
+  .unit .ds{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+  .unit .ds i{width:9px;height:9px;border-radius:50%;background:var(--red)}
+  .unit .ds.ink i{background:var(--ink)}
+  .seg{display:flex;gap:2px;height:44px}
+  .seg>div{display:flex;align-items:center;justify-content:center;min-width:3px;color:#fff;font-size:20px;overflow:hidden}
+  .seg>div:first-child{border-radius:4px 0 0 4px}.seg>div:last-child{border-radius:0 4px 4px 0}
+  .segKey{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:12.5px;margin-top:8px;color:var(--ink2)}
+  .segKey i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+  .segKey b{font-family:var(--mono);font-weight:500}
+  .bub{background:var(--hover);border-radius:10px 10px 10px 2px;padding:8px 11px;margin-bottom:8px;max-width:560px}
+  .bub p{margin:0 0 2px;font-size:14px}.bub small{color:var(--mute);font:11px var(--mono)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .row input{padding:9px 10px;border:1px solid var(--line);border-radius:3px;background:var(--card);min-height:40px}
+  .row input[type=text]{flex:1 1 240px}
+  .primary{border:0;background:var(--ink);color:var(--paper);font-weight:700;padding:9px 14px;border-radius:3px;cursor:pointer;min-height:40px}
+  .plain{border:0;background:none;color:var(--mute);cursor:pointer;font-size:12px;text-decoration:underline;padding:4px}
+  .chg{border-top:1px solid var(--line);padding:10px 0}
+  .ba{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 18px;margin-top:8px}
+  .pair{font-size:12.5px;color:var(--ink2)}
+  .pair .t{height:7px;background:var(--neutral);border-radius:0 4px 4px 0;margin-top:3px;min-width:2px}.pair .t.now{background:var(--ink)}
+  .pair small{font:11px var(--mono);color:var(--mute);display:block;margin-top:2px}
+  .sub2{font:12px var(--mono);color:var(--mute)}
+  /* traffic */
+  .heroes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+  .hero{background:var(--card);border:1px solid var(--line);border-radius:3px;padding:12px 16px}
+  .hero small{display:block;font:12px var(--mono);color:var(--mute)}
+  .hero b{display:block;font:600 clamp(24px,4.4vw,38px)/1.15 var(--mono);letter-spacing:-.04em}
+  .hero i{font:normal 12px var(--mono);color:var(--mute)}.hero i.up{color:var(--green)}.hero i.dn{color:var(--redText)}
+  .heat{display:grid;grid-template-columns:34px repeat(24,minmax(10px,1fr));gap:2px;font:10px var(--mono);color:var(--mute);min-width:520px}
+  .heat div.c{aspect-ratio:1.4;border-radius:2px}
+  .scale{display:flex;align-items:center;gap:3px;font:11px var(--mono);color:var(--mute);margin-top:8px}
+  .scale i{width:18px;height:10px;border-radius:2px;display:block}
+  .src{display:grid;grid-template-columns:minmax(0,150px) minmax(0,1fr) 92px;gap:10px;align-items:center;padding:6px 0;font-size:14px}
+  .src .lab{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .src .tr{height:14px;display:flex;gap:2px}
+  .src .all{background:var(--neutral);border-radius:0 4px 4px 0}.src .buy{background:var(--green);min-width:3px}
+  .src .val{text-align:right;font:12px var(--mono);color:var(--ink2)}
+  .bar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:4px 0;font-size:13.5px}
+  .bar .lab{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar .val{font:12px var(--mono);color:var(--ink2)}
+  .bar .track{grid-column:1/-1;height:6px}
+  .bar .fill{display:block;height:6px;min-width:2px;border-radius:0 4px 4px 0;background:var(--ink)}
+  /* phones */
+  .phones{display:flex;gap:26px;flex-wrap:wrap;justify-content:center}
+  .phoneWrap{flex:0 1 230px;min-width:0}.phoneWrap h3{font:12px var(--mono);color:var(--mute);margin:0 0 6px;text-align:center;font-weight:500}
+  .phone{border:2px solid var(--ink);border-radius:26px;padding:12px 6px 16px;background:var(--card);position:relative}
+  .phone::before{content:"";display:block;width:44px;height:4px;border-radius:2px;background:var(--ink);margin:0 auto 8px}
+  .phone .s{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:0 9px;font-size:12px;min-height:44px}
+  .phone .s:first-of-type{border-radius:12px 12px 0 0}.phone .s:last-of-type{border-radius:0 0 12px 12px}
+  .phone .s span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.phone .s b{font:500 11px var(--mono);flex:none}
+  .speed{position:relative;height:56px;margin-top:6px}
+  .speed .z{position:absolute;top:30px;height:8px;border-radius:2px}
+  .speed .pin{position:absolute;top:0;transform:translateX(-50%);font:11px var(--mono);white-space:nowrap}
+  .speed .pin::after{content:"";display:block;width:2px;height:22px;background:var(--ink);margin:1px auto 0}
+  .speed .pin.l{transform:translateX(calc(-100% + 1px))}.speed .pin.l::after{margin-left:auto;margin-right:0}.speed .pin.r{transform:translateX(-1px)}.speed .pin.r::after{margin-left:0}
+  .speed .tick{position:absolute;top:42px;transform:translateX(-50%);font:10px var(--mono);color:var(--mute)}
+  /* product map */
+  .pm{position:relative;height:440px;margin:6px 0 24px 22px;border-left:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .pm .mid{position:absolute;background:var(--line)}
+  .pm .q{position:absolute;font:11px var(--mono);color:var(--mute);padding:6px;pointer-events:none}
+  .pm .ax{position:absolute;font:11px var(--mono);color:var(--mute)}
+  .pb{position:absolute;transform:translate(-50%,-50%);border-radius:50%;padding:0;border:2px solid var(--card);background:var(--hover);overflow:hidden;cursor:pointer;display:grid;place-items:center;font:600 13px var(--mono);color:var(--ink2);box-shadow:0 0 0 1px var(--line)}
+  .pb img{width:100%;height:100%;object-fit:cover;display:block}
+  .pb.sold{box-shadow:0 0 0 2px var(--green)}.pb.cold{box-shadow:0 0 0 2px var(--red)}.pb.sel{outline:2px solid var(--ink);outline-offset:2px}
+  #pDetail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:14px;align-items:center}
+  #pDetail h3{margin:0;font-size:18px;letter-spacing:-.02em}
+  /* visits as threads */
+  .thr{display:grid;grid-template-columns:62px minmax(0,1fr);gap:8px;align-items:center;padding:4px 2px;cursor:pointer;border-bottom:1px solid var(--line);min-height:32px}
+  .thr:hover{background:var(--hover)}
+  .thrs{columns:2;column-gap:28px}.tw{break-inside:avoid}
+  .thr time{font:11px var(--mono);color:var(--mute)}
+  .beads{display:flex;align-items:center;gap:0;overflow:hidden}
+  .beads i{flex:none;width:11px;height:11px;border-radius:50%;background:var(--neutral);margin-right:7px;position:relative}
+  .beads i:not(:last-child)::after{content:"";position:absolute;left:11px;top:5px;width:7px;height:1px;background:var(--neutral)}
+  .beads i.pr{background:var(--ink)}.beads i.co{background:var(--ink);border-radius:2px}
+  .beads i.bad{background:var(--red);border-radius:2px;transform:rotate(45deg)}.beads i.bad::after{display:none}
+  .beads i.good{background:var(--green);width:15px;height:15px}
+  .journey{list-style:none;margin:0;padding:6px 0 6px 12px;border-left:2px solid var(--line)}
+  .vd{padding:4px 0 8px 70px;font-size:13px}
+  .vd .sub2{display:block;margin-bottom:4px}
+  .journey li{padding:2px 0;font-size:13.5px}.journey time{color:var(--mute);font:11px var(--mono);margin-right:8px}
+  .journey li.bad{color:var(--redText);font-weight:600}.journey li.good{color:var(--green);font-weight:600}
+  #tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--paper);font-size:12.5px;padding:5px 9px;border-radius:3px;z-index:20;white-space:nowrap;transform:translate(-50%,-120%)}
+  #lock{position:fixed;inset:0;z-index:30;background:var(--paper);display:grid;place-items:center;padding:16px}
+  #lock form{background:var(--card);border:1px solid var(--line);border-radius:3px;padding:22px;width:min(380px,100%)}
+  #lock h2{margin:0 0 6px}#lock input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:3px;margin:8px 0;background:var(--card)}
+  #lock p{margin:0;color:var(--mute);font-size:14px}#lockErr{color:var(--redText)!important;min-height:20px}
+  @media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}main{padding:12px 16px 60px}
+    .range{margin-left:0;width:100%}nav.tabs{top:0;position:static}header.top{position:static}
+    .src{grid-template-columns:minmax(0,1fr) auto}.src .tr{grid-column:1/-1;grid-row:2}
+    #pDetail{grid-template-columns:minmax(0,1fr)}.pm{height:380px}.thrs{columns:1}}
+  @media (prefers-reduced-motion:reduce){.dot,.who.bad .halo{animation:none}.who,.plan.fast .who{transition:none}}
+</style>
+</head>
+<body>
+<div id="lock" class="hide"><form id="lockForm">
+  <h2>Site analytics</h2><p>Enter the owner key. It's the same one as the billing portal.</p>
+  <input id="keyIn" type="password" autocomplete="current-password" aria-label="Owner key" required>
+  <p id="lockErr" role="alert"></p><button class="primary" style="width:100%">Open</button>
+</form></div>
+
+<header class="top">
+  <h1>Vibe X</h1>
+  <span class="pill"><span class="dot" id="dot"></span><span id="nowCount">–</span> in the shop</span>
+  <a href="/billing">Billing</a><a href="/" target="_blank" rel="noopener">Open shop ↗</a>
+  <div class="range" id="range">
+    <button data-d="0">Today</button><button data-d="6">7 days</button><button data-d="29">30 days</button><button data-d="89">90 days</button>
+    <input type="date" id="from" aria-label="From date"><input type="date" id="to" aria-label="To date">
+  </div>
+</header>
+<nav class="tabs" id="tabs" aria-label="Sections">
+  <button data-v="now">Shop floor</button><button data-v="loop">The leak</button><button data-v="traffic">Traffic</button>
+  <button data-v="behave">Scroll map</button><button data-v="products">Products</button><button data-v="visits">Visits</button>
+</nav>
+<main>
+  <section class="view" id="v-now"></section>
+  <section class="view" id="v-loop"></section>
+  <section class="view" id="v-traffic"></section>
+  <section class="view" id="v-behave"></section>
+  <section class="view" id="v-products"></section>
+  <section class="view" id="v-visits"></section>
+</main>
+<div id="tip" class="hide" role="status"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } } };
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const num = (n) => Number(n || 0).toLocaleString("en-IN");
+  const inr = (n) => `₹${num(n)}`;
+  const dur = (ms) => { const s = Math.round((ms || 0) / 1000); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${Math.floor(s / 3600)}h ${Math.floor(s / 60) % 60}m`; };
+  const clock = (t) => new Date(t).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" });
+  const stamp = (t) => new Date(t).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  const today = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+  const shift = (day, n) => new Date(Date.parse(day) + n * 864e5).toISOString().slice(0, 10);
+  const short = (s, n) => { s = String(s ?? ""); return s.length > n ? `${s.slice(0, n - 1)}…` : s; };
+  const hash = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+  const stillMotion = () => matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+  // same key as the billing portal; the address never keeps it
+  const u = new URL(location.href);
+  let KEY = u.searchParams.get("key") || store.get("vx-owner-key") || "";
+  if (u.searchParams.get("key")) { store.set("vx-owner-key", KEY); u.searchParams.delete("key"); history.replaceState(null, "", u.pathname + u.search); }
+  async function api(path, opts = {}) {
+    const r = await fetch(`/api/analytics/${path}`, { ...opts, cache: "no-store", headers: { "Content-Type": "application/json", "x-owner-key": KEY } });
+    if (r.status === 401) { $("lock").classList.remove("hide"); $("lockErr").textContent = KEY ? "That key didn't work." : ""; throw new Error("key"); }
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Failed");
+    return j;
+  }
+  $("lockForm").onsubmit = (e) => { e.preventDefault(); KEY = $("keyIn").value.trim(); store.set("vx-owner-key", KEY); $("lock").classList.add("hide"); boot(); };
+
+  // ---- shared pieces ----
+  const CSVS = {};
+  function table(id, cols, rows, empty = "Nothing yet.") {
+    if (!rows.length) return `<p class="empty">${esc(empty)}</p>`;
+    CSVS[id] = { cols, rows };
+    return `<button class="csv" data-csv="${id}" type="button">Excel (CSV)</button><div class="scroll"><table><thead><tr>${cols.map((c) => `<th class="${c.n ? "n" : ""}">${esc(c.h)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) =>
+      `<tr>${cols.map((c) => `<td class="${c.n ? "n" : ""}">${c.html ? c.html(r) : esc(c.f ? c.f(r) : r[c.k])}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  }
+  const more = (inner, label = "See the numbers") => `<details class="more" data-keep="${esc(label)}"><summary>${esc(label)}</summary>${inner}</details>`;
+  const card = (title, inner) => `<div class="card">${title ? `<h2>${esc(title)}</h2>` : ""}${inner}</div>`;
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-csv]"); if (!b) return;
+    const { cols, rows } = CSVS[b.dataset.csv];
+    const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const text = [cols.map((c) => q(c.h)), ...rows.map((r) => cols.map((c) => q(c.f ? c.f(r) : r[c.k])))].map((l) => l.join(",")).join("\r\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["﻿" + text], { type: "text/csv" }));
+    a.download = `vibex-${b.dataset.csv}-${state.from}-to-${state.to}.csv`;
+    a.click();
+  });
+  const tip = $("tip");
+  document.addEventListener("pointermove", (e) => {
+    const el = e.target.closest?.("[data-tip]");
+    if (!el) return tip.classList.add("hide");
+    tip.textContent = el.dataset.tip; tip.classList.remove("hide");
+    tip.style.left = `${Math.min(Math.max(e.clientX, 110), innerWidth - 110)}px`; tip.style.top = `${Math.max(e.clientY - 6, 34)}px`;
+  });
+  function bars(rows, { max, val = (r) => num(r.n) } = {}) {
+    if (!rows.length) return `<p class="empty">Nothing yet.</p>`;
+    const top = max || Math.max(...rows.map((r) => r.n), 1);
+    return rows.map((r) => `<div class="bar" data-tip="${esc(r.label ?? r.key)}: ${esc(val(r))}"><span class="lab">${esc(r.label ?? r.key)}</span><span class="val">${esc(val(r))}</span><span class="track"><span class="fill" style="width:${(r.n / top) * 100}%"></span></span></div>`).join("");
+  }
+  // Each dot is one person, so a small sample looks small.
+  function units(rows, { ink = false } = {}) {
+    if (!rows.length) return `<p class="empty">Nobody yet.</p>`;
+    const top = Math.max(...rows.map((r) => r.n)), each = Math.max(1, Math.ceil(top / 60));
+    return `${rows.map((r) => `<div class="unit" data-tip="${esc(r.label)}: ${num(r.n)}"><div class="l">${esc(r.label)}<span>${num(r.n)}</span></div><div class="ds ${ink ? "ink" : ""}">${"<i></i>".repeat(Math.max(1, Math.round(r.n / each)))}</div></div>`).join("")}${each > 1 ? `<p class="sub2">Each dot is ${each} people.</p>` : ""}`;
+  }
+  // Part of a whole, labelled directly so the colour is never the only clue.
+  function segments(rows) {
+    const all = rows.reduce((n, r) => n + r.n, 0);
+    if (!all) return `<p class="empty">No answers yet.</p>`;
+    return `<div class="seg">${rows.filter((r) => r.n).map((r) => `<div style="flex:${r.n} 1 0;background:${r.c}" data-tip="${esc(r.label)}: ${num(r.n)}, ${Math.round((r.n / all) * 100)}%">${r.face || ""}</div>`).join("")}</div>
+      <div class="segKey">${rows.map((r) => `<span><i style="background:${r.c}"></i>${esc(r.label)} <b>${Math.round((r.n / all) * 100)}%</b></span>`).join("")}</div>`;
+  }
+  // Keep open disclosures open when a report refreshes.
+  function keepOpen(el, html) {
+    const open = new Set([...el.querySelectorAll("details[open]")].map((d) => d.dataset.keep));
+    el.innerHTML = html;
+    el.querySelectorAll("details").forEach((d) => { if (open.has(d.dataset.keep)) d.open = true; });
+  }
+
+  // ---- words for what people did ----
+  const WORD = {
+    page: (e) => `opened ${e.product || (e.p === "/" ? "the home page" : e.p)}`, pclick: (e) => `tapped ${e.product || "a product"}`, filter: (e) => `filtered by ${e.x}`, wa: () => "went to WhatsApp", ig: () => "went to Instagram", map: () => "opened directions", call: () => "pressed call",
+    video: () => "played the video", yt: () => "went to YouTube", copy: (e) => `copied ${e.x || "payment details"}`, checkout: (e) => `pressed Order now: ${e.product || ""}`, details: () => "filled in their details", pay_tab: (e) => `switched payment to ${e.x}`,
+    paid: (e) => `paid${e.n ? ` ${inr(e.n)}` : ""}: ${e.product || ""}`, abandon: (e) => `left checkout at the ${e.x === "pay" ? "payment" : "details"} step${e.f ? ` (${e.f})` : ""}`, rage: (e) => `pressed again and again: ${e.x}`, dead: (e) => `pressed something that did nothing: ${e.x}`, invalid: (e) => `was stopped by the form: ${e.x}`, formerr: (e) => `saw an error: ${e.x}`, err: (e) => `hit a site error: ${e.x}`,
+    enq_open: (e) => `opened enquiry: ${e.product || ""}`, enq: (e) => `sent an enquiry: ${e.product || ""}`, fb: (e) => `gave feedback: ${e.r}${e.note ? ` "${e.note}"` : ""}`, section: (e) => `reached ${e.x}`, leave: () => "left",
+  };
+  const FRICTION = ["rage", "dead", "invalid", "formerr", "err", "abandon"];
+  const tone = (e) => (FRICTION.includes(e) ? "bad" : ["paid", "enq"].includes(e) ? "good" : "");
+
+  // ---- the shop floor ----
+  // The website drawn as a shop. Every room is a real part of the journey; a dot is one visitor.
+  const floor = { mode: "live", wide: null, rooms: null, racks: [], dots: new Map(), day: null, dayData: null, replay: null, playing: false, raf: 0, last: 0, sel: "", dayAt: 0 };
+  const isWide = () => innerWidth >= 720;
+  function layout(wide) {
+    const R = (x, y, w, h, label, sub) => ({ x, y, w, h, label, sub });
+    const out = wide
+      ? { W: 1000, H: 500, door: [70, 250], rooms: { front: R(70, 16, 320, 468, "Front room", "Home page"), back: R(390, 364, 300, 120, "Back room", "Other pages"), till1: R(690, 16, 145, 214, "Till 1", "Filling in details"), till2: R(835, 16, 145, 214, "Till 2", "Paying"), sold: R(690, 230, 290, 134, "Sold"), out: R(690, 364, 290, 120, "Walked out", "Left checkout") }, rack: [390, 16, 300, 348], gaps: [[70, 225, 70, 275], [390, 165, 390, 225], [690, 90, 690, 150], [760, 230, 820, 230], [760, 364, 820, 364], [835, 100, 835, 150]], street: true }
+      : { W: 358, H: 690, door: [179, 34], rooms: { front: R(4, 34, 350, 146, "Front room", "Home page"), till1: R(4, 410, 175, 96, "Till 1", "Details"), till2: R(179, 410, 175, 96, "Till 2", "Paying"), sold: R(179, 506, 175, 104, "Sold"), out: R(4, 506, 175, 104, "Walked out"), back: R(4, 610, 350, 76, "Back room", "Other pages") }, rack: [4, 180, 350, 230], gaps: [[150, 34, 208, 34], [150, 180, 208, 180], [150, 410, 208, 410], [179, 440, 179, 480], [240, 506, 300, 506], [60, 506, 120, 506]], street: false };
+    const [x, y, w, h] = out.rack, cols = 2, rows = 4, cw = w / cols, ch = h / rows;
+    for (let i = 0; i < 8; i++) out.rooms[`r${i}`] = R(x + (i % cols) * cw, y + Math.floor(i / cols) * ch, cw, ch, "", "");
+    return out;
+  }
+  const FLOW = { front: 0, till1: 2, till2: 3, sold: 4, out: 4, back: 1 };
+  function roomOf(path, step) {
+    if (step === "Paid") return "sold"; if (step === "Left checkout") return "out"; if (step === "At checkout: paying") return "till2"; if (step === "At checkout: details") return "till1";
+    if (path === "/") return "front";
+    const m = /^\/p\/(.+)$/.exec(path || "");
+    if (m) { const i = floor.racks.findIndex((r) => r.id === m[1]); return `r${i >= 0 ? i : 7}`; }
+    return "back";
+  }
+  // grid inside a room, so people never sit on top of each other
+  function seat(room, i) {
+    const r = floor.rooms[room], pad = 15, top = room.startsWith("r") ? 26 : 44, cols = Math.max(1, Math.floor((r.w - pad * 2) / 22)), rows = Math.max(1, Math.floor((r.h - top - 8) / 22));
+    const c = i % cols, l = Math.floor(i / cols) % rows;
+    return [r.x + pad + 8 + c * 22, r.y + top + 6 + l * 22];
+  }
+  function drawFloor() {
+    const wide = isWide(); floor.wide = wide;
+    const L = layout(wide); floor.rooms = L.rooms; floor.door = L.door; floor.dots.clear();
+    const label = (r, big) => `<text class="rl b" x="${r.x + 10}" y="${r.y + 18}">${esc(r.label)}</text>${r.sub ? `<text class="rl" x="${r.x + 10}" y="${r.y + 32}">${esc(r.sub)}</text>` : ""}`;
+    const rooms = ["front", "back", "till1", "till2", "sold", "out"].map((k) => { const r = L.rooms[k]; return `<rect class="floor" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/><rect class="room" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/>${label(r)}`; }).join("");
+    const racks = Array.from({ length: 8 }, (_, i) => { const r = L.rooms[`r${i}`], name = floor.racks[i]?.name || (i === 7 ? "Other racks" : ""); return `<rect class="floor" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/><rect class="room" style="stroke-width:.7" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/><rect class="furn" x="${r.x + 8}" y="${r.y + r.h - 9}" width="${r.w - 16}" height="4"/><text class="rl" x="${r.x + 9}" y="${r.y + 15}" data-rack="${i}">${esc(short(name, wide ? 19 : 21))}</text>`; }).join("");
+    const [fx, fy, fw, fh] = L.rack;
+    const counters = `<rect class="furn" x="${L.rooms.till1.x + 10}" y="${L.rooms.till1.y + L.rooms.till1.h - 16}" width="${L.rooms.till1.w - 20}" height="7"/><rect class="furn" x="${L.rooms.till2.x + 10}" y="${L.rooms.till2.y + L.rooms.till2.h - 16}" width="${L.rooms.till2.w - 20}" height="7"/>`;
+    const tallies = ["sold", "out"].map((k) => { const r = L.rooms[k]; return `<text class="tally" id="t-${k}" text-anchor="end" x="${r.x + r.w - 12}" y="${r.y + 40}"></text>`; }).join("");
+    const street = L.street ? `<text class="rl" x="4" y="256" style="font-size:10px">STREET</text>` : `<text class="rl" x="4" y="24" style="font-size:10px">STREET</text>`;
+    $("planBox").innerHTML = `<svg id="planSvg" viewBox="0 0 ${L.W} ${L.H}" role="img" aria-label="Floor plan of the shop. Each dot is a visitor.">${street}${rooms}${racks}<rect class="room" x="${fx}" y="${fy}" width="${fw}" height="${fh}"/>${counters}${L.gaps.map(([a, b, c, d]) => `<line class="door" x1="${a}" y1="${b}" x2="${c}" y2="${d}"/>`).join("")}<g id="worn"></g><g id="scuffs"></g>${tallies}<g id="people"></g></svg>`;
+    $("planBox").classList.toggle("fast", floor.mode === "replay");
+  }
+  function ensureFloor() {
+    if (!$("planBox")) {
+      $("v-now").innerHTML = `<div class="card"><div class="planHead"><div class="bigNow" id="bigN">0</div><div class="say" id="planSay"></div><div class="chips" id="modes"><button type="button" data-m="live" class="on">Live</button><button type="button" data-m="0">Replay today</button><button type="button" data-m="1">Yesterday</button></div></div>
+        <div class="plan" id="planBox"></div><div class="deck hide" id="deck"><button type="button" id="playBtn" aria-label="Pause">❚❚</button><div class="rail"><div id="railArt"></div><input type="range" id="rail" min="0" max="1000" value="0" aria-label="Time of day"></div><time id="railT"></time></div>
+        <div class="key"><span><i></i>Someone in the shop</span><span><i class="r"></i>Stuck, and small red marks where they struggled</span><span><i class="g"></i>Bought</span><span><i class="l"></i>Worn path: the more people, the thicker</span></div><div id="whoBox"></div>
+        <div id="listBox"></div></div>`;
+      $("modes").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; b.dataset.m === "live" ? goLive() : startReplay(Number(b.dataset.m)); };
+      $("playBtn").onclick = () => { if (floor.playing) pause(); else play(); };
+      $("rail").oninput = (e) => { pause(); seek(Number(e.target.value) / 1000); };
+      drawFloor();
+    } else if (floor.wide !== isWide()) drawFloor();
+  }
+  addEventListener("resize", () => { if (state.view === "now" && $("planBox") && floor.wide !== isWide()) { drawFloor(); if (floor.replay) seek(floor.pos || 0, true); else paintWorn(); tick(); } });
+  document.addEventListener("click", (e) => {
+    const w = e.target.closest?.(".who");
+    if (!w || !$("whoBox")) return;
+    floor.sel = w.dataset.id; floor.dots.forEach((d, id) => d.el.classList.toggle("sel", id === floor.sel));
+    $("whoBox").textContent = w.dataset.say || "";
+  });
+  // Everyone in the same room sits in order, then moves if the room changes.
+  function place(people) {
+    const box = $("people"); if (!box) return;
+    const byRoom = {}, seen = new Set();
+    for (const p of people) (byRoom[p.room] ||= []).push(p);
+    for (const list of Object.values(byRoom)) {
+      list.sort((a, b) => a.id.localeCompare(b.id));
+      list.forEach((p, i) => {
+        seen.add(p.id);
+        const [x, y] = seat(p.room, i);
+        let d = floor.dots.get(p.id);
+        if (!d) {
+          const el = document.createElementNS("http://www.w3.org/2000/svg", "g");
+          el.innerHTML = `<circle class="halo" r="7"/><circle class="b" r="7"/><circle class="hit" r="14"/>`;
+          el.dataset.id = p.id;
+          el.style.transform = `translate(${floor.door[0]}px,${floor.door[1]}px)`;
+          box.appendChild(el);
+          d = { el }; floor.dots.set(p.id, d);
+          el.getBoundingClientRect(); // so the walk in from the door animates
+        }
+        d.el.setAttribute("class", `who ${p.tone || ""} ${p.id === floor.sel ? "sel" : ""}`);
+        d.el.dataset.tip = p.tip; d.el.dataset.say = p.tip;
+        d.el.style.transform = `translate(${x}px,${y}px)`;
+      });
+    }
+    for (const [id, d] of floor.dots) if (!seen.has(id)) {
+      d.el.style.transform = `translate(${floor.door[0]}px,${floor.door[1]}px)`; d.el.style.opacity = 0;
+      setTimeout(() => d.el.remove(), 1400); floor.dots.delete(id);
+    }
+  }
+  // Worn paths: a line between two rooms, thicker the more people walked it.
+  function drawWorn(counts) {
+    const g = $("worn"); if (!g) return;
+    const both = {};
+    for (const [k, n] of Object.entries(counts)) { const pair = k.split(">"), key = pair[0] === "door" ? k : [...pair].sort().join(">"); both[key] = (both[key] || 0) + n; }
+    const top = Math.max(1, ...Object.values(both)), wide = floor.wide;
+    const mid = (k) => { const r = floor.rooms[k]; return [r.x + r.w / 2, r.y + r.h / 2]; };
+    g.innerHTML = Object.entries(both).map(([k, n]) => {
+      const [a, b] = k.split(">");
+      if (!floor.rooms[b] || (a !== "door" && !floor.rooms[a])) return "";
+      const [x1, y1] = a === "door" ? floor.door : mid(a), [x2, y2] = mid(b), dx = (x2 - x1) * 0.55, dy = (y2 - y1) * 0.55;
+      const c = wide ? `C${x1 + dx} ${y1} ${x2 - dx} ${y2}` : `C${x1} ${y1 + dy} ${x2} ${y2 - dy}`;
+      return `<path class="worn" d="M${x1} ${y1}${c} ${x2} ${y2}" stroke-width="${(1.5 + (Math.sqrt(n / top) * 16)).toFixed(1)}" data-tip="${n} walked this way"/>`;
+    }).join("");
+  }
+  function drawMarks(scuffs, sold, out) {
+    const g = $("scuffs"); if (!g) return;
+    g.innerHTML = Object.entries(scuffs).map(([room, n]) => {
+      const r = floor.rooms[room]; if (!r) return "";
+      return Array.from({ length: Math.min(n, 14) }, (_, i) => { const h = hash(`${room}${i}`); return `<circle class="scuff" r="2.6" cx="${r.x + 10 + (h % Math.max(1, r.w - 20))}" cy="${r.y + 28 + ((h >> 8) % Math.max(1, r.h - 36))}"/>`; }).join("");
+    }).join("");
+    if ($("t-sold")) { $("t-sold").textContent = sold || ""; $("t-out").textContent = out || ""; }
+  }
+  function pathsOf(v) { // the rooms one visit passed through, with times
+    const tl = []; let step = "", path = "/";
+    for (const s of [...v.steps].sort((a, b) => a.t - b.t)) {
+      if (s.e === "page") { path = s.p; step = ""; }
+      else if (s.e === "checkout") step = "At checkout: details"; else if (s.e === "details") step = "At checkout: paying"; else if (s.e === "paid") step = "Paid"; else if (s.e === "abandon") step = "Left checkout";
+      else if (!FRICTION.includes(s.e)) continue;
+      const room = roomOf(path, step), hurt = FRICTION.includes(s.e);
+      if (!tl.length || tl[tl.length - 1].room !== room || hurt) tl.push({ t: s.t, room, hurt, sold: s.e === "paid", walked: s.e === "abandon" });
+    }
+    return tl;
+  }
+  function pickRacks(d) { floor.racks = d.products.slice(0, 7).map((p) => ({ id: p.id, name: p.name })); }
+  async function loadDay(back) {
+    const day = shift(today(), -back);
+    const d = await api(`report?from=${day}&to=${day}`);
+    floor.day = day; floor.dayData = d; floor.dayAt = Date.now();
+    const had = floor.racks.map((r) => r.id).join();
+    pickRacks(d);
+    if (had !== floor.racks.map((r) => r.id).join() && $("planBox")) drawFloor();
+    return d;
+  }
+  // Today's paths stay on the floor, so the shop still says something when it's empty.
+  function paintWorn() {
+    const d = floor.dayData; if (!d) return;
+    const counts = {}, scuffs = {}; let sold = 0, out = 0;
+    for (const v of d.visits) {
+      let prev = "door";
+      for (const s of pathsOf(v)) {
+        if (s.room !== prev) { const k = `${prev}>${s.room}`; counts[k] = (counts[k] || 0) + 1; prev = s.room; }
+        if (s.hurt && !s.walked) scuffs[s.room] = (scuffs[s.room] || 0) + 1;
+        if (s.sold) sold++; if (s.walked) out++;
+      }
+    }
+    drawWorn(counts); drawMarks(scuffs, sold, out);
+  }
+  function setMode(m) {
+    floor.mode = m === "live" ? "live" : "replay";
+    $("modes").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.m === String(m)));
+    $("deck").classList.toggle("hide", floor.mode === "live"); $("planBox").classList.toggle("fast", floor.mode === "replay");
+    $("listBox").classList.toggle("hide", floor.mode !== "live");
+    $("whoBox").textContent = ""; floor.sel = "";
+  }
+  async function goLive() {
+    pause(); floor.replay = null; setMode("live");
+    place([]);
+    try { await loadDay(0); paintWorn(); } catch { /* the plan still shows who's here */ }
+    tick();
+  }
+  // ---- replay ----
+  const REPLAY_MS = 60e3; // a whole day in one minute
+  async function startReplay(back) {
+    pause(); setMode(back);
+    let d; try { d = await loadDay(back); } catch { return; }
+    const list = d.visits.map((v) => ({ id: v.s, v, tl: pathsOf(v) })).filter((x) => x.tl.length);
+    if (!list.length) { await goLive(); $("planSay").textContent = back ? "Nobody came in yesterday." : "Nobody has come in yet today."; return; }
+    const t0 = Math.min(...list.map((x) => x.tl[0].t)) - 12e5, t1 = Math.max(...list.map((x) => x.tl[x.tl.length - 1].t)) + 18e5;
+    // A real visit lasts seconds, which a one-minute day would hide, so each stop is held long enough to see.
+    const hold = (t1 - t0) / 140;
+    for (const x of list) { let at = x.tl[0].t; x.tl.forEach((s) => { at = s.at = Math.max(at, s.t); at += hold; }); x.end = at + hold; }
+    const moves = [];
+    for (const x of list) { let prev = "door"; for (const s of x.tl) { moves.push({ at: s.at, a: prev, b: s.room, s }); prev = s.room; } }
+    moves.sort((a, b) => a.at - b.at);
+    const hours = {}; for (const x of list) { const k = Math.floor(((x.tl[0].t - t0) / (t1 - t0)) * 60); hours[k] = (hours[k] || 0) + 1; }
+    const top = Math.max(...Object.values(hours));
+    $("railArt").innerHTML = `<svg viewBox="0 0 600 34" preserveAspectRatio="none" aria-hidden="true">${Object.entries(hours).map(([k, n]) => `<rect x="${k * 10}" y="${30 - (n / top) * 28}" width="8" height="${(n / top) * 28}" fill="var(--neutral)"/>`).join("")}</svg>`;
+    floor.replay = { list, moves, t0, t1, cap: d.visits.length >= 200 };
+    $("bigN").textContent = "0"; seek(0); play();
+  }
+  function seek(pos, force) {
+    const r = floor.replay; if (!r) return;
+    floor.pos = pos;
+    const T = r.t0 + pos * (r.t1 - r.t0);
+    $("railT").textContent = clock(T);
+    if (document.activeElement !== $("rail")) $("rail").value = Math.round(pos * 1000);
+    const people = [];
+    for (const x of r.list) {
+      if (T < x.tl[0].at || T > x.end) continue;
+      let s = x.tl[0], hurt = false; for (const e of x.tl) { if (e.at <= T) { s = e; hurt = hurt || e.hurt; } }
+      people.push({ id: x.id, room: s.room, tone: s.sold ? "good" : hurt ? "bad" : "", tip: `${x.v.source}, ${x.v.device}. ${clock(x.v.start)}. ${x.v.outcome}` });
+    }
+    place(people);
+    $("bigN").textContent = people.length;
+    const counts = {}, scuffs = {}; let sold = 0, out = 0;
+    for (const m of r.moves) {
+      if (m.at > T) break;
+      if (m.a !== m.b) { const k = `${m.a}>${m.b}`; counts[k] = (counts[k] || 0) + 1; }
+      if (m.s.sold) sold++; if (m.s.walked) out++; if (m.s.hurt && !m.s.walked) scuffs[m.b] = (scuffs[m.b] || 0) + 1;
+    }
+    if (force || !floor.wornAt || Date.now() - floor.wornAt > 240) { drawWorn(counts); drawMarks(scuffs, sold, out); floor.wornAt = Date.now(); }
+    $("planSay").textContent = `${floor.day === today() ? "Today" : "Yesterday"}, sped up. Each stop is held long enough to see.${r.cap ? " Latest 200 visits." : ""}`;
+  }
+  function frame(now) {
+    if (!floor.playing) return;
+    const step = (now - floor.last) / REPLAY_MS; floor.last = now;
+    const pos = Math.min(1, (floor.pos || 0) + step);
+    seek(pos);
+    if (pos >= 1) { pause(); seek(1, true); return; }
+    floor.raf = requestAnimationFrame(frame);
+  }
+  function play() { if (!floor.replay) return; if ((floor.pos || 0) >= 1) floor.pos = 0; floor.playing = true; floor.last = performance.now(); $("playBtn").textContent = "❚❚"; $("playBtn").setAttribute("aria-label", "Pause"); floor.raf = requestAnimationFrame(frame); }
+  function pause() { floor.playing = false; cancelAnimationFrame(floor.raf); if ($("playBtn")) { $("playBtn").textContent = "▶"; $("playBtn").setAttribute("aria-label", "Play"); } }
+
+  function renderNow(l) {
+    $("nowCount").textContent = l.active;
+    if (state.view !== "now") return;
+    ensureFloor();
+    if (floor.mode !== "live") return;
+    $("bigN").textContent = l.active;
+    $("planSay").textContent = l.active ? (l.active === 1 ? "person in the shop right now." : "people in the shop right now.") : (floor.dayData?.visits.length ? "The shop is quiet. Replay today to watch it fill." : "The shop is quiet. Nobody has come in yet today.");
+    place(l.people.map((p) => ({ id: p.id, room: roomOf(p.path, p.step), tone: p.step === "Paid" ? "good" : p.friction ? "bad" : "", tip: `${p.label}${p.step ? ` (${p.step})` : ""}. ${p.source || "Unknown"}, ${p.device || ""}. Here ${dur(p.since)}, ${p.pages} page${p.pages === 1 ? "" : "s"}.${p.friction ? ` Stuck ${p.friction}×.` : ""}` })));
+    const box = $("listBox");
+    const inner = `${l.feed.length ? `<ul class="ticker">${l.feed.slice(0, 4).map((e) => `<li class="${tone(e.e)}"><time>${clock(e.t)}</time><span>${esc((WORD[e.e] || (() => e.e))(e))}</span></li>`).join("")}</ul>` : ""}
+      ${more(table("people", [{ h: "Who", k: "id" }, { h: "Viewing", html: (r) => `${esc(r.label)}${r.step ? ` <span class="tag">${esc(r.step)}</span>` : ""}${r.friction ? ` <span class="tag bad">stuck ${r.friction}×</span>` : ""}` }, { h: "From", k: "source" }, { h: "Device", f: (r) => `${r.device || ""}, ${r.browser || ""}` }, { h: "Here for", f: (r) => dur(r.since), n: 1 }, { h: "Pages", k: "pages", n: 1 }, { h: "Scrolled", f: (r) => `${r.scroll}%`, n: 1 }, { h: "", f: (r) => (r.returning ? "returning" : "new") }], l.people, "Nobody here at the moment."), "See everyone as a list")}`;
+    keepOpen(box, inner);
+    if (!floor.dayData || Date.now() - floor.dayAt > 60e3) loadDay(0).then(paintWorn).catch(() => {});
+  }
+
+  // ---- the leak ----
+  const KIND = { rage: "Pressed again and again", dead: "Pressed, nothing happened", invalid: "Form stopped them", formerr: "Saw an error", err: "Site error", abandon: "Gave up", uturn: "Opened and went straight back" };
+  // The funnel as a river: its width is people, and what leaves it falls away in red.
+  function river(d) {
+    const f = d.funnel, wide = innerWidth >= 720, top0 = f[0].n || 1;
+    const W = wide ? 1000 : 358, H = wide ? 400 : 640, A0 = wide ? 26 : 44, A1 = wide ? 970 : 600, C0 = wide ? 58 : 6, MAX = wide ? 200 : 170, END = wide ? H - 34 : W - 6;
+    const P = (a, c) => (wide ? [a, c] : [c, a]);
+    const pt = (a, c) => P(a, c).map((v) => v.toFixed(1)).join(" ");
+    const size = (n) => (n ? Math.max(2, (n / top0) * MAX) : 0);
+    const step = (A1 - A0) / (f.length - 1), a = (i) => A0 + i * step;
+    const lostShare = (i) => (f[i - 1].n ? (f[i - 1].n - f[i].n) / f[i - 1].n : 0);
+    let worst = 0; for (let i = 2; i < f.length; i++) if (f[i - 1].n >= 5 && (!worst || lostShare(i) > lostShare(worst))) worst = i;
+    if (!worst) worst = 1;
+    let out = "";
+    f.forEach((s, i) => {
+      if (!i) return;
+      const a0 = a(i - 1), a1 = a(i), t0 = size(f[i - 1].n), t1 = size(s.n), lost = f[i - 1].n - s.n;
+      out += `<path class="band" d="M${pt(a0, C0)}L${pt(a1, C0)}L${pt(a1, C0 + t1)}L${pt(a0, C0 + t1)}Z" data-tip="${esc(s.label)}: ${num(s.n)}"/>`;
+      if (lost > 0) {
+        const top = C0 + t1, bot = C0 + t0, lw = bot - top, r = i === 1 ? 0 : 12, R = r + lw, k = 0.552;
+        const inX = a0 + r, outX = a0 + R, turn = bot + r;
+        out += `<path class="leak ${i === worst ? "worst" : ""}" d="M${pt(a0, top)}C${pt(a0 + R * k, top)} ${pt(outX, turn - R * k)} ${pt(outX, turn)}L${pt(outX, END)}L${pt(inX, END)}L${pt(inX, turn)}C${pt(inX, turn - r * k)} ${pt(a0 + r * k, bot)} ${pt(a0, bot)}Z" data-tip="${num(lost)} left here, ${Math.round(lostShare(i) * 100)}%"/>`;
+        const [lx, ly] = wide ? [(inX + outX) / 2, END + 22] : [W - 4, outX + 15];
+        out += `<text class="rvl" x="${lx}" y="${ly}" text-anchor="${wide ? "middle" : "end"}">−${num(lost)}</text>`;
+      }
+    });
+    f.forEach((s, i) => {
+      const [x, y] = wide ? [a(i), 22] : [12, a(i) - 8], last = i === f.length - 1;
+      out += `<text class="rvb" x="${x}" y="${y}" text-anchor="${wide ? (i ? (last ? "end" : "middle") : "start") : "start"}">${num(s.n)}</text><text class="rvs" x="${wide ? x : x + 76}" y="${wide ? 40 : y}" text-anchor="${wide ? (i ? (last ? "end" : "middle") : "start") : "start"}">${esc(short(s.label.replace("Pressed ", "").replace("Filled in their details", "Gave details").replace("Came to the site", "Came in").replace("Looked at a product", "Saw a product"), 16))}</text>`;
+    });
+    const lastT = size(f[f.length - 1].n);
+    out += `<path class="rain" d="M${pt(A1, C0)}L${pt(A1 + (wide ? 8 : 10), C0)}L${pt(A1 + (wide ? 8 : 10), C0 + lastT)}L${pt(A1, C0 + lastT)}Z" data-tip="Bought: ${num(f[f.length - 1].n)}"/>`;
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="River of visitors from arriving to paying. Red streams show where people left.">${out}</svg>`;
+  }
+  function renderLoop(d) {
+    const f = d.funnel, hurt = d.findings.filter((x) => x.tone === "bad"), good = d.findings.filter((x) => x.tone === "good"), lead = hurt[0];
+    const pin = (x, i) => `<details class="pin ${x.tone}" data-keep="f${i}${esc(x.title.slice(0, 20))}"><summary><span class="ic">${x.tone === "bad" ? "!" : "✓"}</span>${esc(x.title)}</summary><p>${esc(x.detail)}</p></details>`;
+    const r = d.ratings;
+    const moodRows = [{ label: "Easy or good", n: r.good, c: "var(--green)", face: "😊" }, { label: "Okay", n: r.ok, c: "var(--neutral)", face: "😐" }, { label: "Hard or stuck", n: r.bad, c: "var(--red)", face: "😞" }];
+    const stuckTop = d.stuck.slice(0, 6).map((x) => ({ label: `${KIND[x.kind] || x.kind}: ${short(x.label, 34)}`, n: x.visits }));
+    const notes = d.feedback.filter((x) => x.note).slice(0, 6).map((x) => `<div class="bub"><p>${esc(x.note)}</p><small>${esc(x.product || x.where)} · ${esc(stamp(x.t))}</small></div>`).join("");
+    const funnelRows = f.map((s, i) => ({ ...s, lost: i ? f[i - 1].n - s.n : 0, share: f[0].n ? Math.round((s.n / f[0].n) * 100) : 0 }));
+    keepOpen($("v-loop"), `${card("", `${lead ? `<p class="leakHead">${esc(lead.title)}</p><p class="leakFix">${esc(lead.detail)}</p>` : `<p class="leakHead">No clear leak yet.</p><p class="leakFix">It needs at least 5 people at a step before it says anything.</p>`}
+        ${d.totals.visits ? river(d) : `<p class="empty">No visits in these dates yet.</p>`}${more(table("funnel", [{ h: "Step", k: "label" }, { h: "People", k: "n", n: 1 }, { h: "Of everyone", f: (x) => `${x.share}%`, n: 1 }, { h: "Lost here", k: "lost", n: 1 }], funnelRows))}`)}
+      <div class="grid">${card("What to fix", `<div class="pins">${hurt.slice(1, 7).map(pin).join("") || `<p class="empty">Nothing else stands out yet.</p>`}</div>`)}
+      ${card("What's working", `<div class="pins">${good.map(pin).join("") || `<p class="empty">Nothing clear yet.</p>`}</div>`)}</div>
+      <div class="grid">${card("Why they left checkout", `${units(d.stops)}`)}${card("How ordering felt", segments(moodRows))}</div>
+      ${card("Where people got stuck", `${units(stuckTop)}${d.stuck.length ? more(table("stuck", [{ h: "What happened", f: (x) => KIND[x.kind] || x.kind }, { h: "Where", k: "where" }, { h: "On what", k: "label" }, { h: "People", k: "visits", n: 1 }, { h: "Times", k: "n", n: 1 }], d.stuck)) : ""}`)}
+      ${notes ? card("In their words", notes) : ""}
+      <div id="changes"></div>`);
+    renderChanges();
+  }
+  async function renderChanges() {
+    const box = $("changes"); if (!box) return;
+    let list = [];
+    try { list = await api("changes"); } catch { return; }
+    const pair = (label, a, b, f = (v) => `${v}%`) => { const top = Math.max(a, b ?? 0, 1); return `<div class="pair">${esc(label)}<div class="t" style="width:${(a / top) * 100}%" data-tip="Before: ${esc(f(a))}"></div>${b === undefined ? "" : `<div class="t now" style="width:${(b / top) * 100}%" data-tip="After: ${esc(f(b))}"></div>`}<small>${esc(f(a))}${b === undefined ? "" : ` → ${esc(f(b))}`}</small></div>`; };
+    box.innerHTML = card("Did your fix work?", `
+      <form class="row" id="chForm"><input type="date" id="chDay" aria-label="Date of the change" value="${today()}"><input type="text" id="chNote" maxlength="140" placeholder="e.g. Moved the video to the bottom" aria-label="What changed" required><button class="primary">Add</button></form>
+      <div id="chList" style="margin-top:12px">${list.map((c) => `<div class="chg"><div><b>${esc(c.note)}</b> <span class="sub2">${esc(c.day)}</span> <button class="plain" data-rm="${esc(c.id)}" type="button">remove</button></div>
+        <div class="sub2">${c.after ? `Grey: ${num(c.before.visits)} visits before. Black: ${num(c.after.visits)} visits over ${c.days} day${c.days === 1 ? "" : "s"} after. Few visits can easily be chance.` : "Results start tomorrow."}</div>
+        <div class="ba">${pair("Ended in an order", c.before.conversion, c.after?.conversion)}${pair("Got stuck", c.before.frictionRate, c.after?.frictionRate)}${pair("Left straight away", c.before.bounceRate, c.after?.bounceRate)}${pair("Median time on site", c.before.medianEngaged, c.after?.medianEngaged, dur)}</div></div>`).join("") || `<p class="empty">Write down each change you make. This shows the 7 days before against the days after.</p>`}</div>`);
+    $("chForm").onsubmit = async (e) => { e.preventDefault(); await api("changes", { method: "POST", body: JSON.stringify({ day: $("chDay").value, note: $("chNote").value }) }); renderChanges(); };
+    box.querySelectorAll("[data-rm]").forEach((b) => (b.onclick = async () => { await api(`changes/${b.dataset.rm}/remove`, { method: "POST" }); renderChanges(); }));
+  }
+
+  // ---- traffic ----
+  function delta(now, was, lowerIsBetter) {
+    if (was === undefined) return ["", ""];
+    if (!was) return [now ? "new" : "", ""];
+    const c = Math.round(((now - was) / was) * 100);
+    if (!c) return ["same as before", ""];
+    return [`${c > 0 ? "▲" : "▼"} ${Math.abs(c)}%`, (c > 0) !== !!lowerIsBetter ? "up" : "dn"];
+  }
+  // Visitors over time, with each order as a green tick along the floor. One axis.
+  function trendChart(d) {
+    const pts = d.trend, W = 900, H = 230, L = 34, R = 10, T = 12, B = 34;
+    if (!pts.some((p) => p.pages)) return `<p class="empty">No visits in these dates yet.</p>`;
+    const top = Math.max(...pts.map((p) => p.visitors), 4), mag = 10 ** Math.floor(Math.log10(top / 4)), step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((m) => m * 4 >= top), niceTop = step * 4;
+    const x = (i) => L + (pts.length < 2 ? 0 : (i / (pts.length - 1)) * (W - L - R)), y = (v) => H - B - (v / niceTop) * (H - T - B);
+    const line = pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(p.visitors).toFixed(1)}`).join(" ");
+    const grid = [0, 2, 4].map((g) => { const v = (niceTop / 4) * g; return `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" font-size="12" fill="var(--mute)">${v}</text>`; }).join("");
+    const every = Math.max(1, Math.ceil(pts.length / 8));
+    const labels = pts.map((p, i) => (i % every ? "" : `<text x="${x(i)}" y="${H - 4}" text-anchor="${i === pts.length - 1 ? "end" : i === 0 ? "start" : "middle"}" font-size="12" fill="var(--mute)">${d.oneDay ? `${p.key}:00` : new Date(p.key).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" })}</text>`)).join("");
+    const w = (W - L - R) / Math.max(1, pts.length - 1);
+    const hits = pts.map((p, i) => `<rect x="${x(i) - w / 2}" y="${T}" width="${w}" height="${H - T - B + 12}" fill="transparent" data-tip="${d.oneDay ? `${p.key}:00` : p.key}: ${p.visitors} visitors, ${p.orders} orders"/>`).join("");
+    const rug = pts.map((p, i) => (p.orders ? `<rect x="${x(i) - 3}" y="${H - B + 4}" width="6" height="${Math.min(10, 3 + p.orders)}" rx="1" fill="var(--green)"/>` : "")).join("");
+    const peak = pts.reduce((a, p, i) => (p.visitors > pts[a].visitors ? i : a), 0);
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Visitors over time">${grid}${labels}<path d="${line} L${x(pts.length - 1)} ${y(0)} L${x(0)} ${y(0)} Z" fill="var(--ink)" opacity=".07"/><path d="${line}" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>${rug}
+      <circle cx="${x(peak)}" cy="${y(pts[peak].visitors)}" r="4" fill="var(--ink)" stroke="var(--card)" stroke-width="2"/><text x="${x(peak)}" y="${y(pts[peak].visitors) - 9}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">${pts[peak].visitors}</text>${hits}</svg>
+      <div class="key"><span><i class="g" style="border-radius:1px;width:6px"></i>Orders</span></div>`;
+  }
+  function heatmap(d) {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], lit = d.heat.flat().filter(Boolean).sort((a, b) => a - b), top = lit[Math.floor(lit.length * 0.95)] || 1;
+    if (!d.heat.flat().some(Boolean)) return `<p class="empty">No visits in these dates yet.</p>`;
+    const shade = (n) => (n ? `var(--h${Math.min(5, 1 + Math.floor((n / top) * 4.99))})` : "var(--h0)");
+    const head = `<span></span>${Array.from({ length: 24 }, (_, h) => `<span style="text-align:center">${h % 3 ? "" : h}</span>`).join("")}`;
+    const rows = [1, 2, 3, 4, 5, 6, 0].map((day) => `<span>${DAYS[day]}</span>${d.heat[day].map((n, h) => `<div class="c" style="background:${shade(n)}" data-tip="${DAYS[day]} ${h}:00: ${n} pages"></div>`).join("")}`).join("");
+    return `<div class="scroll"><div class="heat">${head}${rows}</div></div><div class="scale">Quiet ${[1, 2, 3, 4, 5].map((i) => `<i style="background:var(--h${i})"></i>`).join("")} Busy</div>`;
+  }
+  function sourceRows(rows) {
+    if (!rows.length) return `<p class="empty">No visits yet.</p>`;
+    const top = Math.max(...rows.map((r) => r.n), 1);
+    return rows.map((r) => `<div class="src" data-tip="${esc(r.key)}: ${num(r.n)} visits, ${num(r.paid)} orders"><span class="lab">${esc(r.key)}</span><span class="tr"><span class="all" style="flex:0 0 ${((r.n - r.paid) / top) * 86}%"></span>${r.paid ? `<span class="buy" style="flex:0 0 ${(r.paid / top) * 86}%"></span>` : ""}</span><span class="val">${r.paid ? `1 in ${Math.round(r.n / r.paid)} buys` : "no buyers"}</span></div>`).join("");
+  }
+  function renderTraffic(d) {
+    const t = d.totals, p = d.prev || {};
+    const hero = (label, val, dl) => `<div class="hero"><small>${esc(label)}</small><b>${esc(val)}</b><i class="${dl[1]}">${esc(dl[0])}</i></div>`;
+    const group = (title) => [{ h: title, k: "key" }, { h: "Visits", k: "n", n: 1 }, { h: "Orders", k: "paid", n: 1 }, { h: "To order", f: (r) => `${r.conv}%`, n: 1 }, { h: "Got stuck", f: (r) => `${r.frictionRate}%`, n: 1 }, { h: "Avg time", f: (r) => dur(r.avgEngaged), n: 1 }];
+    const allRows = [["Visits", num(t.visits)], ["Pages viewed", num(t.pages)], ["Median time on site", dur(t.medianEngaged)], ["Left straight away", `${t.bounceRate}%`], ["Got stuck", `${t.frictionRate}%`], ["Visits to orders", `${t.conversion}%`], ["Enquiries", num(t.enquiries)]].map(([a, b]) => ({ a, b }));
+    keepOpen($("v-traffic"), `<div class="heroes">${hero("People", num(t.visitors), delta(t.visitors, p.visitors))}${hero("Orders", num(t.orders), delta(t.orders, p.orders))}${hero("Order value", inr(t.value), delta(t.value, p.value))}</div>
+      ${card("", `${trendChart(d)}${more(table("totals", [{ h: "Measure", k: "a" }, { h: "Value", k: "b", n: 1 }], allRows), "All the totals")}`)}
+      ${card("The week's rhythm", heatmap(d))}
+      ${card("Who comes, and who buys", `${sourceRows(d.sources)}${more(`${table("sources", group("Source"), d.sources, "No visits yet.")}${table("devices", group("Device"), d.devices, "No visits yet.")}<div class="grid" style="margin-top:12px"><div><h2>Browsers</h2>${bars(d.browsers)}</div><div><h2>Phones and computers</h2>${bars(d.systems)}</div><div><h2>Languages</h2>${bars(d.languages)}</div><div><h2>Time zones</h2>${bars(d.places)}</div><div><h2>Other sites and campaigns</h2>${bars([...d.campaigns.map((r) => ({ ...r, label: `Campaign: ${r.key}` })), ...d.referrers])}</div></div>`, "Sources, devices, browsers and more")}`)}`);
+  }
+
+  // ---- scroll map ----
+  const inkOn = (level) => (level >= 3 ? "var(--paper)" : "var(--ink)");
+  function phone(title, rows) { // rows: {label, share 0-100, n}
+    const level = (s) => Math.min(5, Math.floor(s / 20) + (s > 0 ? 1 : 0));
+    return `<div class="phoneWrap"><h3>${esc(title)}</h3><div class="phone">${rows.map((r) => { const l = level(r.share); return `<div class="s" style="background:var(--h${l});color:${inkOn(l)};min-height:${Math.round(320 / Math.max(rows.length, 1))}px" data-tip="${esc(r.label)}: ${num(r.n)} people, ${r.share}%"><span>${esc(r.label)}</span><b>${r.share}%</b></div>`; }).join("")}</div></div>`;
+  }
+  function speedGauge(s) {
+    if (!s.n) return `<p class="empty">No data yet.</p>`;
+    const max = 8000, pc = (ms) => Math.min(100, (ms / max) * 100);
+    return `<div class="speed"><span class="z" style="left:0;width:${pc(2500)}%;background:var(--green)"></span><span class="z" style="left:${pc(2500)}%;width:${pc(1500)}%;background:var(--neutral)"></span><span class="z" style="left:${pc(4000)}%;width:${100 - pc(4000)}%;background:var(--red)"></span>
+      <span class="pin l" style="left:${pc(s.median)}%">typical ${(s.median / 1000).toFixed(1)}s</span><span class="pin r" style="left:${Math.min(70, pc(s.slow))}%">slowest 1 in 4: ${(s.slow / 1000).toFixed(1)}s</span>
+      ${[0, 2, 4, 6, 8].map((v) => `<span class="tick" style="left:${Math.max(1, Math.min(98, v * 12.5))}%">${v}s</span>`).join("")}</div>`;
+  }
+  function renderBehave(d) {
+    const A = { wa: "Went to WhatsApp", ig: "Went to Instagram", map: "Opened directions", call: "Pressed call", video: "Played the video", yt: "Went to YouTube", filter: "Used a filter", copy: "Copied payment details", enq_open: "Opened enquiry", enq: "Sent an enquiry" };
+    const acts = Object.entries(d.acts).map(([k, n]) => ({ label: A[k] || k, n })).sort((a, b) => b.n - a.n);
+    const S = ["Quarter way", "Halfway", "Three quarters", "To the end"];
+    const base = (page) => Math.max(1, d.pages.filter((p) => (page === "Home page" ? p.path === "/" : p.path.startsWith("/p/"))).reduce((n, p) => n + p.visits, 0));
+    const home = d.sections.map((s) => ({ label: s.label, n: s.n, share: Math.min(100, Math.round(s.share)) }));
+    const prod = (d.scroll["Product page"] || []).map((n, i) => { const b = base("Product page"); return { label: S[i], n, share: Math.min(100, Math.round((n / b) * 100)) }; });
+    const OUT = { Paid: "var(--green)", "Left checkout": "var(--red)", Enquired: "var(--ink)", "Browsed products": "var(--neutral)", "Looked around": "var(--neutral2)" };
+    keepOpen($("v-behave"), `${card("How far down people get", `${d.sections.length ? `<div class="phones">${phone("Home page", home)}${prod.some((r) => r.n) ? phone("Product pages", prod) : ""}</div><div class="scale" style="justify-content:center">Few reach it ${[1, 2, 3, 4, 5].map((i) => `<i style="background:var(--h${i})"></i>`).join("")} Everyone</div>` : `<p class="empty">No data yet.</p>`}`)}
+      ${card("How each visit ended", d.outcomes.length ? segments(d.outcomes.map((o) => ({ label: o.key, n: o.n, c: OUT[o.key] || "var(--neutral)" }))) : `<p class="empty">No data yet.</p>`)}
+      <div class="grid">${card("What they press", bars(acts))}${card("What they hunt for", bars(d.filters))}</div>
+      ${card("How fast it loads", `${speedGauge(d.speed)}${d.speed.n ? `<p class="sub2">${num(d.speed.n)} page loads measured.</p>` : ""}`)}
+      ${card("Every page", more(table("pages", [{ h: "Page", k: "label" }, { h: "Views", k: "views", n: 1 }, { h: "People", k: "visits", n: 1 }, { h: "Avg time", f: (r) => dur(r.avgTime), n: 1 }, { h: "Arrived here", k: "lands", n: 1 }, { h: "Left from here", k: "exits", n: 1 }, { h: "Left rate", f: (r) => `${r.exitRate}%`, n: 1 }], d.pages, "No visits yet.")))}`);
+  }
+
+  // ---- products: the shelf map ----
+  let catalog = null;
+  async function getCatalog() {
+    if (catalog) return catalog;
+    try { const r = await fetch("/api/products"); const list = await r.json(); catalog = Object.fromEntries(list.map((p) => [p.id, p])); } catch { catalog = {}; }
+    return catalog;
+  }
+  function productDetail(p) {
+    const box = $("pDetail"); if (!box || !p) return;
+    const top = Math.max(p.views, 1);
+    box.innerHTML = `<div><h3>${esc(p.name)}</h3><p class="sub2">${inr(p.value)} · ${dur(p.avgTime)} looking · ${p.enq} enquiries · ${p.chat} chats</p></div><div>${bars([{ label: "Looked", n: p.views }, { label: "Pressed Order now", n: p.checkout }, { label: "Bought", n: p.paid }], { max: top })}</div>`;
+    document.querySelectorAll(".pb").forEach((b) => b.classList.toggle("sel", b.dataset.p === p.id));
+  }
+  async function renderProducts(d) {
+    const cat = await getCatalog();
+    const list = d.products.filter((p) => p.views > 0);
+    const tableHtml = table("products", [{ h: "Product", k: "name" }, { h: "People viewed", k: "views", n: 1 }, { h: "Avg time", f: (r) => dur(r.avgTime), n: 1 }, { h: "Pressed Order", k: "checkout", n: 1 }, { h: "Left checkout", k: "abandon", n: 1 }, { h: "Enquiries", k: "enq", n: 1 }, { h: "Chats", k: "chat", n: 1 }, { h: "Orders", k: "paid", n: 1 }, { h: "Value", f: (r) => inr(r.value), n: 1 }, { h: "Viewed to order", f: (r) => `${r.conv}%`, n: 1 }], d.products, "No product views yet.");
+    if (!list.length) { $("v-products").innerHTML = card("The shelf map", `<p class="empty">No product views yet.</p>`); return; }
+    const Vmax = Math.max(...list.map((p) => p.views)), Vmin = Math.min(...list.map((p) => p.views)), Vfloor = Math.max(0, Vmin - (Vmax - Vmin || Vmax) * 0.15), vx = (v) => ((v - Vfloor) / Math.max(1, Vmax - Vfloor)) * 90 + 5, Cmax = Math.max(...list.map((p) => p.conv), 5), Hmax = Math.max(...list.map((p) => p.value), 1);
+    const sorted = (k) => [...list].map((p) => p[k]).sort((a, b) => a - b), med = (k) => sorted(k)[Math.floor(list.length / 2)];
+    const mx = vx(med("views")), my = 100 - ((med("conv") / Cmax) * 88 + 6);
+    // spread out any photos that land on each other; hover still gives the true numbers
+    const bw = Math.min($("v-products").clientWidth || innerWidth, 1140) - 70, bh = innerWidth < 860 ? 380 : 440;
+    const small = bw < 500 ? 0.66 : 1; // room for every photo on a phone
+    const dots = list.map((p) => ({ p, r: (19 + Math.sqrt(p.value / Hmax) * 21) * small, x: (vx(p.views) / 100) * bw, y: (100 - ((p.conv / Cmax) * 88 + 6)) / 100 * bh }));
+    for (let it = 0; it < 40; it++) for (let i = 0; i < dots.length; i++) for (let j = i + 1; j < dots.length; j++) {
+      const a = dots[i], b = dots[j], dx = b.x - a.x, dy = b.y - a.y, gap = a.r + b.r + 3, dist = Math.hypot(dx, dy) || 1;
+      if (dist < gap) { const push = (gap - dist) / 2, ux = dx / dist, uy = dy / dist; a.x -= ux * push; a.y -= uy * push; b.x += ux * push; b.y += uy * push; }
+    }
+    for (const q of dots) { q.x = Math.max(q.r, Math.min(bw - q.r, q.x)); q.y = Math.max(q.r, Math.min(bh - q.r, q.y)); }
+    const pb = (q) => { const c = cat[q.p.id], m = q.p; const word = m.paid ? "sold" : m.views >= 10 && !m.checkout ? "cold" : ""; return `<button type="button" class="pb ${word}" data-p="${esc(m.id)}" aria-label="${esc(m.name)}" data-tip="${esc(m.name)}: ${m.views} looked, ${m.paid} bought" style="left:${(q.x / bw) * 100}%;top:${(q.y / bh) * 100}%;width:${q.r * 2}px;height:${q.r * 2}px">${c?.image ? `<img src="${esc(c.image)}" alt="" loading="lazy">` : esc((m.name || "?").split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase())}</button>`; };
+    keepOpen($("v-products"), `${card("The shelf map", `<div class="pm"><span class="mid" style="left:${mx}%;top:0;bottom:0;width:1px"></span><span class="mid" style="top:${my}%;left:0;right:0;height:1px"></span>
+        <span class="q" style="left:0;top:0">Hidden gems</span><span class="q" style="right:0;top:0;text-align:right">Stars</span><span class="q" style="left:0;top:${my}%">Quiet</span><span class="q" style="right:0;top:${my}%;text-align:right">Admired, not bought</span>
+        ${dots.sort((a, b) => b.r - a.r).map(pb).join("")}<span class="ax" style="bottom:-20px;right:0">more people look →</span><span class="ax" style="left:-20px;top:50%;transform:rotate(-90deg) translateX(-50%);transform-origin:left top">more of them buy →</span></div>
+        <div class="key"><span><i class="g"></i>Has sold</span><span><i class="r"></i>10+ looks, nobody tried to buy</span><span>Bigger = more sales value</span></div>`)}
+      ${card("", `<div id="pDetail"></div>${more(tableHtml)}`)}`);
+    document.querySelectorAll(".pb").forEach((b) => (b.onclick = () => productDetail(list.find((p) => p.id === b.dataset.p))));
+    productDetail(list[0]);
+  }
+
+  // ---- visits as threads ----
+  const beadOf = (s) => (FRICTION.includes(s.e) ? "bad" : s.e === "paid" ? "good" : ["checkout", "details"].includes(s.e) ? "co" : s.e === "pclick" || (s.e === "page" && s.p !== "/") ? "pr" : "");
+  function renderVisits(d) {
+    const shownSteps = (v) => v.steps.filter((s) => s.e !== "section");
+    const once = (v) => shownSteps(v).length <= 1;
+    const F = { all: (v) => !once(v), once, stuck: (v) => v.friction, bought: (v) => v.value || v.outcome === "Paid", left: (v) => v.outcome === "Left checkout" };
+    const gone = d.visits.filter(once).length;
+    const list = d.visits.filter(F[state.visitFilter]);
+    const row = (v) => { const shown = shownSteps(v); return `<div class="tw"><div class="thr" data-open="${esc(v.s)}" role="button" tabindex="0" data-tip="${esc(v.source)}, ${esc(v.device)}: ${esc(v.outcome)}"><time>${esc(clock(v.start))}</time><div class="beads">${shown.slice(0, 40).map((s) => `<i class="${beadOf(s)}"></i>`).join("")}</div></div>
+      <div class="vd hide" id="j-${esc(v.s)}"><span class="sub2">${esc(stamp(v.start))} · ${esc(v.source)} · ${esc(v.device)}${v.returning ? " · returning" : ""} · ${esc(dur(v.engaged))} · ${esc(v.outcome)}</span><ol class="journey">${shown.map((s) => `<li class="${tone(s.e)}"><time>${clock(s.t)}</time>${esc((WORD[s.e] || (() => s.e))(s))}</li>`).join("")}</ol></div></div>`; };
+    $("v-visits").innerHTML = card("Every visit is a thread", `
+      <div class="chips" style="margin-bottom:10px">${[["all", "All"], ["stuck", "Got stuck"], ["left", "Left checkout"], ["bought", "Bought"], ["once", "Left at once"]].map(([k, l]) => `<button type="button" data-vf="${k}" class="${state.visitFilter === k ? "on" : ""}">${l}</button>`).join("")}</div>
+      <div class="key" style="margin:0 0 8px"><span><i style="background:var(--neutral)"></i>Looking around</span><span><i></i>A product</span><span><i style="border-radius:2px"></i>Checkout</span><span><i class="r" style="border-radius:2px"></i>Stuck</span><span><i class="g"></i>Bought</span></div>
+      ${state.visitFilter === "all" && gone ? `<p class="sub2" style="margin:0 0 8px">${num(gone)} more opened one page and left.</p>` : ""}
+      ${list.length ? `<div class="thrs">${list.map(row).join("")}</div>` : `<p class="empty">No visits match.</p>`}${d.visits.length >= 200 ? `<p class="sub2">From the latest 200 visits in these dates.</p>` : ""}`);
+    $("v-visits").querySelectorAll("[data-vf]").forEach((b) => (b.onclick = () => { state.visitFilter = b.dataset.vf; renderVisits(d); }));
+    $("v-visits").querySelectorAll("[data-open]").forEach((tr) => { tr.onclick = () => $(`j-${tr.dataset.open}`).classList.toggle("hide"); tr.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tr.click(); } }; });
+  }
+
+  // ---- page control ----
+  const state = { view: "now", from: today(), to: today(), data: null, visitFilter: "all" };
+  const RENDER = { loop: renderLoop, traffic: renderTraffic, behave: renderBehave, products: renderProducts, visits: renderVisits };
+  function show(v) {
+    state.view = v;
+    document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.v === v));
+    document.querySelectorAll("section.view").forEach((s) => s.classList.toggle("on", s.id === `v-${v}`));
+    $("range").classList.toggle("hide", v === "now");
+    store.set("vx-an-view", v);
+    if (v !== "now") pause();
+    if (v === "now") { ensureFloor(); tick(); if (!floor.dayData) loadDay(0).then(paintWorn).catch(() => {}); } else if (state.data) RENDER[v](state.data); else loadReport();
+  }
+  $("tabs").onclick = (e) => { const b = e.target.closest("button"); if (b) show(b.dataset.v); };
+  function setRange(from, to) {
+    state.from = from; state.to = to; $("from").value = from; $("to").value = to;
+    const span = Math.round((Date.parse(to) - Date.parse(from)) / 864e5);
+    document.querySelectorAll("#range button").forEach((b) => b.classList.toggle("on", to === today() && Number(b.dataset.d) === span));
+    state.data = null; store.set("vx-an-span", to === today() ? String(span) : "0");
+    if (state.view !== "now") loadReport();
+  }
+  $("range").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setRange(shift(today(), -Number(b.dataset.d)), today()); });
+  $("from").onchange = $("to").onchange = () => { if ($("from").value && $("to").value && $("from").value <= $("to").value) setRange($("from").value, $("to").value); };
+
+  async function loadReport() {
+    const opened = document.querySelector(".vd:not(.hide)");
+    try {
+      const d = await api(`report?from=${state.from}&to=${state.to}`);
+      if (d.from !== state.from || d.to !== state.to) return;
+      state.data = d;
+      // Don't redraw under someone reading a visit or typing a change.
+      const busy = opened || document.activeElement?.closest?.("#chForm");
+      if (state.view !== "now" && !busy) RENDER[state.view](d);
+    } catch (e) { if (e.message !== "key") $("dot").classList.add("off"); }
+  }
+  async function tick() {
+    if (document.hidden) return;
+    try { renderNow(await api("live")); $("dot").classList.remove("off"); }
+    catch (e) { if (e.message !== "key") $("dot").classList.add("off"); }
+  }
+  let started = false;
+  function boot() {
+    store.set("vx-no-track", "1"); // the owner's own browsing shouldn't count as a customer
+    show(store.get("vx-an-view") || "now");
+    setRange(shift(today(), -Number(store.get("vx-an-span") || 6)), today());
+    if (started) return;
+    started = true;
+    if (stillMotion()) document.documentElement.dataset.still = "1";
+    setInterval(tick, 3000);
+    setInterval(() => { if (!document.hidden && state.view !== "now") loadReport(); }, 30000);
+    document.addEventListener("visibilitychange", tick);
+  }
+  boot();
+})();
+</script>
+</body>
+</html>

@@ -17,6 +17,18 @@ The owner, from WhatsApp (or the `/demo` screen):
 
 > This version is a working demo. The WhatsApp side is simulated on the `/demo` screen; connecting the shop's real WhatsApp number (WhatsApp Cloud API) is the next step.
 
+## Site analytics
+
+`/analytics` (owner key, the same as the billing portal, or the Site Analytics link there) shows who is on the site now, and what helps or hinders them:
+
+- **Shop floor**: the site drawn as a floor plan, with each visitor as a dot walking through it live. Replay today or yesterday in a minute and watch the worn paths build up
+- **The leak**: the journey from arriving to paying as a river that loses people at each step, plain-language findings, why people left, what customers said, and a log of your changes with the numbers before and after
+- **Traffic, Scroll map, Products, Visits**: rhythm of the week, who buys, how far down people get, a map of products by interest and sales, and each visit as a thread of beads
+
+Every chart keeps its numbers one tap away, with Excel downloads.
+
+`lib/track.js` runs on shop pages and `lib/analytics.js` keeps one file a day in `analytics/` on the disk, for about 13 months. It stores no IP address, cookie or form contents. Visitors with Global Privacy Control on aren't counted, and opening `/analytics` stops your own browser being counted. Customers get a short question after leaving checkout or ordering, at most once a day, and there's a Feedback link in the footer.
+
 ## Run it locally
 
 ```bash
