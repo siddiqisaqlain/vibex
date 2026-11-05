@@ -245,8 +245,7 @@
   // Badges only say what is true right now: fresh posts and real stock counts.
   function badges(p) {
     const out = [];
-    const off = offPct(p);
-    if (off && !manyPrices(p) && p.status === "available") out.push(`<span class="badge badge-off">${off}% OFF</span>`);
+    if (hasOffer(p)) out.push(offBadge(p));
     if (isNew(p)) out.push(`<span class="badge">${hoursOld(p) < 24 ? "New today" : "Just in"}</span>`);
     if (p.status === "available") {
       if (p.quantity >= 2 && p.quantity <= 3) out.push(`<span class="badge badge-low">Only ${p.quantity} left</span>`);
@@ -260,6 +259,9 @@
       : window.productArt(p, hash(p.id));
   }
   const manyPrices = (p) => new Set((p.options || []).map((o) => o.price)).size > 1;
+  const hasOffer = (p) => offPct(p) > 0 && !manyPrices(p) && p.status === "available";
+  const offBadge = (p) => `<span class="badge badge-off">${offPct(p)}% OFF</span>`;
+  const wasPrice = (p) => (hasOffer(p) ? ` <s>${rupees(p.mrp)}</s>` : "");
   function card(p, eager) {
     const off = offPct(p);
     const meta = [p.sizes, p.status === "sold" && soldAt(p) ? `Sold ${agoAt(soldAt(p))}` : null].filter(Boolean).map(esc).join(" · ");
@@ -320,11 +322,12 @@
       <a class="slide" href="${pdp(p)}" role="group" aria-roledescription="slide" aria-label="${esc(p.name)}, ${i + 1} of ${slides.length}">
         <div class="slide-pics"><img src="${esc(p.image)}" alt="${esc(p.name)}" ${i === 0 ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async"></div>
         ${isNew(p) ? `<span class="slide-flag">${hoursOld(p) < 24 ? "New today" : "Just in"}</span>` : ""}
+        ${hasOffer(p) ? `<span class="slide-off">${offBadge(p)}</span>` : ""}
       </a>`).join("");
     const caption = (i) => {
       const p = slides[i];
       $("slide-cap").href = pdp(p);
-      $("slide-cap").innerHTML = `<span>${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><em>${p.price ? rupees(p.price) : "Price on request"}</em>`;
+      $("slide-cap").innerHTML = `<span>${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><em>${p.price ? rupees(p.price) : "Price on request"}${wasPrice(p)}</em>`;
       $("slide-count").textContent = `${String(i + 1).padStart(2, "0")} / ${String(slides.length).padStart(2, "0")}`;
     };
     caption(0);
@@ -383,8 +386,8 @@
     const many = list.length > 1;
     track.innerHTML = list.map((p, i) => `
       <a class="feat-slide" href="${pdp(p)}" aria-label="${esc(p.name)}, ${i + 1} of ${list.length}">
-        <span class="feat-pic"><img src="${esc(p.image)}" alt="" loading="lazy" decoding="async"></span>
-        <span class="feat-cap"><span>${esc(p.brand && p.brand !== p.name ? p.brand : p.category)}</span><b>${esc(p.name)}</b><em>${p.price ? `${manyPrices(p) ? "From " : ""}${rupees(p.price)}` : "Price on request"}</em></span>
+        <span class="feat-pic"><img src="${esc(p.image)}" alt="" loading="lazy" decoding="async">${hasOffer(p) ? `<span class="feat-off">${offBadge(p)}</span>` : ""}</span>
+        <span class="feat-cap"><span>${esc(p.brand && p.brand !== p.name ? p.brand : p.category)}</span><b>${esc(p.name)}</b><em>${p.price ? `${manyPrices(p) ? "From " : ""}${rupees(p.price)}` : "Price on request"}${wasPrice(p)}</em></span>
       </a>`).join("");
     $("feat-prev").hidden = $("feat-next").hidden = !many;
     const step = () => track.firstElementChild?.getBoundingClientRect().width + parseFloat(getComputedStyle(track).columnGap || 0) || 1;

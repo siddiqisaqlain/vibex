@@ -792,5 +792,9 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
   .pdp-info .actions > :only-child { grid-column: 1 / -1; }
   #pdp { padding-bottom: 90px; }
 }
-.badge-off { background: var(--red); color: #fff; font-weight: 700; font-size: 11px; }
-.pdp-price .off { padding: 4px 9px; border-radius: 999px; background: var(--red); color: #fff; font: 600 12px/1 var(--mono); }
+.badge-off { background: var(--accent); color: var(--ink); font-weight: 700; font-size: 11px; }
+.pdp-price .off { padding: 4px 9px; border-radius: 999px; background: var(--accent); color: var(--ink); font: 600 12px/1 var(--mono); }
+.slide-off { position: absolute; right: 14px; top: 14px; }
+.feat-off { position: absolute; left: 10px; top: 10px; }
+.slide-cap s, .feat-cap s { color: var(--muted); }
+.price em { color: var(--ink); }
