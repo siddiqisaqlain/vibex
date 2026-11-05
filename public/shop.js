@@ -478,17 +478,6 @@
     return true;
   }
 
-  function renderTabs() {
-    const tabs = ["All", "New", ...CATS.filter((c) => products.some((p) => p.category === c))];
-    if (view.tab === "Deals") tabs.push("Deals");
-    $("filters").innerHTML = tabs.map((t) => {
-      const n = t === "All" ? products.length : t === "New" ? products.filter(isNew).length : t === "Deals" ? products.filter((p) => offPct(p) >= 40).length : products.filter((p) => p.category === t).length;
-      if (t === "New" && !n) return "";
-      const label = t === "All" ? "All" : t === "New" ? "New in" : t === "Deals" ? "40%+ off" : t;
-      return `<button role="tab" aria-selected="${t === view.tab}" data-tab="${t}">${label}<sup>${n}</sup></button>`;
-    }).join("");
-  }
-
   function renderSubs() {
     const el = $("subs");
     if (!CATS.includes(view.tab)) { el.hidden = true; el.innerHTML = ""; return; }
@@ -498,7 +487,7 @@
     if (names.length < 2) { el.hidden = true; el.innerHTML = ""; return; }
     el.hidden = false;
     el.innerHTML = [`<button data-sub="" aria-pressed="${!view.sub}">All ${esc(view.tab.toLowerCase())}</button>`]
-      .concat(names.map((n) => `<button data-sub="${esc(n)}" aria-pressed="${view.sub === n}">${esc(n)}<sup>${counts[n]}</sup></button>`)).join("");
+      .concat(names.map((n) => `<button data-sub="${esc(n)}" aria-pressed="${view.sub === n}">${esc(n)}</button>`)).join("");
   }
 
   function renderActive() {
@@ -536,7 +525,6 @@
     $("empty").hidden = shown.length > 0;
     moreLeft = list.length > view.shown;
     $("count").textContent = list.length ? `Showing ${shown.length} of ${list.length}` : "";
-    renderTabs();
     renderSubs();
     renderActive();
     renderShopBy();
@@ -633,10 +621,6 @@
       return;
     }
     if (e.target.closest('[data-dock="home"]')) { e.preventDefault(); scrollTo({ top: 0, behavior: "smooth" }); }
-  });
-  $("filters").addEventListener("click", (e) => {
-    const b = e.target.closest("button[data-tab]");
-    if (b) setView({ tab: b.dataset.tab, sub: null });
   });
   $("subs").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-sub]");

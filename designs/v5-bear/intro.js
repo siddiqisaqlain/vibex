@@ -53,7 +53,7 @@
     ["Kochi", 170.5, 628.6], ["Leh", 197.8, 75.5],
   ];
   const LAKSHADWEEP = [[94.6, 614.9], [85, 601.1], [103, 663.6], [96.5, 625.8]];
-  const RED = "#e2382c", INK = "#121212";
+  const ACCENT = "#ff6b1a", INK = "#121212";  // shop.css --accent: the X and the button, nothing else
 
   // ---- timeline (ms) ----
   const SWEEP_AT = 300, SWEEP = 2400;
@@ -94,32 +94,32 @@
   .vxi canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   .vxi-copy { position: absolute; left: 0; right: 0; bottom: calc(8vh + env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
   .vxi-logo { font: 800 36px/1 'Schibsted Grotesk', Arial, sans-serif; color: ${INK}; letter-spacing: -.045em; white-space: nowrap; transform-origin: 0 0; opacity: 0; transform: translateY(14px); animation: vxiUp .8s cubic-bezier(.2,.8,.2,1) .6s forwards; }
-  .vxi-logo span { color: ${RED}; margin-left: 2px; }
+  .vxi-logo span { color: ${ACCENT}; margin-left: 2px; }
   .vxi-copy p { margin: 12px 0 0; font: 500 11.5px/1.4 'Geist Mono', ui-monospace, monospace; text-transform: uppercase; letter-spacing: .1em; color: #85837d; opacity: 0; transform: translateY(10px); animation: vxiUp .8s cubic-bezier(.2,.8,.2,1) .8s forwards; transition: opacity .25s; }
-  .vxi-copy p b { color: ${RED}; font-weight: 700; }
+  .vxi-copy p b { color: ${INK}; font-weight: 700; }
   @keyframes vxiUp { to { opacity: 1; transform: none; } }
   .vxi-skip, .vxi-compass { transition: opacity .3s; }
   .vxi-skip { position: absolute; right: 16px; top: calc(16px + env(safe-area-inset-top)); padding: 8px 14px; border: 1px solid rgba(18,18,18,.18); border-radius: 999px; background: rgba(249,248,245,.8); backdrop-filter: blur(6px); font: 500 11px 'Geist Mono', ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; color: #3d3c39; cursor: pointer; }
   .vxi-compass { position: absolute; left: 18px; top: calc(18px + env(safe-area-inset-top)); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(18,18,18,.18); background: rgba(249,248,245,.8); font: 600 9px 'Geist Mono', monospace; color: ${INK}; }
   .vxi-compass-in { position: relative; width: 100%; height: 100%; display: grid; place-items: center; }
-  .vxi-compass i { position: absolute; top: 4px; width: 0; height: 0; border: 4px solid transparent; border-bottom: 9px solid ${RED}; border-top: 0; }
+  .vxi-compass i { position: absolute; top: 4px; width: 0; height: 0; border: 4px solid transparent; border-bottom: 9px solid ${INK}; border-top: 0; }
   .vxi.leaving { pointer-events: none; }
   .vxi.leaving .vxi-skip, .vxi.leaving .vxi-compass, .vxi.leaving .vxi-copy p, .vxi.leaving .vxi-count { opacity: 0; }
   /* delivery pill: slides up under the counter while the parcels are in the air */
   .vxi-ship { display: inline-flex; align-items: center; gap: 9px; margin-top: 14px; padding: 8px 14px 8px 11px; border-radius: 999px; background: ${INK}; color: #fff; font: 500 11px 'Geist Mono', ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; opacity: 0; transform: translateY(12px); transition: opacity .25s; }
   .vxi-ship.on { animation: vxiUp .7s cubic-bezier(.2,.8,.2,1) forwards; }
   .vxi-ship svg { width: 18px; height: 18px; fill: none; stroke: #fff; stroke-width: 1.6; stroke-linejoin: round; }
-  .vxi-ship b { font-weight: 700; color: ${RED}; filter: brightness(1.35); }
+  .vxi-ship b { font-weight: 700; color: #fff; }
   .vxi-ship span { opacity: .85; }
   @keyframes vxiDrive { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
   .vxi.leaving .vxi-ship { opacity: 0; }
   /* after the deliveries: the intro waits for the customer (tap / click / scroll / Enter) */
-  .vxi-go { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; padding: 10px 18px; border: 1px solid rgba(18,18,18,.22); border-radius: 999px; background: rgba(255,255,255,.7); backdrop-filter: blur(6px); font: 500 12.5px 'Geist Mono', ui-monospace, monospace; letter-spacing: .02em; color: ${INK}; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity .3s; }
+  .vxi-go { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; padding: 10px 18px; border: 1px solid ${ACCENT}; border-radius: 999px; background: ${ACCENT}; font: 500 12.5px 'Geist Mono', ui-monospace, monospace; letter-spacing: .02em; color: ${INK}; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity .3s; }
   .vxi-go.on { animation: vxiUp .8s cubic-bezier(.2,.8,.2,1) forwards; }
-  .vxi-go i { width: 7px; height: 7px; border-radius: 50%; background: ${RED}; animation: vxiBeat 2.8s ease-out infinite; }
+  .vxi-go i { display: none; }
   .vxi-go svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   @keyframes vxiNudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-  @keyframes vxiBeat { 0% { box-shadow: 0 0 0 0 rgba(226,56,44,.5); } 80%, 100% { box-shadow: 0 0 0 9px rgba(226,56,44,0); } }
+  @keyframes vxiBeat { 0% { box-shadow: 0 0 0 0 rgba(18,18,18,.5); } 80%, 100% { box-shadow: 0 0 0 9px rgba(18,18,18,0); } }
   .vxi.ready .vxi-skip { opacity: 0; pointer-events: none; }
   .vxi.leaving .vxi-go { opacity: 0; }
   @media (max-width: 600px) { .vxi-go { font-size: 12px; padding: 9px 16px; margin-top: 14px; } }
@@ -127,7 +127,7 @@
   /* orders counter: ticks up as parcels land, then flips to the headline figure with a flash */
   .vxi-count { position: relative; margin-top: 12px; font: 700 50px/1 'Schibsted Grotesk', Arial, sans-serif; letter-spacing: -.05em; color: ${INK}; font-variant-numeric: tabular-nums; white-space: nowrap; transition: opacity .25s; }
   .vxi-count b { display: inline-block; font: inherit; }
-  .vxi-count.done b { color: ${RED}; animation: vxiPop .6s cubic-bezier(.2,1.2,.4,1); }
+  .vxi-count.done b { color: ${INK}; animation: vxiPop .6s cubic-bezier(.2,1.2,.4,1); }
   @keyframes vxiPop { 0% { transform: scale(.94); } 100% { transform: scale(1); } }
   @keyframes vxiShine { from { background-position: 100% 0; } to { background-position: 0 0; } }
   @keyframes vxiBurst { 0% { opacity: 1; transform: translate(-50%, -50%) scale(.6); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); } }
@@ -313,13 +313,13 @@
     const hx = SRINAGAR[0] - CX, hy = SRINAGAR[1] - CY;
     const [bx0, by0] = P(hx, hy, 0), [bx1, by1] = P(hx, hy, 110 * ease(clamp01((ms - 100) / 700)));
     const beam = ctx.createLinearGradient(bx0, by0, bx1, by1);
-    beam.addColorStop(0, "rgba(226,56,44,.28)"); beam.addColorStop(1, "rgba(226,56,44,0)");
+    beam.addColorStop(0, "rgba(18,18,18,.14)"); beam.addColorStop(1, "rgba(18,18,18,0)");
     ctx.strokeStyle = beam; ctx.lineWidth = 3; ctx.lineCap = "round";
     ctx.beginPath(); ctx.moveTo(bx0, by0); ctx.lineTo(bx1, by1); ctx.stroke();
     {
       const ph = (ms / 3400) % 1;                                    // one slow ring
       ring(hx, hy, 6 + ph * 26);
-      ctx.strokeStyle = `rgba(226,56,44,${.32 * (1 - ph) * appear})`; ctx.lineWidth = 1; ctx.stroke();
+      ctx.strokeStyle = `rgba(18,18,18,${.32 * (1 - ph) * appear})`; ctx.lineWidth = 1; ctx.stroke();
     }
 
     // routes
@@ -330,24 +330,24 @@
       const pts = r.pts.slice(0, n + 1);
       ctx.lineCap = "round";
       ctx.strokeStyle = "rgba(0,0,0,.035)"; ctx.lineWidth = 1; strokeLine(pts, 0);           // shadow on the map
-      ctx.strokeStyle = "rgba(226,56,44,.05)"; ctx.lineWidth = 4; strokeLine(pts);           // glow
-      ctx.strokeStyle = "rgba(226,56,44,.5)"; ctx.lineWidth = 1.1; strokeLine(pts);          // the arc
+      ctx.strokeStyle = "rgba(18,18,18,.03)"; ctx.lineWidth = 4; strokeLine(pts);           // glow
+      ctx.strokeStyle = "rgba(18,18,18,.24)"; ctx.lineWidth = 1; strokeLine(pts);          // the arc
       if (p < 1) {
-        ctx.strokeStyle = "rgba(226,56,44,.7)"; ctx.lineWidth = 2; strokeLine(pts.slice(-6));  // comet
+        ctx.strokeStyle = "rgba(18,18,18,.6)"; ctx.lineWidth = 1.6; strokeLine(pts.slice(-6));  // comet
         const [sx, sy, f] = P(...pts[pts.length - 1]);
-        ctx.fillStyle = "#fff"; ctx.shadowColor = "rgba(226,56,44,.6)"; ctx.shadowBlur = 6;
+        ctx.fillStyle = "#fff"; ctx.shadowColor = "rgba(18,18,18,.6)"; ctx.shadowBlur = 6;
         ctx.beginPath(); ctx.arc(sx, sy, 2.1 * f, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
       } else {
         const since = ms - r.at - FLY;
         const rip = clamp01(since / 1100);
-        if (rip < 1) { ring(r.x, r.y, 4 + rip * 20); ctx.strokeStyle = `rgba(226,56,44,${.4 * (1 - rip) * appear})`; ctx.lineWidth = 1; ctx.stroke(); }
-        ring(r.x, r.y, 3); ctx.fillStyle = RED; ctx.fill();
+        if (rip < 1) { ring(r.x, r.y, 4 + rip * 20); ctx.strokeStyle = `rgba(18,18,18,${.4 * (1 - rip) * appear})`; ctx.lineWidth = 1; ctx.stroke(); }
+        ring(r.x, r.y, 3); ctx.fillStyle = INK; ctx.fill();
         const rise = ease(clamp01(since / 600));
         if (r.tag) tag(r.x, r.y, r.name, 28 * rise, false, rise * appear, r.tag);
         else {
           const [gx, gy] = P(r.x, r.y, 0), [tx, ty] = P(r.x, r.y, 10 * rise);
-          ctx.strokeStyle = RED; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(tx, ty); ctx.stroke();
-          ctx.beginPath(); ctx.arc(tx, ty, 2.1, 0, 7); ctx.fillStyle = RED; ctx.fill();
+          ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(tx, ty); ctx.stroke();
+          ctx.beginPath(); ctx.arc(tx, ty, 2.1, 0, 7); ctx.fillStyle = INK; ctx.fill();
         }
       }
     }
@@ -358,9 +358,9 @@
         if (ph < 0 || ph > FLY) return;
         const q = ease(ph / FLY), k = Math.round(q * 48);
         ctx.globalAlpha = appear;
-        ctx.strokeStyle = "rgba(226,56,44,.6)"; ctx.lineWidth = 1.8; ctx.lineCap = "round"; strokeLine(r.pts.slice(Math.max(0, k - 6), k + 1));
+        ctx.strokeStyle = "rgba(18,18,18,.6)"; ctx.lineWidth = 1.8; ctx.lineCap = "round"; strokeLine(r.pts.slice(Math.max(0, k - 6), k + 1));
         const [sx, sy, f] = P(...r.pts[k]);
-        ctx.fillStyle = "#fff"; ctx.shadowColor = "rgba(226,56,44,.6)"; ctx.shadowBlur = 6;
+        ctx.fillStyle = "#fff"; ctx.shadowColor = "rgba(18,18,18,.6)"; ctx.shadowBlur = 6;
         ctx.beginPath(); ctx.arc(sx, sy, 2 * f, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
       });
     }
