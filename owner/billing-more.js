@@ -13,15 +13,33 @@
       <div class="row3">${f("price", "Selling price ₹", "number")}${f("cost", "Purchase price ₹", "number")}${f("mrp", "MRP ₹", "number")}</div>
       <div class="row3">${f("barcode", "Barcode")}<label class="sub">Sizes<input id="it-sizes" value="${esc(p?.sizePrices ? Object.entries(p.sizePrices).map(([s, v]) => `${s} ${v}`).join(" · ") : p?.sizes ?? "")}" placeholder="50ml 2999 100ml 4999"></label>${f("reorderAt", "Alert when stock at", "number")}</div>
       <p class="sub" style="margin:4px 0 0">Perfume sizes: type <b>100ml</b> for one size, or <b>50ml 2999 100ml 4999</b> for a price on each. Those prices replace the selling price above.</p>
+      <div id="it-sizeRows"></div>
       <div class="row3">${f("hsn", "HSN code")}${f("gstRate", "GST % (blank = default)", "number")}${p ? "<div></div>" : f("quantity", "Opening stock", "number")}</div>
       ${p ? `<label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="it-onWebsite" ${p.hidden ? "" : "checked"} ${p.image ? "" : "disabled"}> Show on website${p.image ? "" : " (needs a photo: send it on WhatsApp with the code)"}</label>` : ""}
       <div class="row2" style="margin-top:8px"><button class="big" id="itSave" style="margin:0">Save</button><button class="tbtn" id="itClose">Close</button></div><div class="err" id="itErr"></div></div>`;
     box.scrollIntoView({ block: "center" });
+    // A stock box for each size, redrawn as the Sizes field changes. Blank boxes keep one shared count.
+    const typed = { ...(p?.sizeStock || {}) };
+    const sizeNames = (t) => {
+      const ml = [...String(t).matchAll(/(\d{1,4}(?:\.\d)?)\s?mls?\b/gi)].map((m) => `${m[1]} ml`);
+      if (ml.length) return [...new Set(ml)];
+      const words = String(t).split(/[\s,·/|]+/).filter(Boolean).map((s) => s.toUpperCase());
+      return words.every((w) => /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d{2})$/.test(w)) ? [...new Set(words)] : [];
+    };
+    const drawSizes = () => {
+      const names = sizeNames($("it-sizes").value);
+      $("it-sizeRows").innerHTML = names.length > 1 ? `<p class="sub" style="margin:8px 0 0">Stock of each size (leave blank to share one count)</p><div class="row3">${names.map((s) => `<label class="sub">${esc(s)}<input type="number" min="0" data-ss="${esc(s)}" value="${esc(typed[s] ?? "")}"></label>`).join("")}</div>` : "";
+      document.querySelectorAll("[data-ss]").forEach((i) => (i.oninput = () => (typed[i.dataset.ss] = i.value)));
+    };
+    $("it-sizes").oninput = drawSizes;
+    drawSizes();
     $("itClose").onclick = () => (box.innerHTML = "");
     $("itSave").onclick = async () => {
       const b = {};
       for (const k of ["name", "category", "price", "cost", "mrp", "barcode", "sizes", "reorderAt", "hsn", "gstRate", "quantity"]) if ($(`it-${k}`)) b[k] = $(`it-${k}`).value;
       if ($("it-onWebsite") && !$("it-onWebsite").disabled) b.onWebsite = $("it-onWebsite").checked;
+      const boxes = [...document.querySelectorAll("[data-ss]")];
+      if (boxes.length) b.sizeStock = boxes.some((i) => i.value !== "") ? Object.fromEntries(boxes.map((i) => [i.dataset.ss, i.value])) : {};
       try {
         await api(p ? `/api/billing/items/${p.id}` : "/api/billing/items", { method: "POST", body: JSON.stringify(b) });
         box.innerHTML = ""; toast(p ? "Saved." : "Added. It stays off the website until it has a photo."); await window.VX.reload();

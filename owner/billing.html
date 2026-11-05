@@ -379,13 +379,16 @@
       </button>`).join("") : `<div class="empty">Nothing matches.</div>`;
     $("results").querySelectorAll(".item").forEach((b) => b.onclick = () => { addToCart(b.dataset.id); $("q").value = ""; renderResults(); $("q").focus(); });
   }
+  // Sizes a bill line can pick from: priced per size, or counted per size.
+  const sizeOpts = (p) => Object.keys(p?.sizeStock || p?.sizePrices || {}).map((size) => ({ size, price: p.sizePrices?.[size] ?? p.price, left: p.sizeStock ? p.sizeStock[size] ?? 0 : null }));
   function addToCart(id) {
     const p = byId().get(id);
     if (!p || p.status === "hold") return;
-    const [size, sizePrice] = Object.entries(p.sizePrices || {})[0] || [];
-    const line = cart.find((l) => l.id === id && l.size === size);
+    const opts = sizeOpts(p);
+    const first = opts.find((o) => o.left !== 0) || opts[0];
+    const line = cart.find((l) => l.id === id && l.size === first?.size);
     if (line) line.qty++;
-    else cart.push({ id, qty: 1, price: size ? sizePrice : p.price, disc: 0, size });
+    else cart.push({ id, qty: 1, price: first ? first.price : p.price, disc: 0, size: first?.size });
     $("done").innerHTML = ""; $("err").textContent = "";
     renderCart();
   }
@@ -394,7 +397,7 @@
     let total = 0, bad = false;
     $("lines").innerHTML = cart.length ? cart.map((l, i) => {
       const p = m.get(l.id);
-      const have = p ? stockOf(p) : 0;
+      const have = !p ? 0 : p.sizeStock && l.size ? p.sizeStock[l.size] ?? 0 : stockOf(p);
       // Sold somewhere else (WhatsApp / website) while this bill was open: flag it.
       // A hold or a removed item stops the bill. Short stock only warns: the piece is in his hand.
       const warn = !p ? "Removed from the shop." : p.status === "hold" ? `Held for website order ${p.holdFor}.` : "";
@@ -402,10 +405,10 @@
       if (warn) bad = true;
       const amt = (Number(l.price) || 0) * l.qty - (Number(l.disc) || 0);
       total += amt;
-      const list = l.size ? p?.sizePrices?.[l.size] : p?.price;
-      const opts = Object.entries(p?.sizePrices || {});
+      const opts = sizeOpts(p);
+      const list = opts.find((o) => o.size === l.size)?.price ?? p?.price;
       return `<div class="line ${warn ? "bad" : ""}">
-        <div class="grow"><div class="name">${esc(p ? p.name : "Item")}</div><div class="sub">#${esc(p ? p.code : "")}${p && list !== Number(l.price) ? ` · list ${inr(list)}` : ""} · <button class="x" data-rm="${i}">remove</button></div>${opts.length ? `<select data-size="${i}" aria-label="Size" style="margin-top:4px;max-width:170px">${opts.map(([s, v]) => `<option value="${esc(s)}" ${s === l.size ? "selected" : ""}>${esc(s)} · ${inr(v)}</option>`).join("")}</select>` : ""}</div>
+        <div class="grow"><div class="name">${esc(p ? p.name : "Item")}</div><div class="sub">#${esc(p ? p.code : "")}${p && list !== Number(l.price) ? ` · list ${inr(list)}` : ""} · <button class="x" data-rm="${i}">remove</button></div>${opts.length ? `<select data-size="${i}" aria-label="Size" style="margin-top:4px;max-width:170px">${opts.map((o) => `<option value="${esc(o.size)}" ${o.size === l.size ? "selected" : ""}>${esc(o.size)} · ${inr(o.price)}${o.left === null ? "" : ` · ${o.left} left`}</option>`).join("")}</select>` : ""}</div>
         <div style="text-align:right"><input class="rate" type="number" min="0" step="1" value="${esc(l.price)}" data-rate="${i}" aria-label="Rate"><input class="rate" type="number" min="0" step="1" value="${l.disc ? esc(l.disc) : ""}" placeholder="Disc ₹" data-disc="${i}" aria-label="Discount" style="margin-top:4px;display:block"></div>
         <div class="qty"><button data-dec="${i}" aria-label="Less">−</button><span>${l.qty}</span><button data-inc="${i}" aria-label="More">+</button></div>
         <div class="price" style="text-align:right">${inr(amt)}</div>
@@ -423,7 +426,7 @@
     $("lines").querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => { cart.splice(+b.dataset.rm, 1); renderCart(); });
     $("lines").querySelectorAll("[data-inc]").forEach((b) => b.onclick = () => { const l = cart[+b.dataset.inc]; l.qty++; renderCart(); });
     $("lines").querySelectorAll("[data-dec]").forEach((b) => b.onclick = () => { const i = +b.dataset.dec; if (cart[i].qty > 1) cart[i].qty--; else cart.splice(i, 1); renderCart(); });
-    $("lines").querySelectorAll("[data-size]").forEach((sel) => sel.onchange = () => { const l = cart[+sel.dataset.size]; l.size = sel.value; l.price = m.get(l.id).sizePrices[l.size]; renderCart(); });
+    $("lines").querySelectorAll("[data-size]").forEach((sel) => sel.onchange = () => { const l = cart[+sel.dataset.size]; l.size = sel.value; l.price = sizeOpts(m.get(l.id)).find((o) => o.size === l.size).price; renderCart(); });
     $("lines").querySelectorAll("[data-rate]").forEach((inp) => inp.onchange = () => { cart[+inp.dataset.rate].price = Math.max(0, Math.round(Number(inp.value) || 0)); renderCart(); });
     $("lines").querySelectorAll("[data-disc]").forEach((inp) => inp.onchange = () => { cart[+inp.dataset.disc].disc = Math.max(0, Math.round(Number(inp.value) || 0)); renderCart(); });
   }
@@ -514,7 +517,7 @@
       <td><input type="checkbox" data-pick="${esc(p.id)}" ${picks.has(p.id) ? "checked" : ""} aria-label="Pick ${esc(p.name)}"></td>
       <td><div class="name">${esc(p.name)}</div><div class="sub">#${esc(p.code)} ${stockPill(p)}${p.hidden ? ` <span class="pill low">Not on website</span>` : ""}${p.needsCount ? ` <span class="pill out">Count this</span>` : ""}${p.needsName ? ` <span class="pill out">Needs a name</span>` : ""}</div></td>
       <td>${esc(p.barcode || "-")}</td>
-      <td><div class="stockQty"><button class="tbtn" data-step="-1" data-id="${esc(p.id)}">−</button><input type="number" min="0" value="${stockOf(p)}" data-qty="${esc(p.id)}"><button class="tbtn" data-step="1" data-id="${esc(p.id)}">+</button></div></td>
+      <td>${p.sizeStock ? `<b>${stockOf(p)}</b><div class="sub">${Object.entries(p.sizeStock).map(([s, n]) => `${esc(s)}: ${n}`).join(" · ")}</div>` : `<div class="stockQty"><button class="tbtn" data-step="-1" data-id="${esc(p.id)}">−</button><input type="number" min="0" value="${stockOf(p)}" data-qty="${esc(p.id)}"><button class="tbtn" data-step="1" data-id="${esc(p.id)}">+</button></div>`}</td>
       <td class="n"><input type="number" class="rate" min="1" value="${esc(p.price || "")}" data-price="${esc(p.id)}"></td>
       <td class="n costCol">${p.cost ? inr(p.cost) : "-"}</td>
       <td class="n">${p.mrp ? inr(p.mrp) : "-"}</td>

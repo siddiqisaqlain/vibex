@@ -15,7 +15,7 @@ const { parseMessage, categoryAnswer, findSubcategory } = require("./lib/parse")
 const { classify, aiEnabled, MODEL, readPurchaseBill } = require("./lib/classify");
 const wa = require("./lib/whatsapp");
 const createBilling = require("./lib/billing");
-const { sizePairs, withoutSizePairs, optionsOf, applySizePairs, autoDescription, formatSizes } = require("./lib/sizes");
+const { sizePairs, withoutSizePairs, optionsOf, applySizePairs, autoDescription, formatSizes, setSizeStock, fitSizeStock } = require("./lib/sizes");
 const { readJson, writeJson, dailyBackup } = require("./lib/jsonstore");
 const SHOP_NAME = "Vibe X";
 
@@ -121,7 +121,7 @@ function tidyListing(l) {
   for (const p of items) if (p.name === "Zara" && names[p.id]) { p.name = names[p.id]; p.brand = p.brand || "Zara"; n++; }
   if (n) { fs.writeFileSync(DB, JSON.stringify(items, null, 2)); console.log(`Renamed ${n} product(s)`); }
 })();
-const save = (items) => writeJson(DB, items);
+const save = (items) => { items.forEach(fitSizeStock); writeJson(DB, items); };
 // What customers may see. Cost prices and the shop's own notes never leave the server, and
 // hidden items (imported, waiting for a photo) aren't on sale yet.
 const PRIVATE_FIELDS = ["cost", "purchasePrice", "supplierId", "hsn", "gstRate", "reorderAt", "barcode", "importKey", "needsCount", "needsName"];
@@ -130,6 +130,7 @@ const forCustomers = (p) => {
   const c = { ...p, options: optionsOf(p), description: p.description || autoDescription(p) };
   for (const k of PRIVATE_FIELDS) delete c[k];
   delete c.sizePrices;
+  delete c.sizeStock; // each option carries its own count
   return c;
 };
 const publicProducts = () => load().filter(isPublic).map(forCustomers);
@@ -383,6 +384,7 @@ async function createOrder(req, res) {
   const options = optionsOf(p);
   const picked = options.length === 1 ? options[0] : options.find((o) => o.size === String(b.size || ""));
   if (options.length > 1 && !picked) return send(res, 400, { error: "Please choose a size first." });
+  if (picked?.left === 0) return send(res, 409, { error: `Sorry, ${picked.size} has just sold out. Please choose another size.` });
   const price = picked?.price ?? p.price;
   const orders = loadOrders();
   const promo = applyOffer(b.promo, phone, orders);
@@ -443,6 +445,7 @@ _Faster:_ put it all in the caption, e.g. _Zara shirt 1499 M L_, and it's one ta
 *Wrong section:* _move 4795 perfume_ (or clothes, shoes, accessory)
 *Take off the website (stays in stock):* _remove 4795_
 *Sizes:* _sizes 4795 50ml 2999 100ml 4999_ (or _sizes 4795 M L XL_)
+*Stock of a size:* _stock 4795 100ml 3_ or _add 4795 100ml 2_
 *Description:* _desc 4795 your words_
 *Start over:* _clear_ drops every photo still waiting to be posted
 *Orders:* _confirm VX-1234_ or _cancel VX-1234_
@@ -455,10 +458,11 @@ function liveEdit(text) {
   let m = /^(?:desc|description|about)\s+(\d{4})\s+([\s\S]{5,500})$/i.exec(t);
   const size = !m && /^sizes?\s+(\d{4})\s+(.{1,100})$/i.exec(t);
   const sold = !m && !size && /^sold\s+(\d{4})\s+(\d{1,4}(?:\.\d)?)\s?ml(?:\s+(\d{1,3}))?$/i.exec(t);
-  const hit = m || size || sold;
+  const count = !m && !size && !sold && /^(add|stock)\s+(\d{4})\s+(\d{1,4}(?:\.\d)?)\s?ml\s+(\d{1,4})$/i.exec(t);
+  const hit = m || size || sold || count;
   if (!hit) return null;
   const items = load();
-  const p = items.find((x) => x.code === hit[1]);
+  const p = items.find((x) => x.code === (count ? hit[2] : hit[1]));
   if (!p) return `I couldn't find code ${hit[1]}. The code is the LOT number on the website.`;
   if (m) { p.description = m[2].trim(); save(items); return `📝 Description updated for “${p.name}” (#${p.code}).`; }
   if (size) {
@@ -466,8 +470,20 @@ function liveEdit(text) {
     save(items);
     return `📏 “${p.name}” (#${p.code}) now comes in: ${optionsOf(p).map((o) => `${o.size} ${inr(o.price)}`).join(", ")}.`;
   }
-  const opt = optionsOf(p).find((o) => o.size === `${sold[2]} ml`);
-  if (!opt) return `“${p.name}” (#${p.code}) doesn't have ${sold[2]} ml. It has: ${p.sizes || "no sizes set"}.`;
+  const opt = optionsOf(p).find((o) => o.size === `${(sold || count)[count ? 3 : 2]} ml`);
+  if (!opt) return `“${p.name}” (#${p.code}) doesn't have ${(sold || count)[count ? 3 : 2]} ml. It has: ${p.sizes || "no sizes set"}.`;
+  if (count) {
+    const counts = { ...Object.fromEntries(optionsOf(p).map((o) => [o.size, o.left ?? 0])) };
+    counts[opt.size] = (/^add/i.test(count[1]) ? counts[opt.size] : 0) + Number(count[4]);
+    const r = setSizeStock(p, counts);
+    if (r.total === undefined) return `“${p.name}” (#${p.code}) needs two or more sizes for a count per size.`;
+    p.quantity = r.total;
+    if (p.quantity === 0) { p.status = "sold"; delete p.holdFor; }
+    else if (p.status === "sold") p.status = "available";
+    delete p.needsCount;
+    save(items);
+    return `📦 “${p.name}” (#${p.code}): ${Object.entries(p.sizeStock).map(([s, n]) => `${s}: *${n}*`).join(", ")}.`;
+  }
   const r = billing.sell([{ productId: p.id, qty: Number(sold[3]) || 1, price: opt.price, size: opt.size }], { source: "whatsapp", clamp: true });
   if (r.error) return `⚠️ ${r.error}`;
   const after = billing.stockOf(r.products.find((x) => x.id === p.id));
@@ -495,7 +511,7 @@ function stockCommand(text) {
   if (c.action === "sold") {
     // Same path as the billing portal: stock comes off and a bill is written in one go.
     if (p.status === "sold" || before === 0) return `“${p.name}” (#${p.code}) is already sold out. Send *add ${p.code} 1* if more came in.`;
-    if (p.sizePrices && optionsOf(p).length > 1) return `Which size of “${p.name}” sold? Send ${optionsOf(p).map((o) => `*sold ${p.code} ${o.size.replace(" ", "")}*`).join(" or ")}`;
+    if ((p.sizePrices || (p.sizeStock && /ml/.test(p.sizes))) && optionsOf(p).length > 1) return `Which size of “${p.name}” sold? Send ${optionsOf(p).map((o) => `*sold ${p.code} ${o.size.replace(" ", "")}*`).join(" or ")}`;
     const r = billing.sell([{ productId: p.id, qty: c.qty }], { source: "whatsapp", clamp: true });
     if (r.error) return `⚠️ ${r.error}`;
     const n = r.invoice.lines[0].qty;

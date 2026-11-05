@@ -224,7 +224,7 @@
   }
 
   // ---- shop by size / price / brand ----
-  const sizesOf = (p) => (p.options || []).map((o) => o.size.toUpperCase()).filter((s) => SIZE_ORDER.includes(s) || /^[\d.]+ ML$/.test(s));
+  const sizesOf = (p) => (p.options || []).filter((o) => o.left !== 0).map((o) => o.size.toUpperCase()).filter((s) => SIZE_ORDER.includes(s) || /^[\d.]+ ML$/.test(s));
   const sizeLabel = (s) => s.replace(/ ML$/, " ml");
   function renderShopBy() {
     const live = products.filter((p) => p.status !== "sold");

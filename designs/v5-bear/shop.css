@@ -259,6 +259,7 @@ section.range, section.rack, section.find, section.looks, section.how, section.s
 .pill { height: 40px; padding: 0 18px; font: 500 14px/1 var(--body); color: var(--ink); background: transparent; border: 1px solid var(--line-2); border-radius: 999px; cursor: pointer; white-space: nowrap; transition: all .2s var(--ease); }
 .pill:hover { border-color: var(--ink); }
 .pill.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.pill:disabled, .pill:disabled:hover { color: var(--muted); border-color: var(--line-2); opacity: .6; cursor: not-allowed; }
 .pill sup { font: 500 10px var(--mono); margin-left: 4px; color: var(--muted); }
 /* labels: a typographic list rather than buttons */
 .brands-panel { padding-top: 28px; border-top: 1px solid var(--line); }

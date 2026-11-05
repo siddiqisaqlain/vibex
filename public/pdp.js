@@ -24,16 +24,16 @@
   }
 
   const optionsOf = (p) => p.options || [];
-  const chosenOf = (p) => { const o = optionsOf(p); return o.length === 1 ? o[0] : o.find((x) => x.size === pick) || null; };
+  const chosenOf = (p) => { const o = optionsOf(p); return o.length === 1 ? o[0] : o.find((x) => x.size === pick && x.left !== 0) || null; };
   const multiPrice = (p) => new Set(optionsOf(p).map((o) => o.price)).size > 1;
 
   function sizePicker(p) {
     const opts = optionsOf(p);
     if (opts.length < 2 || p.status !== "available") return "";
-    const label = (o) => esc(o.size) + (multiPrice(p) ? ` · ${rupees(o.price)}` : "");
+    const label = (o) => esc(o.size) + (o.left === 0 ? " · sold out" : multiPrice(p) ? ` · ${rupees(o.price)}` : "");
     return `<div class="pdp-sizes" role="group" aria-label="Choose size">
         <p class="label">Choose size</p>
-        <div class="pills">${opts.map((o) => `<button type="button" class="pill${o.size === pick ? " on" : ""}" data-pick="${esc(o.size)}" aria-pressed="${o.size === pick}">${label(o)}</button>`).join("")}</div>
+        <div class="pills">${opts.map((o) => `<button type="button" class="pill${o.size === pick ? " on" : ""}" data-pick="${esc(o.size)}" aria-pressed="${o.size === pick}" ${o.left === 0 ? "disabled" : ""}>${label(o)}</button>`).join("")}</div>
         ${needPick ? `<p class="ask-err" role="alert">Choose a size first.</p>` : ""}
       </div>`;
   }
