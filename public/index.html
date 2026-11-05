@@ -71,23 +71,42 @@
 
   <section class="trust wrap" id="stats" aria-label="Why Vibe X"></section>
 
-  <section class="range wrap" aria-labelledby="range-h">
-    <header class="sec-head"><span class="sec-no">01</span><h2 class="sec-h" id="range-h">Shop by category</h2></header>
-    <div class="range-row" id="range"></div>
-  </section>
-
   <section class="rack wrap" id="rack">
     <header class="sec-head rack-head">
-      <span class="sec-no">02</span>
-      <h2 class="sec-h">Fresh off the truck</h2>
+      <span class="sec-no">01</span>
+      <h2 class="sec-h rack-title"><span>Fresh off the truck</span>
+        <span class="road" aria-hidden="true">
+          <svg class="truck" viewBox="0 0 112 54" width="34" height="16">
+            <g class="truck-swoosh"><g transform="translate(112) scale(-1 1)"><path d="M118 13h34M118 24h56M118 35h30" stroke="var(--ink)" stroke-width="3" stroke-linecap="round" fill="none"/><circle cx="119" cy="45" r="4" fill="var(--line-2)"/><circle cx="130" cy="41" r="2.500" fill="var(--line-2)"/></g></g>
+            <g class="truck-bob">
+              <g transform="translate(112) scale(-1 1)">
+                <rect x="42" y="4" width="66" height="37" rx="10" fill="var(--ink)"/>
+                <path d="M40 12H26C18 12 12.500 16 9.500 23L5 33c-1 2.500-1 4-1 8h36z" fill="var(--ink)"/>
+                <path d="M35 17H27c-5 0-8.500 2.500-10.500 7L14 30h21z" fill="var(--paper)"/>
+                <circle cx="23" cy="23.500" r="2.300" fill="var(--ink)"/><circle cx="23.800" cy="22.700" r=".8" fill="var(--paper)"/>
+                <path d="M19.500 27c1.500 1.400 3.500 1.400 5 0" stroke="var(--ink)" stroke-width="1.400" stroke-linecap="round" fill="none"/>
+                <circle cx="29.500" cy="26.500" r="2.200" fill="var(--red)" opacity=".75"/>
+                <circle cx="7" cy="36" r="2" fill="var(--paper)"/>
+              </g>
+              <text x="37" y="29" text-anchor="middle" class="truck-mark">VIBE<tspan fill="var(--red)">X</tspan></text>
+            </g>
+            <g class="truck-wheel"><circle cx="24" cy="43" r="9.500" fill="var(--ink)"/><circle cx="24" cy="43" r="4" fill="var(--paper)"/><path d="M24 40.500v5M21.5 43h5" stroke="var(--ink)" stroke-width="1.400" stroke-linecap="round"/></g>
+            <g class="truck-wheel"><circle cx="86" cy="43" r="9.500" fill="var(--ink)"/><circle cx="86" cy="43" r="4" fill="var(--paper)"/><path d="M86 40.500v5M83.5 43h5" stroke="var(--ink)" stroke-width="1.400" stroke-linecap="round"/></g>
+          </svg>
+        </span>
+      </h2>
       <p class="live-note"><span class="dot"></span>Posted on WhatsApp, listed here in seconds</p>
     </header>
-    <div class="tabs" id="filters" role="tablist" aria-label="Category"></div>
     <div class="subs" id="subs" hidden></div>
     <div class="active-filters" id="active" hidden></div>
     <div id="grid"></div>
     <p class="empty" id="empty" hidden>Nothing here right now. New stock lands most days.</p>
     <div class="more-wrap"><span class="count" id="count"></span></div>
+  </section>
+
+  <section class="range wrap" aria-labelledby="range-h">
+    <header class="sec-head"><span class="sec-no">02</span><h2 class="sec-h" id="range-h">Shop by category</h2></header>
+    <div class="range-row" id="range"></div>
   </section>
 
   <section class="find wrap" aria-labelledby="find-h">

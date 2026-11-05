@@ -8,7 +8,7 @@
   // What rises in. Items in the same row start one after another.
   const PICK = [
     ".sec-head", ".trust > div", ".range-tile", "#grid .card", ".panel",
-    ".look", ".vid-row", ".how li", ".store-card", ".foot-grid > div", ".tabs", ".more-wrap",
+    ".look", ".vid-row", ".how li", ".store-card", ".foot-grid > div", ".more-wrap",
   ].join(",");
 
   let io = null;
@@ -58,6 +58,31 @@
   }, { passive: true });
 
   // Tilt: tiles lean toward the pointer (mouse only).
+  // The truck by the "Fresh off the truck" heading: scrolling down drives it right and off the screen,
+  // gone just as the heading slides under the top bar. Scrolling back up brings it home.
+  const truck = document.querySelector(".truck");
+  if (truck) {
+    const road = truck.parentElement;
+    const wheels = truck.querySelectorAll(".truck-wheel");
+    const trail = truck.querySelector(".truck-swoosh");
+    let queued = false;
+    const drive = () => {
+      queued = false;
+      const box = road.getBoundingClientRect();
+      const end = Math.max(120, box.top + scrollY - 66);
+      const p = Math.min(1, scrollY / end);
+      const x = Math.pow(p, 1.5) * (innerWidth - box.left + 40);
+      truck.style.transform = p ? `translateX(${x.toFixed(1)}px) skewX(${(-14 * Math.min(1, p * 2.5)).toFixed(1)}deg)` : "";
+      truck.style.visibility = p === 1 ? "hidden" : "";
+      trail.style.opacity = p > .04 ? ".6" : "";
+      wheels.forEach((w) => { w.style.transform = `rotate(${(x * 3).toFixed(0)}deg)`; });
+    };
+    const queue = () => { if (!queued) { queued = true; requestAnimationFrame(drive); } };
+    addEventListener("scroll", queue, { passive: true });
+    addEventListener("resize", queue, { passive: true });
+    drive();
+  }
+
   if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
     document.addEventListener("pointermove", (e) => {
       const t = e.target.closest(".range-tile, .look");

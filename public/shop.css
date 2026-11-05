@@ -209,14 +209,20 @@ section.range, section.vid, section.rack, section.find, section.looks, section.h
 .rack { scroll-margin-top: 66px; }
 .rack-head .live-note { display: flex; align-items: center; gap: 9px; margin: 0; font: 500 11px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 @media (max-width: 600px) { .rack-head .live-note { grid-column: 1 / -1; } }
-.tabs { display: flex; gap: 26px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--line); margin: -6px 0 18px; }
-.tabs::-webkit-scrollbar { display: none; }
-.tabs button { flex: none; position: relative; padding: 12px 0 14px; background: none; border: 0; font: 500 15px/1 var(--body); letter-spacing: -.01em; color: var(--muted); cursor: pointer; transition: color .2s; }
-.tabs button sup { font: 500 10px/1 var(--mono); margin-left: 4px; vertical-align: 6px; }
-.tabs button::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--ink); transform: scaleX(0); transition: transform .35s var(--ease); transform-origin: left; }
-.tabs button[aria-selected="true"] { color: var(--ink); }
-.tabs button[aria-selected="true"]::after { transform: scaleX(1); }
-.tabs button:hover { color: var(--ink); }
+/* the truck: a chubby little thing parked beside the heading. Scrolling down drives it right, off the
+   screen, and scrolling back up brings it home (motion.js). */
+.rack-title { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.rack-title > span:first-child { min-width: 0; }
+.road { position: relative; z-index: 1; flex: 1 1 34px; min-width: 34px; height: 16px; align-self: flex-end; margin-bottom: .14em; }
+@media (max-width: 400px) { .rack-title { font-size: 25px; gap: 10px; } }
+.road::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: repeating-linear-gradient(90deg, var(--line-2) 0 10px, transparent 10px 20px); }
+.truck { position: absolute; left: 0; bottom: -1px; display: block; overflow: visible; }
+.truck-bob { animation: truck-bob .5s ease-in-out infinite alternate; }
+.truck-wheel { transform-box: fill-box; transform-origin: center; }
+.truck-swoosh { opacity: 0; }
+.truck-mark { font: 700 18px/1 var(--display); letter-spacing: -.02em; fill: var(--paper); }
+@keyframes truck-bob { to { transform: translateY(-1.500px); } }
+@media (prefers-reduced-motion: reduce) { .truck-bob { animation: none; } }
 .subs, .active-filters { display: flex; gap: 6px; flex-wrap: wrap; margin: -2px 0 20px; }
 .subs button, .active-filters button { height: 32px; padding: 0 14px; font: 500 13px/1 var(--body); background: transparent; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 999px; cursor: pointer; transition: all .2s; }
 .subs button:hover { border-color: var(--ink); color: var(--ink); }
