@@ -68,7 +68,7 @@ try {
   r = await post("/api/billing/invoices", { lines: [{ productId: puffer, qty: 2, price: 2700, disc: 100 }], charges: [{ label: "Flying Machine", amount: 750 }], payment: "cash", customer: { name: "Bilal" } });
   assert.equal(r.status, 200); assert.equal(r.invoice.number, "7651"); assert.equal(r.invoice.total, 6050); assert.equal(r.invoice.lines[0].amount, 5300); ok("hidden items sell at the counter; line discount and extra charge add up");
   const page = await (await fetch(base + r.url)).text();
-  for (const t of ["BILL OF SUPPLY", "ORIGINAL FOR RECIPIENT", "Invoice No.:", "Flying Machine", "Received Amount", "Goods once sold", "Six Thousand Fifty Rupees Only"]) assert.ok(page.includes(t), t); ok("the bill matches his layout");
+  for (const t of ["BILL OF SUPPLY", "ORIGINAL FOR RECIPIENT", "Invoice No.:", "Flying Machine", "Received Amount", "Returns and refunds within 7 days", "Six Thousand Fifty Rupees Only"]) assert.ok(page.includes(t), t); ok("the bill matches his layout");
   assert.equal((await post("/api/billing/invoices", { lines: [{ productId: puffer, qty: 1, price: 100, disc: 101 }] })).status, 409);
   assert.equal((await post("/api/billing/invoices", { lines: [{ productId: puffer, qty: 1 }], charges: [{ label: "", amount: 5 }] })).status, 409);
   assert.equal((await all()).find((p) => p.id === puffer).quantity, 11); ok("bad discounts and charges are refused, no stock taken");
@@ -173,6 +173,25 @@ try {
   r = await post("/api/billing/invoices", { lines: [{ productId: web2.id, qty: 3 }], payment: "cash" });
   const gone = (await (await fetch(base + "/api/products")).json()).find((p) => p.id === web2.id);
   assert.equal(gone.status, "sold"); assert.equal(gone.quantity, 0); ok("selling the last pieces at the counter shows sold out on the website");
+
+  // Sizes set from the portal
+  const ml = (await post("/api/billing/items", { name: "Test Perfume", price: 999, quantity: 3, sizes: "50ml 2999 100ml 4999" })).product;
+  assert.equal(ml.sizes, "50 ml · 100 ml"); assert.equal(ml.price, 2999); assert.deepEqual(ml.sizePrices, { "50 ml": 2999, "100 ml": 4999 });
+  ok("the portal takes a price per ml size, like the WhatsApp command");
+  let same = (await post(`/api/billing/items/${ml.id}`, { name: "Test Perfume", price: 2999, sizes: "50 ml 2999 · 100 ml 4999" })).product;
+  assert.deepEqual(same.sizePrices, { "50 ml": 2999, "100 ml": 4999 }); assert.equal(same.price, 2999);
+  ok("saving the form unchanged keeps the sizes and their prices");
+  same = (await post(`/api/billing/items/${ml.id}`, { price: 3500 })).product;
+  assert.equal(same.sizePrices, undefined); assert.equal(same.price, 3500);
+  same = (await post(`/api/billing/items/${ml.id}`, { sizes: "100ml" })).product;
+  assert.equal(same.sizes, "100 ml"); assert.equal(same.sizePrices, undefined); assert.equal(same.price, 3500);
+  same = (await post(`/api/billing/items/${ml.id}`, { sizes: "" })).product;
+  assert.equal(same.sizes, "");
+  ok("one size keeps the selling price, and sizes can be cleared");
+  same = (await post(`/api/billing/items/${ml.id}`, { sizes: "50ml 2999 100ml 4999" })).product;
+  const bill = await post("/api/billing/invoices", { lines: [{ productId: ml.id, qty: 1, price: 4999, size: "100 ml" }], payment: "cash" });
+  assert.equal(bill.status, 200); assert.equal(bill.invoice.lines[0].sizes, "100 ml"); assert.equal(bill.invoice.total, 4999);
+  ok("a counter bill shows the size picked and its price");
 
   console.log(`\nAll ${pass} import checks passed.`);
 } catch (e) { console.error("\nFAILED:", e); console.error(log.slice(-1500)); process.exitCode = 1; }

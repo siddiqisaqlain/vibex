@@ -382,9 +382,10 @@
   function addToCart(id) {
     const p = byId().get(id);
     if (!p || p.status === "hold") return;
-    const line = cart.find((l) => l.id === id);
+    const [size, sizePrice] = Object.entries(p.sizePrices || {})[0] || [];
+    const line = cart.find((l) => l.id === id && l.size === size);
     if (line) line.qty++;
-    else cart.push({ id, qty: 1, price: p.price, disc: 0 });
+    else cart.push({ id, qty: 1, price: size ? sizePrice : p.price, disc: 0, size });
     $("done").innerHTML = ""; $("err").textContent = "";
     renderCart();
   }
@@ -401,8 +402,10 @@
       if (warn) bad = true;
       const amt = (Number(l.price) || 0) * l.qty - (Number(l.disc) || 0);
       total += amt;
+      const list = l.size ? p?.sizePrices?.[l.size] : p?.price;
+      const opts = Object.entries(p?.sizePrices || {});
       return `<div class="line ${warn ? "bad" : ""}">
-        <div class="grow"><div class="name">${esc(p ? p.name : "Item")}</div><div class="sub">#${esc(p ? p.code : "")}${p && p.price !== Number(l.price) ? ` · list ${inr(p.price)}` : ""} · <button class="x" data-rm="${i}">remove</button></div></div>
+        <div class="grow"><div class="name">${esc(p ? p.name : "Item")}</div><div class="sub">#${esc(p ? p.code : "")}${p && list !== Number(l.price) ? ` · list ${inr(list)}` : ""} · <button class="x" data-rm="${i}">remove</button></div>${opts.length ? `<select data-size="${i}" aria-label="Size" style="margin-top:4px;max-width:170px">${opts.map(([s, v]) => `<option value="${esc(s)}" ${s === l.size ? "selected" : ""}>${esc(s)} · ${inr(v)}</option>`).join("")}</select>` : ""}</div>
         <div style="text-align:right"><input class="rate" type="number" min="0" step="1" value="${esc(l.price)}" data-rate="${i}" aria-label="Rate"><input class="rate" type="number" min="0" step="1" value="${l.disc ? esc(l.disc) : ""}" placeholder="Disc ₹" data-disc="${i}" aria-label="Discount" style="margin-top:4px;display:block"></div>
         <div class="qty"><button data-dec="${i}" aria-label="Less">−</button><span>${l.qty}</span><button data-inc="${i}" aria-label="More">+</button></div>
         <div class="price" style="text-align:right">${inr(amt)}</div>
@@ -420,6 +423,7 @@
     $("lines").querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => { cart.splice(+b.dataset.rm, 1); renderCart(); });
     $("lines").querySelectorAll("[data-inc]").forEach((b) => b.onclick = () => { const l = cart[+b.dataset.inc]; l.qty++; renderCart(); });
     $("lines").querySelectorAll("[data-dec]").forEach((b) => b.onclick = () => { const i = +b.dataset.dec; if (cart[i].qty > 1) cart[i].qty--; else cart.splice(i, 1); renderCart(); });
+    $("lines").querySelectorAll("[data-size]").forEach((sel) => sel.onchange = () => { const l = cart[+sel.dataset.size]; l.size = sel.value; l.price = m.get(l.id).sizePrices[l.size]; renderCart(); });
     $("lines").querySelectorAll("[data-rate]").forEach((inp) => inp.onchange = () => { cart[+inp.dataset.rate].price = Math.max(0, Math.round(Number(inp.value) || 0)); renderCart(); });
     $("lines").querySelectorAll("[data-disc]").forEach((inp) => inp.onchange = () => { cart[+inp.dataset.disc].disc = Math.max(0, Math.round(Number(inp.value) || 0)); renderCart(); });
   }
@@ -440,7 +444,7 @@
       const phone = $("cPhone").value.replace(/\D/g, "").slice(-10);
       if ($("cPhone").value.trim() && phone.length !== 10) throw new Error("Mobile number should be 10 digits.");
       const r = await api("/api/billing/invoices", { method: "POST", body: JSON.stringify({
-        lines: cart.map((l) => ({ productId: l.id, qty: l.qty, price: l.price, disc: l.disc || 0 })),
+        lines: cart.map((l) => ({ productId: l.id, qty: l.qty, price: l.price, disc: l.disc || 0, size: l.size })),
         charges: charges.map((c) => ({ label: c.label, amount: Number(c.amount) })),
         customer: { name: $("cName").value, phone },
         payment: document.querySelector("input[name=pay]:checked").value,

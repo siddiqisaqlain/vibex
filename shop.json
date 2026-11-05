@@ -15,14 +15,14 @@
     "email": "",
     "gstin": "",
     "grievanceOfficer": {
-      "name": "Shikayat (Grievance) Manager",
+      "name": "Mr Umer",
       "phone": "+91 70066 56599",
       "email": ""
     }
   },
   "policy": {
     "_note": "Set confirmed to true only after the owner has read and agreed the Returns, Terms and Privacy pages.",
-    "confirmed": false,
+    "confirmed": true,
     "damageReportHours": 48,
     "changeOfMindDays": 7,
     "refundWorkingDays": 5,
@@ -116,8 +116,8 @@
     "headerLine": "We only deal in 100% original products 🙏 Efficient delivery across India 🇮🇳",
     "email": "vibexdotindia@gmail.com",
     "youtube": "@vibe X",
-    "terms": "1. Goods once sold will not be taken back or exchanged",
-    "logo": "",
+    "terms": "1. Returns and refunds within 7 days of purchase if unused, with tags and this bill.\n2. Fragrances only with the seal unbroken.\n3. Full policy: vibexindia.com/returns",
+    "logo": "/logo.jpg",
     "_billNote": "headerLine, email, youtube and terms are copied from his myBillBook bill 7650. logo: put the image in public/ and set the path, e.g. /logo.png. terms prints on counter bills only; website-order bills point to the website returns policy instead.",
     "lowStockAt": 1
   }

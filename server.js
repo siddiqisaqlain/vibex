@@ -15,7 +15,7 @@ const { parseMessage, categoryAnswer, findSubcategory } = require("./lib/parse")
 const { classify, aiEnabled, MODEL, readPurchaseBill } = require("./lib/classify");
 const wa = require("./lib/whatsapp");
 const createBilling = require("./lib/billing");
-const { sizePairs, withoutSizePairs, optionsOf, applySizePairs, autoDescription } = require("./lib/sizes");
+const { sizePairs, withoutSizePairs, optionsOf, applySizePairs, autoDescription, formatSizes } = require("./lib/sizes");
 const { readJson, writeJson, dailyBackup } = require("./lib/jsonstore");
 const SHOP_NAME = "Vibe X";
 
@@ -1195,12 +1195,6 @@ function editWord(w) {
 // Clothes need a size before they go live (shoes and perfume don't).
 const needsSize = (l) => l.category === "Clothing" && !l.sizes;
 // "m l xl" -> "M · L · XL", "free" -> "Free size", "100ml" -> "100 ml"
-function formatSizes(v) {
-  v = v.trim();
-  if (/^(free|free ?size|one ?size|os)$/i.test(v)) return "Free size";
-  return v.replace(/(\d)\s*mls?\b/gi, "$1ml").split(/[\s,\/&]+/).filter(Boolean)
-    .map((x) => (/^[\d.]+ml$/i.test(x) ? x.replace(/ml$/i, " ml") : x.toUpperCase())).join(" · ").replace(/^(UK|US|EU) · /, "$1 ");
-}
 // Sets sizes on a draft or a live product, with prices if each size has one.
 function setSizes(l, t) {
   const pairs = sizePairs(t);

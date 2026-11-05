@@ -11,7 +11,8 @@
     box.innerHTML = `<div class="form"><b>${p ? `Edit #${esc(p.code)}` : "New item"}</b>
       <div class="row2">${f("name", "Name")}<label class="sub">Section<select id="it-category">${CATS.map((c) => `<option ${(p?.category || "Clothing") === c ? "selected" : ""}>${c}</option>`).join("")}</select></label></div>
       <div class="row3">${f("price", "Selling price ₹", "number")}${f("cost", "Purchase price ₹", "number")}${f("mrp", "MRP ₹", "number")}</div>
-      <div class="row3">${f("barcode", "Barcode")}${f("sizes", "Sizes")}${f("reorderAt", "Alert when stock at", "number")}</div>
+      <div class="row3">${f("barcode", "Barcode")}<label class="sub">Sizes<input id="it-sizes" value="${esc(p?.sizePrices ? Object.entries(p.sizePrices).map(([s, v]) => `${s} ${v}`).join(" · ") : p?.sizes ?? "")}" placeholder="50ml 2999 100ml 4999"></label>${f("reorderAt", "Alert when stock at", "number")}</div>
+      <p class="sub" style="margin:4px 0 0">Perfume sizes: type <b>100ml</b> for one size, or <b>50ml 2999 100ml 4999</b> for a price on each. Those prices replace the selling price above.</p>
       <div class="row3">${f("hsn", "HSN code")}${f("gstRate", "GST % (blank = default)", "number")}${p ? "<div></div>" : f("quantity", "Opening stock", "number")}</div>
       ${p ? `<label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="it-onWebsite" ${p.hidden ? "" : "checked"} ${p.image ? "" : "disabled"}> Show on website${p.image ? "" : " (needs a photo: send it on WhatsApp with the code)"}</label>` : ""}
       <div class="row2" style="margin-top:8px"><button class="big" id="itSave" style="margin:0">Save</button><button class="tbtn" id="itClose">Close</button></div><div class="err" id="itErr"></div></div>`;
