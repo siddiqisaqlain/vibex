@@ -29,6 +29,46 @@ const check = async (name, fn) => { try { await fn(); n++; } catch (e) { console
 await check("the owner lock holds", async () => {
   for (const p of ["live", `report?from=${day}&to=${day}`, "changes"]) assert.equal((await fetch(`${base}/api/analytics/${p}`)).status, 401);
 });
+await check("form timing keeps box names and counts, and never what was typed", () => {
+  const f = clean({ e: "field", p: "/p/s1", x: "phone", n: 9000, ed: 12, del: 3, fl: 1, st2: "checkout", value: "9876543210", text: "my address" });
+  assert.deepEqual(f, { e: "field", p: "/p/s1", x: "phone", n: 9000, ed: 12, del: 3, fl: 1, st2: "checkout" });
+  assert.equal(clean({ e: "field", p: "/", x: "98765 43210", n: 1 }), null); // a box name is never free text
+  assert.equal(clean({ e: "field", p: "/", x: "9876543210", n: 1 }), null);
+  assert.equal(clean({ e: "sec", p: "/", x: "my secret words", n: 1 }), null);
+  assert.equal(clean({ e: "choice", p: "/", x: "address", r: "Lal Chowk" }), null);
+  assert.equal(clean({ e: "tap", p: "/", x: "Call 98765 43210" }).x, "Call •••");
+});
+await check("every section and box adds up by person", () => {
+  const t = 1e12, ev = (s, e, x = {}) => ({ t, v: s, s, e, p: "/", ...x });
+  const start = (s) => [ev(s, "page", { dev: "Phone", br: "Chrome", os: "Android", nw: 1 })];
+  const d = summarise([
+    ...start("a"), ...start("b"),
+    ev("a", "sec", { x: "rack", n: 20000 }), ev("a", "sec", { x: "rack", n: 10000 }), ev("b", "sec", { x: "rack", n: 6000 }), ev("b", "sec", { x: "hero", n: 2000 }),
+    ev("a", "checkout", { pr: "s1", n: 999, ms: 40000 }), ev("a", "field", { x: "name", n: 5000, ed: 8, del: 0, fl: 1, st2: "checkout" }),
+    ev("a", "field", { x: "phone", n: 4000, ed: 10, del: 2, fl: 0, st2: "checkout" }), ev("a", "field", { x: "phone", n: 3000, ed: 4, del: 1, fl: 1, st2: "checkout" }),
+    ev("a", "abandon", { pr: "s1", x: "details", f: "phone", n: 15000 }), ev("b", "tap", { x: "rack: Filters" }), ev("b", "choice", { x: "delivery", r: "ship" }),
+  ], { from: "2026-01-01", to: "2026-01-01" });
+  assert.deepEqual(d.zones.home.map((z) => z.key), ["hero", "rack"]);
+  assert.equal(d.zones.home[1].people, 2);
+  assert.equal(d.zones.home[1].totalTime, 36000);
+  const [nm, ph] = d.forms.checkout.boxes;
+  assert.equal(nm.key, "name"); assert.equal(ph.medianTime, 7000); assert.equal(ph.keys, 14);
+  assert.equal(ph.corrected, 1); assert.equal(ph.quit, 1); assert.equal(ph.empty, 0, "filled by the end");
+  assert.equal(d.stepTimes.deciding, 40000); assert.equal(d.stepTimes.gaveUpDetails, 15000);
+  assert.equal(d.presses[0].n, 1); assert.equal(d.delivery[0].key, "ship");
+});
+await check("live shows the exact section and box", async () => {
+  const v = id(7), s = id(8);
+  await post({ v, s, ev: [{ e: "page", p: "/", title: "Vibe X", nw: 1, st: 1 }, { e: "in", p: "/", x: "rack" }] });
+  let me = (await (await owner("live")).json()).people.find((p) => p.id === s.slice(0, 6));
+  assert.equal(me.zoneLabel, "Fresh off the truck");
+  await post({ v, s, ev: [{ e: "checkout", p: "/", pr: "s1", n: 999 }, { e: "fin", p: "/", x: "phone" }] });
+  me = (await (await owner("live")).json()).people.find((p) => p.id === s.slice(0, 6));
+  assert.equal(me.boxLabel, "Phone number");
+  await post({ v, s, ev: [{ e: "field", p: "/", x: "phone", n: 3000, ed: 4, del: 0, fl: 1, st2: "checkout" }, { e: "leave", p: "/", n: 1 }] });
+  me = (await (await owner("live")).json()).people.find((p) => p.id === s.slice(0, 6));
+  assert.equal(me, undefined);
+});
 await check("a visit shows up live, then goes", async () => {
   const r = await post({ v: id(1), s: id(2), ev: [{ e: "page", p: "/", title: "Vibe X", w: 390, nw: 1, st: 1, tz: "Asia/Kolkata" }] });
   assert.equal(r.status, 204);

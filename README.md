@@ -21,9 +21,10 @@ The owner, from WhatsApp (or the `/demo` screen):
 
 `/analytics` (owner key, the same as the billing portal, or the Site Analytics link there) shows who is on the site now, and what helps or hinders them:
 
-- **Shop floor**: the site drawn as a floor plan, with each visitor as a dot walking through it live. Replay today or yesterday in a minute and watch the worn paths build up
+- **Shop floor**: the site drawn as a floor plan, with each visitor as a dot walking through it live, in the exact home page section or order form box they're in. Replay today or yesterday in a minute and watch the worn paths build up
+- **Order form**: every box in the order and enquiry forms: typical time, keys, corrections, errors, left empty, and where people quit, plus how long each step of buying takes
 - **The leak**: the journey from arriving to paying as a river that loses people at each step, plain-language findings, why people left, what customers said, and a log of your changes with the numbers before and after
-- **Traffic, Scroll map, Products, Visits**: rhythm of the week, who buys, how far down people get, a map of products by interest and sales, and each visit as a thread of beads
+- **Traffic, Scroll map, Products, Visits**: rhythm of the week, who buys, how far down people get and the time spent in each section, every button pressed, a map of products by interest and sales with how often each was seen, and each visit as a thread of beads with where its time went
 
 Every chart keeps its numbers one tap away, with Excel downloads.
 

@@ -79,6 +79,9 @@
   @keyframes ring{from{r:7px;opacity:.9}to{r:15px;opacity:0}}
   .who.sel circle.b{stroke:var(--ink);stroke-width:2.5}
   .scuff{fill:var(--red);opacity:.65}
+  .zone{fill:var(--ink);opacity:0}
+  .zrule{stroke:var(--line)}
+  .zl{font-size:10.5px;fill:var(--ink2)}.zt{font-size:10.5px;fill:var(--mute)}
   .planHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
   .bigNow{font:600 44px/1 var(--mono);letter-spacing:-.04em}
   .planHead .say{font-size:14px;color:var(--ink2);flex:1 1 180px}
@@ -137,6 +140,18 @@
   .pair .t{height:7px;background:var(--neutral);border-radius:0 4px 4px 0;margin-top:3px;min-width:2px}.pair .t.now{background:var(--ink)}
   .pair small{font:11px var(--mono);color:var(--mute);display:block;margin-top:2px}
   .sub2{font:12px var(--mono);color:var(--mute)}
+  /* the order form, box by box */
+  .chain{display:flex;gap:2px;margin:6px 0 4px}
+  .chain>div{min-width:64px;padding:8px 10px;color:var(--paper);background:var(--h4);font-size:12.5px;overflow:hidden}
+  .chain>div:first-child{border-radius:4px 0 0 4px;background:var(--h3)}.chain>div:last-child{border-radius:0 4px 4px 0;background:var(--h5)}
+  .chain b{display:block;font:600 19px var(--mono);letter-spacing:-.03em}
+  .fb{border:1px solid var(--line);border-radius:3px;padding:9px 11px;margin-bottom:8px;position:relative;overflow:hidden;background:var(--card)}
+  .fb .sh{position:absolute;inset:0 auto 0 0;background:var(--ink);opacity:.07}
+  .fb>div{position:relative}
+  .fb .top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-weight:600}
+  .fb .top span{font:600 16px var(--mono)}
+  .fb .sub2{margin-top:2px;display:flex;flex-wrap:wrap;gap:3px 12px}
+  .fb .sub2 b{font-weight:500;color:var(--redText)}
   /* traffic */
   .heroes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
   .hero{background:var(--card);border:1px solid var(--line);border-radius:3px;padding:12px 16px}
@@ -192,6 +207,9 @@
   .beads i.pr{background:var(--ink)}.beads i.co{background:var(--ink);border-radius:2px}
   .beads i.bad{background:var(--red);border-radius:2px;transform:rotate(45deg)}.beads i.bad::after{display:none}
   .beads i.good{background:var(--green);width:15px;height:15px}
+  .where{display:flex;gap:2px;height:14px;margin:4px 0 2px}
+  .where i{display:block;min-width:3px}.where i:nth-child(3n+1){background:var(--h5)}.where i:nth-child(3n+2){background:var(--h3)}.where i:nth-child(3n){background:var(--h2)}
+  .where i:first-child{border-radius:3px 0 0 3px}.where i:last-child{border-radius:0 3px 3px 0}
   .journey{list-style:none;margin:0;padding:6px 0 6px 12px;border-left:2px solid var(--line)}
   .vd{padding:4px 0 8px 70px;font-size:13px}
   .vd .sub2{display:block;margin-bottom:4px}
@@ -226,12 +244,13 @@
   </div>
 </header>
 <nav class="tabs" id="tabs" aria-label="Sections">
-  <button data-v="now">Shop floor</button><button data-v="loop">The leak</button><button data-v="traffic">Traffic</button>
+  <button data-v="now">Shop floor</button><button data-v="loop">The leak</button><button data-v="form">Order form</button><button data-v="traffic">Traffic</button>
   <button data-v="behave">Scroll map</button><button data-v="products">Products</button><button data-v="visits">Visits</button>
 </nav>
 <main>
   <section class="view" id="v-now"></section>
   <section class="view" id="v-loop"></section>
+  <section class="view" id="v-form"></section>
   <section class="view" id="v-traffic"></section>
   <section class="view" id="v-behave"></section>
   <section class="view" id="v-products"></section>
@@ -323,8 +342,9 @@
   // ---- words for what people did ----
   const WORD = {
     page: (e) => `opened ${e.product || (e.p === "/" ? "the home page" : e.p)}`, pclick: (e) => `tapped ${e.product || "a product"}`, filter: (e) => `filtered by ${e.x}`, wa: () => "went to WhatsApp", ig: () => "went to Instagram", map: () => "opened directions", call: () => "pressed call",
-    video: () => "played the video", yt: () => "went to YouTube", copy: (e) => `copied ${e.x || "payment details"}`, checkout: (e) => `pressed Order now: ${e.product || ""}`, details: () => "filled in their details", pay_tab: (e) => `switched payment to ${e.x}`,
-    paid: (e) => `paid${e.n ? ` ${inr(e.n)}` : ""}: ${e.product || ""}`, abandon: (e) => `left checkout at the ${e.x === "pay" ? "payment" : "details"} step${e.f ? ` (${e.f})` : ""}`, rage: (e) => `pressed again and again: ${e.x}`, dead: (e) => `pressed something that did nothing: ${e.x}`, invalid: (e) => `was stopped by the form: ${e.x}`, formerr: (e) => `saw an error: ${e.x}`, err: (e) => `hit a site error: ${e.x}`,
+    video: () => "played the video", yt: () => "went to YouTube", copy: (e) => `copied ${e.x || "payment details"}`, checkout: (e) => `pressed Order now: ${e.product || ""}${e.ms ? `, after ${dur(e.ms)} on the page` : ""}`, details: (e) => `finished their details${e.ms ? ` in ${dur(e.ms)}` : ""}`, pay_tab: (e) => `switched payment to ${e.x}`,
+    paid: (e) => `paid${e.n ? ` ${inr(e.n)}` : ""}: ${e.product || ""}${e.ms ? `, took ${dur(e.ms)}` : ""}`, abandon: (e) => `left checkout at the ${e.x === "pay" ? "payment" : "details"} step${e.f ? ` (${e.f})` : ""}`, rage: (e) => `pressed again and again: ${e.x}`, dead: (e) => `pressed something that did nothing: ${e.x}`, invalid: (e) => `was stopped by the form: ${e.x}`, formerr: (e) => `saw an error: ${e.x}`, err: (e) => `hit a site error: ${e.x}`,
+    sec: (e) => `spent ${dur(e.n)} on ${e.x}`, field: (e) => `spent ${dur(e.n)} in ${e.x}${e.del ? `, corrected ${e.del}×` : ""}${e.fl === 0 ? ", left it empty" : ""}`, tap: (e) => `pressed ${e.x}`, choice: (e) => `chose ${e.r === "ship" ? "delivery" : "pick up"}`,
     enq_open: (e) => `opened enquiry: ${e.product || ""}`, enq: (e) => `sent an enquiry: ${e.product || ""}`, fb: (e) => `gave feedback: ${e.r}${e.note ? ` "${e.note}"` : ""}`, section: (e) => `reached ${e.x}`, leave: () => "left",
   };
   const FRICTION = ["rage", "dead", "invalid", "formerr", "err", "abandon"];
@@ -334,26 +354,33 @@
   // The website drawn as a shop. Every room is a real part of the journey; a dot is one visitor.
   const floor = { mode: "live", wide: null, rooms: null, racks: [], dots: new Map(), day: null, dayData: null, replay: null, playing: false, raf: 0, last: 0, sel: "", dayAt: 0 };
   const isWide = () => innerWidth >= 720;
+  const ZONES = [["hero", "Top of the page"], ["stats", "Why Vibe X"], ["feat", "Featured"], ["rack", "Fresh off the truck"], ["find", "Find your fit"], ["looks-sec", "Just landed"], ["how", "How it works"], ["visit", "The store"], ["latest", "Latest video"]];
+  const BOXES = [["name", "Name"], ["phone", "Phone number"], ["delivery", "Pick up/deliver"], ["address", "Address"], ["city", "City"], ["pin", "PIN code"]];
   function layout(wide) {
     const R = (x, y, w, h, label, sub) => ({ x, y, w, h, label, sub });
     const out = wide
-      ? { W: 1000, H: 500, door: [70, 250], rooms: { front: R(70, 16, 320, 468, "Front room", "Home page"), back: R(390, 364, 300, 120, "Back room", "Other pages"), till1: R(690, 16, 145, 214, "Till 1", "Filling in details"), till2: R(835, 16, 145, 214, "Till 2", "Paying"), sold: R(690, 230, 290, 134, "Sold"), out: R(690, 364, 290, 120, "Walked out", "Left checkout") }, rack: [390, 16, 300, 348], gaps: [[70, 225, 70, 275], [390, 165, 390, 225], [690, 90, 690, 150], [760, 230, 820, 230], [760, 364, 820, 364], [835, 100, 835, 150]], street: true }
-      : { W: 358, H: 690, door: [179, 34], rooms: { front: R(4, 34, 350, 146, "Front room", "Home page"), till1: R(4, 410, 175, 96, "Till 1", "Details"), till2: R(179, 410, 175, 96, "Till 2", "Paying"), sold: R(179, 506, 175, 104, "Sold"), out: R(4, 506, 175, 104, "Walked out"), back: R(4, 610, 350, 76, "Back room", "Other pages") }, rack: [4, 180, 350, 230], gaps: [[150, 34, 208, 34], [150, 180, 208, 180], [150, 410, 208, 410], [179, 440, 179, 480], [240, 506, 300, 506], [60, 506, 120, 506]], street: false };
+      ? { W: 1000, H: 500, door: [70, 250], rooms: { front: R(70, 16, 320, 468, "Front room", "Home page, by section"), back: R(390, 364, 300, 120, "Back room", "Other pages"), till1: R(690, 16, 190, 214, "Till 1", "Filling in the form"), till2: R(880, 16, 100, 214, "Till 2", "Paying"), sold: R(690, 230, 290, 134, "Sold"), out: R(690, 364, 290, 120, "Walked out", "Left checkout") }, rack: [390, 16, 300, 348], gaps: [[70, 225, 70, 275], [390, 165, 390, 225], [690, 90, 690, 150], [760, 230, 820, 230], [760, 364, 820, 364], [880, 100, 880, 150]], street: true }
+      : { W: 358, H: 900, door: [179, 34], rooms: { front: R(4, 34, 350, 282, "Front room", "Home page, by section"), till1: R(4, 546, 234, 190, "Till 1", "Filling in the form"), till2: R(238, 546, 116, 190, "Till 2", "Paying"), sold: R(179, 736, 175, 90, "Sold"), out: R(4, 736, 175, 90, "Walked out"), back: R(4, 826, 350, 70, "Back room", "Other pages") }, rack: [4, 316, 350, 230], gaps: [[150, 34, 208, 34], [150, 316, 208, 316], [150, 546, 208, 546], [238, 620, 238, 660], [240, 736, 300, 736], [60, 736, 120, 736]], street: false };
     const [x, y, w, h] = out.rack, cols = 2, rows = 4, cw = w / cols, ch = h / rows;
     for (let i = 0; i < 8; i++) out.rooms[`r${i}`] = R(x + (i % cols) * cw, y + Math.floor(i / cols) * ch, cw, ch, "", "");
+    const stack = (room, list, prefix, bottom) => { const r = out.rooms[room], top = 38, each = (r.h - top - bottom) / list.length; list.forEach(([k, label], i) => (out.rooms[`${prefix}${k}`] = R(r.x, r.y + top + i * each, r.w, each, label, ""))); };
+    stack("front", ZONES, "z:", 4); stack("till1", BOXES, "f:", 4);
     return out;
   }
-  const FLOW = { front: 0, till1: 2, till2: 3, sold: 4, out: 4, back: 1 };
-  function roomOf(path, step) {
-    if (step === "Paid") return "sold"; if (step === "Left checkout") return "out"; if (step === "At checkout: paying") return "till2"; if (step === "At checkout: details") return "till1";
-    if (path === "/") return "front";
+  const topRoom = (k) => (k.startsWith("z:") ? "front" : k.startsWith("f:") ? "till1" : k);
+  function roomOf(path, step, zone, box) {
+    if (step === "Paid") return "sold"; if (step === "Left checkout") return "out"; if (step === "At checkout: paying") return "till2";
+    if (step === "At checkout: details") return floor.rooms[`f:${box}`] ? `f:${box}` : "f:name";
+    if (path === "/") return floor.rooms[`z:${zone}`] ? `z:${zone}` : "z:hero";
     const m = /^\/p\/(.+)$/.exec(path || "");
     if (m) { const i = floor.racks.findIndex((r) => r.id === m[1]); return `r${i >= 0 ? i : 7}`; }
     return "back";
   }
   // grid inside a room, so people never sit on top of each other
   function seat(room, i) {
-    const r = floor.rooms[room], pad = 15, top = room.startsWith("r") ? 26 : 44, cols = Math.max(1, Math.floor((r.w - pad * 2) / 22)), rows = Math.max(1, Math.floor((r.h - top - 8) / 22));
+    const r = floor.rooms[room];
+    if (/^[zf]:/.test(room)) { const dx = r.x + (room[0] === "z" ? 176 : 150), cols = Math.max(1, Math.floor((r.x + r.w - dx - 6) / 18)); return [dx + 4 + (i % cols) * 18, r.y + r.h / 2]; }
+    const pad = 15, top = room.startsWith("r") ? 26 : 44, cols = Math.max(1, Math.floor((r.w - pad * 2) / 22)), rows = Math.max(1, Math.floor((r.h - top - 8) / 22));
     const c = i % cols, l = Math.floor(i / cols) % rows;
     return [r.x + pad + 8 + c * 22, r.y + top + 6 + l * 22];
   }
@@ -364,17 +391,18 @@
     const rooms = ["front", "back", "till1", "till2", "sold", "out"].map((k) => { const r = L.rooms[k]; return `<rect class="floor" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/><rect class="room" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/>${label(r)}`; }).join("");
     const racks = Array.from({ length: 8 }, (_, i) => { const r = L.rooms[`r${i}`], name = floor.racks[i]?.name || (i === 7 ? "Other racks" : ""); return `<rect class="floor" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/><rect class="room" style="stroke-width:.7" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}"/><rect class="furn" x="${r.x + 8}" y="${r.y + r.h - 9}" width="${r.w - 16}" height="4"/><text class="rl" x="${r.x + 9}" y="${r.y + 15}" data-rack="${i}">${esc(short(name, wide ? 19 : 21))}</text>`; }).join("");
     const [fx, fy, fw, fh] = L.rack;
-    const counters = `<rect class="furn" x="${L.rooms.till1.x + 10}" y="${L.rooms.till1.y + L.rooms.till1.h - 16}" width="${L.rooms.till1.w - 20}" height="7"/><rect class="furn" x="${L.rooms.till2.x + 10}" y="${L.rooms.till2.y + L.rooms.till2.h - 16}" width="${L.rooms.till2.w - 20}" height="7"/>`;
+    const counters = `<rect class="furn" x="${L.rooms.till2.x + 10}" y="${L.rooms.till2.y + L.rooms.till2.h - 16}" width="${L.rooms.till2.w - 20}" height="7"/>`;
     const tallies = ["sold", "out"].map((k) => { const r = L.rooms[k]; return `<text class="tally" id="t-${k}" text-anchor="end" x="${r.x + r.w - 12}" y="${r.y + 40}"></text>`; }).join("");
+    const rowsOf = [...ZONES.map(([k]) => `z:${k}`), ...BOXES.map(([k]) => `f:${k}`)].map((k) => { const r = L.rooms[k], tx = r.x + (k[0] === "z" ? 138 : 118), id = k.replace(":", "-"); return `<rect class="zone" id="zs-${id}" x="${r.x + 1}" y="${r.y}" width="${r.w - 2}" height="${r.h}"/><line class="zrule" x1="${r.x}" x2="${r.x + r.w}" y1="${r.y}" y2="${r.y}"/><text class="zl" x="${r.x + 10}" y="${r.y + r.h / 2 + 4}">${esc(r.label)}</text><text class="zt" id="zt-${id}" x="${tx}" y="${r.y + r.h / 2 + 4}"></text>`; }).join("");
     const street = L.street ? `<text class="rl" x="4" y="256" style="font-size:10px">STREET</text>` : `<text class="rl" x="4" y="24" style="font-size:10px">STREET</text>`;
-    $("planBox").innerHTML = `<svg id="planSvg" viewBox="0 0 ${L.W} ${L.H}" role="img" aria-label="Floor plan of the shop. Each dot is a visitor.">${street}${rooms}${racks}<rect class="room" x="${fx}" y="${fy}" width="${fw}" height="${fh}"/>${counters}${L.gaps.map(([a, b, c, d]) => `<line class="door" x1="${a}" y1="${b}" x2="${c}" y2="${d}"/>`).join("")}<g id="worn"></g><g id="scuffs"></g>${tallies}<g id="people"></g></svg>`;
+    $("planBox").innerHTML = `<svg id="planSvg" viewBox="0 0 ${L.W} ${L.H}" role="img" aria-label="Floor plan of the shop. Each dot is a visitor.">${street}${rooms}${rowsOf}${racks}<rect class="room" x="${fx}" y="${fy}" width="${fw}" height="${fh}"/>${counters}${L.gaps.map(([a, b, c, d]) => `<line class="door" x1="${a}" y1="${b}" x2="${c}" y2="${d}"/>`).join("")}<g id="worn"></g><g id="scuffs"></g>${tallies}<g id="people"></g></svg>`;
     $("planBox").classList.toggle("fast", floor.mode === "replay");
   }
   function ensureFloor() {
     if (!$("planBox")) {
       $("v-now").innerHTML = `<div class="card"><div class="planHead"><div class="bigNow" id="bigN">0</div><div class="say" id="planSay"></div><div class="chips" id="modes"><button type="button" data-m="live" class="on">Live</button><button type="button" data-m="0">Replay today</button><button type="button" data-m="1">Yesterday</button></div></div>
         <div class="plan" id="planBox"></div><div class="deck hide" id="deck"><button type="button" id="playBtn" aria-label="Pause">❚❚</button><div class="rail"><div id="railArt"></div><input type="range" id="rail" min="0" max="1000" value="0" aria-label="Time of day"></div><time id="railT"></time></div>
-        <div class="key"><span><i></i>Someone in the shop</span><span><i class="r"></i>Stuck, and small red marks where they struggled</span><span><i class="g"></i>Bought</span><span><i class="l"></i>Worn path: the more people, the thicker</span></div><div id="whoBox"></div>
+        <div class="key"><span><i></i>Someone in the shop</span><span><i class="r"></i>Stuck, and small red marks where they struggled</span><span><i class="g"></i>Bought</span><span><i class="l"></i>Worn path: the more people, the thicker</span><span>Darker row: more time spent there, with the typical time beside it</span></div><div id="whoBox"></div>
         <div id="listBox"></div></div>`;
       $("modes").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; b.dataset.m === "live" ? goLive() : startReplay(Number(b.dataset.m)); };
       $("playBtn").onclick = () => { if (floor.playing) pause(); else play(); };
@@ -382,7 +410,7 @@
       drawFloor();
     } else if (floor.wide !== isWide()) drawFloor();
   }
-  addEventListener("resize", () => { if (state.view === "now" && $("planBox") && floor.wide !== isWide()) { drawFloor(); if (floor.replay) seek(floor.pos || 0, true); else paintWorn(); tick(); } });
+  addEventListener("resize", () => { if (state.view === "now" && $("planBox") && floor.wide !== isWide()) { drawFloor(); if (floor.replay) { seek(floor.pos || 0, true); paintZones(floor.dayData); } else paintWorn(); tick(); } });
   document.addEventListener("click", (e) => {
     const w = e.target.closest?.(".who");
     if (!w || !$("whoBox")) return;
@@ -425,10 +453,15 @@
     const both = {};
     for (const [k, n] of Object.entries(counts)) { const pair = k.split(">"), key = pair[0] === "door" ? k : [...pair].sort().join(">"); both[key] = (both[key] || 0) + n; }
     const top = Math.max(1, ...Object.values(both)), wide = floor.wide;
-    const mid = (k) => { const r = floor.rooms[k]; return [r.x + r.w / 2, r.y + r.h / 2]; };
+    const mid = (k) => {
+      const r = floor.rooms[k];
+      if (k === "front") return wide ? [r.x + r.w - 6, r.y + r.h / 2] : [r.x + r.w / 2, r.y + r.h - 6];
+      if (k === "till1") return wide ? [r.x + r.w - 40, r.y + 22] : [r.x + r.w - 40, r.y + 22];
+      return [r.x + r.w / 2, r.y + r.h / 2];
+    };
     g.innerHTML = Object.entries(both).map(([k, n]) => {
       const [a, b] = k.split(">");
-      if (!floor.rooms[b] || (a !== "door" && !floor.rooms[a])) return "";
+      if (a === "door" || !floor.rooms[b] || !floor.rooms[a]) return "";
       const [x1, y1] = a === "door" ? floor.door : mid(a), [x2, y2] = mid(b), dx = (x2 - x1) * 0.55, dy = (y2 - y1) * 0.55;
       const c = wide ? `C${x1 + dx} ${y1} ${x2 - dx} ${y2}` : `C${x1} ${y1 + dy} ${x2} ${y2 - dy}`;
       return `<path class="worn" d="M${x1} ${y1}${c} ${x2} ${y2}" stroke-width="${(1.5 + (Math.sqrt(n / top) * 16)).toFixed(1)}" data-tip="${n} walked this way"/>`;
@@ -442,13 +475,27 @@
     }).join("");
     if ($("t-sold")) { $("t-sold").textContent = sold || ""; $("t-out").textContent = out || ""; }
   }
+  // The floor itself shows where the time goes: darker rows, with the typical time for each.
+  function paintZones(d) {
+    const paint = (list, prefix, weigh) => {
+      const top = Math.max(1, ...list.map(weigh));
+      for (const z of list) {
+        const id = `${prefix}-${z.key}`, sh = $(`zs-${id}`), t = $(`zt-${id}`);
+        if (sh) sh.style.opacity = (0.03 + (weigh(z) / top) * 0.19).toFixed(3);
+        if (t) t.textContent = dur(z.medianTime);
+      }
+    };
+    paint(d?.zones?.home || [], "z", (z) => z.totalTime);
+    paint(d?.forms?.checkout.boxes || [], "f", (z) => z.medianTime);
+  }
   function pathsOf(v) { // the rooms one visit passed through, with times
-    const tl = []; let step = "", path = "/";
+    const tl = []; let step = "", path = "/", zone = "", box = "";
     for (const s of [...v.steps].sort((a, b) => a.t - b.t)) {
-      if (s.e === "page") { path = s.p; step = ""; }
+      if (s.e === "page") { path = s.p; step = ""; zone = ""; box = ""; }
+      else if (s.e === "sec") zone = s.key; else if (s.e === "field") box = s.key;
       else if (s.e === "checkout") step = "At checkout: details"; else if (s.e === "details") step = "At checkout: paying"; else if (s.e === "paid") step = "Paid"; else if (s.e === "abandon") step = "Left checkout";
       else if (!FRICTION.includes(s.e)) continue;
-      const room = roomOf(path, step), hurt = FRICTION.includes(s.e);
+      const room = roomOf(path, step, zone, box), hurt = FRICTION.includes(s.e);
       if (!tl.length || tl[tl.length - 1].room !== room || hurt) tl.push({ t: s.t, room, hurt, sold: s.e === "paid", walked: s.e === "abandon" });
     }
     return tl;
@@ -470,12 +517,13 @@
     for (const v of d.visits) {
       let prev = "door";
       for (const s of pathsOf(v)) {
-        if (s.room !== prev) { const k = `${prev}>${s.room}`; counts[k] = (counts[k] || 0) + 1; prev = s.room; }
-        if (s.hurt && !s.walked) scuffs[s.room] = (scuffs[s.room] || 0) + 1;
+        const r = topRoom(s.room);
+        if (r !== prev) { const k = `${prev}>${r}`; counts[k] = (counts[k] || 0) + 1; prev = r; }
+        if (s.hurt && !s.walked) scuffs[r] = (scuffs[r] || 0) + 1;
         if (s.sold) sold++; if (s.walked) out++;
       }
     }
-    drawWorn(counts); drawMarks(scuffs, sold, out);
+    drawWorn(counts); drawMarks(scuffs, sold, out); paintZones(d);
   }
   function setMode(m) {
     floor.mode = m === "live" ? "live" : "replay";
@@ -502,12 +550,13 @@
     const hold = (t1 - t0) / 140;
     for (const x of list) { let at = x.tl[0].t; x.tl.forEach((s) => { at = s.at = Math.max(at, s.t); at += hold; }); x.end = at + hold; }
     const moves = [];
-    for (const x of list) { let prev = "door"; for (const s of x.tl) { moves.push({ at: s.at, a: prev, b: s.room, s }); prev = s.room; } }
+    for (const x of list) { let prev = "door"; for (const s of x.tl) { const r = topRoom(s.room); moves.push({ at: s.at, a: prev, b: r, s }); prev = r; } }
     moves.sort((a, b) => a.at - b.at);
     const hours = {}; for (const x of list) { const k = Math.floor(((x.tl[0].t - t0) / (t1 - t0)) * 60); hours[k] = (hours[k] || 0) + 1; }
     const top = Math.max(...Object.values(hours));
     $("railArt").innerHTML = `<svg viewBox="0 0 600 34" preserveAspectRatio="none" aria-hidden="true">${Object.entries(hours).map(([k, n]) => `<rect x="${k * 10}" y="${30 - (n / top) * 28}" width="8" height="${(n / top) * 28}" fill="var(--neutral)"/>`).join("")}</svg>`;
     floor.replay = { list, moves, t0, t1, cap: d.visits.length >= 200 };
+    paintZones(d);
     $("bigN").textContent = "0"; seek(0); play();
   }
   function seek(pos, force) {
@@ -551,10 +600,11 @@
     if (floor.mode !== "live") return;
     $("bigN").textContent = l.active;
     $("planSay").textContent = l.active ? (l.active === 1 ? "person in the shop right now." : "people in the shop right now.") : (floor.dayData?.visits.length ? "The shop is quiet. Replay today to watch it fill." : "The shop is quiet. Nobody has come in yet today.");
-    place(l.people.map((p) => ({ id: p.id, room: roomOf(p.path, p.step), tone: p.step === "Paid" ? "good" : p.friction ? "bad" : "", tip: `${p.label}${p.step ? ` (${p.step})` : ""}. ${p.source || "Unknown"}, ${p.device || ""}. Here ${dur(p.since)}, ${p.pages} page${p.pages === 1 ? "" : "s"}.${p.friction ? ` Stuck ${p.friction}×.` : ""}` })));
+    const whereNow = (p) => (p.boxLabel ? `Filling in ${p.boxLabel}, ${dur(p.boxFor)} so far` : p.zoneLabel ? `${p.zoneLabel}, ${dur(p.zoneFor)} so far` : p.since < 8000 ? "Just arrived" : "Browsing");
+    place(l.people.map((p) => ({ id: p.id, room: roomOf(p.path, p.step, p.zone, p.box), tone: p.step === "Paid" ? "good" : p.friction ? "bad" : "", tip: `${whereNow(p)}. ${p.label}${p.step ? ` (${p.step})` : ""}. ${p.source || "Unknown"}, ${p.device || ""}. Here ${dur(p.since)}, ${p.pages} page${p.pages === 1 ? "" : "s"}, scrolled ${p.scroll}%.${p.friction ? ` Stuck ${p.friction}×.` : ""}` })));
     const box = $("listBox");
     const inner = `${l.feed.length ? `<ul class="ticker">${l.feed.slice(0, 4).map((e) => `<li class="${tone(e.e)}"><time>${clock(e.t)}</time><span>${esc((WORD[e.e] || (() => e.e))(e))}</span></li>`).join("")}</ul>` : ""}
-      ${more(table("people", [{ h: "Who", k: "id" }, { h: "Viewing", html: (r) => `${esc(r.label)}${r.step ? ` <span class="tag">${esc(r.step)}</span>` : ""}${r.friction ? ` <span class="tag bad">stuck ${r.friction}×</span>` : ""}` }, { h: "From", k: "source" }, { h: "Device", f: (r) => `${r.device || ""}, ${r.browser || ""}` }, { h: "Here for", f: (r) => dur(r.since), n: 1 }, { h: "Pages", k: "pages", n: 1 }, { h: "Scrolled", f: (r) => `${r.scroll}%`, n: 1 }, { h: "", f: (r) => (r.returning ? "returning" : "new") }], l.people, "Nobody here at the moment."), "See everyone as a list")}`;
+      ${more(table("people", [{ h: "Who", k: "id" }, { h: "Viewing", html: (r) => `${esc(r.label)}${r.step ? ` <span class="tag">${esc(r.step)}</span>` : ""}${r.friction ? ` <span class="tag bad">stuck ${r.friction}×</span>` : ""}` }, { h: "Exactly where", f: whereNow }, { h: "From", k: "source" }, { h: "Device", f: (r) => `${r.device || ""}, ${r.browser || ""}` }, { h: "Here for", f: (r) => dur(r.since), n: 1 }, { h: "Pages", k: "pages", n: 1 }, { h: "Scrolled", f: (r) => `${r.scroll}%`, n: 1 }, { h: "", f: (r) => (r.returning ? "returning" : "new") }], l.people, "Nobody here at the moment."), "See everyone as a list")}`;
     keepOpen(box, inner);
     if (!floor.dayData || Date.now() - floor.dayAt > 60e3) loadDay(0).then(paintWorn).catch(() => {});
   }
@@ -625,6 +675,24 @@
     box.querySelectorAll("[data-rm]").forEach((b) => (b.onclick = async () => { await api(`changes/${b.dataset.rm}/remove`, { method: "POST" }); renderChanges(); }));
   }
 
+  // ---- the order form, box by box ----
+  function renderForm(d) {
+    const kind = state.formKind, f = d.forms?.[kind] || { opened: 0, boxes: [] }, t = d.stepTimes || {}, base = Math.max(f.opened, 1);
+    const sw = `<div class="chips" style="margin-bottom:12px">${[["checkout", "Order now form"], ["enquiry", "Enquiry form"]].map(([k, l]) => `<button type="button" data-fk="${k}" class="${kind === k ? "on" : ""}">${l}</button>`).join("")}</div>`;
+    const steps = [["Deciding on the product", t.deciding], ["Filling in the form", t.details], ["Paying", t.paying]].filter(([, ms]) => ms);
+    const chain = steps.length ? `<div class="chain">${steps.map(([l, ms]) => `<div style="flex:${ms} 1 0" data-tip="${esc(l)}: typically ${esc(dur(ms))}"><b>${esc(dur(ms))}</b>${esc(l)}</div>`).join("")}</div>
+      ${t.gaveUpDetails || t.gaveUpPaying ? `<p class="sub2">People who gave up: ${[t.gaveUpDetails && `${dur(t.gaveUpDetails)} on the form`, t.gaveUpPaying && `${dur(t.gaveUpPaying)} on payment`].filter(Boolean).join(", ")}, typically.</p>` : ""}` : `<p class="empty">No orders started in these dates yet.</p>`;
+    const list = f.boxes, slow = [...list].sort((a, b) => b.medianTime - a.medianTime)[0], lost = [...list].filter((b) => b.quit).sort((a, b) => b.quit - a.quit)[0], top = Math.max(1, ...list.map((b) => b.medianTime));
+    const head = !list.length ? "" : `<p class="leakHead">${esc(slow.label)} is the slowest box: ${esc(dur(slow.medianTime))}</p><p class="leakFix">${lost ? `Most people who quit were in ${esc(lost.label)}: ${num(lost.quit)}.` : "Nobody has quit inside a box in these dates."}</p>`;
+    const fb = (b) => { const facts = [`${num(b.people)} of ${num(f.opened)} reached it`, b.keys && `${num(b.keys)} keys`, b.corrected && `<b>${num(b.corrected)} corrected</b>`, b.errors && `<b>${num(b.errors)} errors</b>`, b.empty && `<b>${num(b.empty)} left empty</b>`, b.quit && `<b>${num(b.quit)} quit here</b>`].filter(Boolean); return `<div class="fb" data-tip="${esc(b.label)}: typically ${esc(dur(b.medianTime))}, slowest ${esc(dur(b.slowest))}"><span class="sh" style="width:${(b.medianTime / top) * 100}%"></span><div class="top">${esc(b.label)}<span>${esc(dur(b.medianTime))}</span></div><div class="sub2">${facts.join("<span>·</span>")}</div></div>`; };
+    const cols = [{ h: "Box", k: "label" }, { h: "Reached", k: "people", n: 1 }, { h: "Typical time", f: (r) => dur(r.medianTime), n: 1 }, { h: "Slowest", f: (r) => dur(r.slowest), n: 1 }, { h: "Keys", k: "keys", n: 1 }, { h: "Corrected", k: "corrected", n: 1 }, { h: "Errors", k: "errors", n: 1 }, { h: "Left empty", k: "empty", n: 1 }, { h: "Quit here", k: "quit", n: 1 }];
+    const DEL = { pickup: "Pick up in Srinagar", ship: "Deliver to me" };
+    keepOpen($("v-form"), `${card("How long buying takes", chain)}
+      ${card("", `${sw}${head}${list.length ? list.map(fb).join("") : `<p class="empty">Nobody has used this form in these dates yet.</p>`}${list.length ? more(table(`form-${kind}`, cols, list)) : ""}`)}
+      <div class="grid">${card("Pick up or deliver", d.delivery?.length ? segments(d.delivery.map((r) => ({ label: DEL[r.key] || r.key, n: r.n, c: r.key === "ship" ? "var(--ink)" : "var(--neutral)" }))) : `<p class="empty">No choices yet.</p>`)}${card("How they pay", bars((d.payTabs || []).map((r) => ({ label: r.key, n: r.n }))))}</div>`);
+    $("v-form").querySelectorAll("[data-fk]").forEach((b) => (b.onclick = () => { state.formKind = b.dataset.fk; renderForm(d); }));
+  }
+
   // ---- traffic ----
   function delta(now, was, lowerIsBetter) {
     if (was === undefined) return ["", ""];
@@ -679,7 +747,7 @@
   const inkOn = (level) => (level >= 3 ? "var(--paper)" : "var(--ink)");
   function phone(title, rows) { // rows: {label, share 0-100, n}
     const level = (s) => Math.min(5, Math.floor(s / 20) + (s > 0 ? 1 : 0));
-    return `<div class="phoneWrap"><h3>${esc(title)}</h3><div class="phone">${rows.map((r) => { const l = level(r.share); return `<div class="s" style="background:var(--h${l});color:${inkOn(l)};min-height:${Math.round(320 / Math.max(rows.length, 1))}px" data-tip="${esc(r.label)}: ${num(r.n)} people, ${r.share}%"><span>${esc(r.label)}</span><b>${r.share}%</b></div>`; }).join("")}</div></div>`;
+    return `<div class="phoneWrap"><h3>${esc(title)}</h3><div class="phone">${rows.map((r) => { const l = level(r.share); return `<div class="s" style="background:var(--h${l});color:${inkOn(l)};min-height:${Math.round(320 / Math.max(rows.length, 1))}px" data-tip="${esc(r.label)}: ${num(r.n)} people, ${r.share}%${r.time ? `, typically ${esc(dur(r.time))}` : ""}"><span>${esc(r.label)}</span><b>${r.time ? `${esc(dur(r.time))} · ` : ""}${r.share}%</b></div>`; }).join("")}</div></div>`;
   }
   function speedGauge(s) {
     if (!s.n) return `<p class="empty">No data yet.</p>`;
@@ -693,12 +761,17 @@
     const acts = Object.entries(d.acts).map(([k, n]) => ({ label: A[k] || k, n })).sort((a, b) => b.n - a.n);
     const S = ["Quarter way", "Halfway", "Three quarters", "To the end"];
     const base = (page) => Math.max(1, d.pages.filter((p) => (page === "Home page" ? p.path === "/" : p.path.startsWith("/p/"))).reduce((n, p) => n + p.visits, 0));
-    const home = d.sections.map((s) => ({ label: s.label, n: s.n, share: Math.min(100, Math.round(s.share)) }));
-    const prod = (d.scroll["Product page"] || []).map((n, i) => { const b = base("Product page"); return { label: S[i], n, share: Math.min(100, Math.round((n / b) * 100)) }; });
+    const homeTime = Object.fromEntries((d.zones?.home || []).map((z) => [z.key, z.medianTime]));
+    const home = d.sections.map((s) => ({ label: s.label, n: s.n, share: Math.min(100, Math.round(s.share)), time: homeTime[s.key] }));
+    const pz = d.zones?.product || [];
+    const prod = pz.length ? pz.map((z) => ({ label: z.label, n: z.people, share: Math.min(100, Math.round((z.people / base("Product page")) * 100)), time: z.medianTime }))
+      : (d.scroll["Product page"] || []).map((n, i) => { const b = base("Product page"); return { label: S[i], n, share: Math.min(100, Math.round((n / b) * 100)) }; });
+    const zoneRows = [...(d.zones?.home || []).map((z) => ({ ...z, page: "Home page" })), ...pz.map((z) => ({ ...z, page: "Product pages" }))];
     const OUT = { Paid: "var(--green)", "Left checkout": "var(--red)", Enquired: "var(--ink)", "Browsed products": "var(--neutral)", "Looked around": "var(--neutral2)" };
-    keepOpen($("v-behave"), `${card("How far down people get", `${d.sections.length ? `<div class="phones">${phone("Home page", home)}${prod.some((r) => r.n) ? phone("Product pages", prod) : ""}</div><div class="scale" style="justify-content:center">Few reach it ${[1, 2, 3, 4, 5].map((i) => `<i style="background:var(--h${i})"></i>`).join("")} Everyone</div>` : `<p class="empty">No data yet.</p>`}`)}
+    keepOpen($("v-behave"), `${card("How far down people get", `${d.sections.length ? `<div class="phones">${phone("Home page", home)}${prod.some((r) => r.n) ? phone("Product pages", prod) : ""}</div><div class="scale" style="justify-content:center">Few reach it ${[1, 2, 3, 4, 5].map((i) => `<i style="background:var(--h${i})"></i>`).join("")} Everyone</div>${zoneRows.length ? more(table("zones", [{ h: "Page", k: "page" }, { h: "Section", k: "label" }, { h: "People", k: "people", n: 1 }, { h: "Typical time", f: (r) => dur(r.medianTime), n: 1 }, { h: "Total time", f: (r) => dur(r.totalTime), n: 1 }], zoneRows)) : ""}` : `<p class="empty">No data yet.</p>`}`)}
       ${card("How each visit ended", d.outcomes.length ? segments(d.outcomes.map((o) => ({ label: o.key, n: o.n, c: OUT[o.key] || "var(--neutral)" }))) : `<p class="empty">No data yet.</p>`)}
       <div class="grid">${card("What they press", bars(acts))}${card("What they hunt for", bars(d.filters))}</div>
+      ${card("Everything they pressed", `${bars((d.presses || []).slice(0, 10).map((r) => ({ label: r.label, n: r.n })))}${d.presses?.length ? more(table("presses", [{ h: "Button or link", k: "label" }, { h: "Presses", k: "n", n: 1 }, { h: "People", k: "people", n: 1 }], d.presses), "See all of them") : ""}`)}
       ${card("How fast it loads", `${speedGauge(d.speed)}${d.speed.n ? `<p class="sub2">${num(d.speed.n)} page loads measured.</p>` : ""}`)}
       ${card("Every page", more(table("pages", [{ h: "Page", k: "label" }, { h: "Views", k: "views", n: 1 }, { h: "People", k: "visits", n: 1 }, { h: "Avg time", f: (r) => dur(r.avgTime), n: 1 }, { h: "Arrived here", k: "lands", n: 1 }, { h: "Left from here", k: "exits", n: 1 }, { h: "Left rate", f: (r) => `${r.exitRate}%`, n: 1 }], d.pages, "No visits yet.")))}`);
   }
@@ -712,14 +785,14 @@
   }
   function productDetail(p) {
     const box = $("pDetail"); if (!box || !p) return;
-    const top = Math.max(p.views, 1);
-    box.innerHTML = `<div><h3>${esc(p.name)}</h3><p class="sub2">${inr(p.value)} · ${dur(p.avgTime)} looking · ${p.enq} enquiries · ${p.chat} chats</p></div><div>${bars([{ label: "Looked", n: p.views }, { label: "Pressed Order now", n: p.checkout }, { label: "Bought", n: p.paid }], { max: top })}</div>`;
+    const top = Math.max(p.seen || 0, p.views, 1);
+    box.innerHTML = `<div><h3>${esc(p.name)}</h3><p class="sub2">${inr(p.value)} · ${dur(p.avgTime)} on its page · ${p.seen ? `${dur(p.seenTime)} on screen in the rack · ${p.tapRate}% of those who saw it tapped · ` : ""}${p.enq} enquiries · ${p.chat} chats</p></div><div>${bars([{ label: "Saw it in the rack", n: p.seen || 0 }, { label: "Opened it", n: p.views }, { label: "Pressed Order now", n: p.checkout }, { label: "Bought", n: p.paid }], { max: top })}</div>`;
     document.querySelectorAll(".pb").forEach((b) => b.classList.toggle("sel", b.dataset.p === p.id));
   }
   async function renderProducts(d) {
     const cat = await getCatalog();
     const list = d.products.filter((p) => p.views > 0);
-    const tableHtml = table("products", [{ h: "Product", k: "name" }, { h: "People viewed", k: "views", n: 1 }, { h: "Avg time", f: (r) => dur(r.avgTime), n: 1 }, { h: "Pressed Order", k: "checkout", n: 1 }, { h: "Left checkout", k: "abandon", n: 1 }, { h: "Enquiries", k: "enq", n: 1 }, { h: "Chats", k: "chat", n: 1 }, { h: "Orders", k: "paid", n: 1 }, { h: "Value", f: (r) => inr(r.value), n: 1 }, { h: "Viewed to order", f: (r) => `${r.conv}%`, n: 1 }], d.products, "No product views yet.");
+    const tableHtml = table("products", [{ h: "Product", k: "name" }, { h: "Saw it", k: "seen", n: 1 }, { h: "On screen", f: (r) => dur(r.seenTime), n: 1 }, { h: "Tapped", f: (r) => `${r.tapRate}%`, n: 1 }, { h: "People viewed", k: "views", n: 1 }, { h: "Avg time", f: (r) => dur(r.avgTime), n: 1 }, { h: "Pressed Order", k: "checkout", n: 1 }, { h: "Left checkout", k: "abandon", n: 1 }, { h: "Enquiries", k: "enq", n: 1 }, { h: "Chats", k: "chat", n: 1 }, { h: "Orders", k: "paid", n: 1 }, { h: "Value", f: (r) => inr(r.value), n: 1 }, { h: "Viewed to order", f: (r) => `${r.conv}%`, n: 1 }], d.products, "No product views yet.");
     if (!list.length) { $("v-products").innerHTML = card("The shelf map", `<p class="empty">No product views yet.</p>`); return; }
     const Vmax = Math.max(...list.map((p) => p.views)), Vmin = Math.min(...list.map((p) => p.views)), Vfloor = Math.max(0, Vmin - (Vmax - Vmin || Vmax) * 0.15), vx = (v) => ((v - Vfloor) / Math.max(1, Vmax - Vfloor)) * 90 + 5, Cmax = Math.max(...list.map((p) => p.conv), 5), Hmax = Math.max(...list.map((p) => p.value), 1);
     const sorted = (k) => [...list].map((p) => p[k]).sort((a, b) => a - b), med = (k) => sorted(k)[Math.floor(list.length / 2)];
@@ -746,13 +819,20 @@
   // ---- visits as threads ----
   const beadOf = (s) => (FRICTION.includes(s.e) ? "bad" : s.e === "paid" ? "good" : ["checkout", "details"].includes(s.e) ? "co" : s.e === "pclick" || (s.e === "page" && s.p !== "/") ? "pr" : "");
   function renderVisits(d) {
-    const shownSteps = (v) => v.steps.filter((s) => s.e !== "section");
+    const shownSteps = (v) => v.steps.filter((s) => !["section", "sec", "field", "tap", "choice"].includes(s.e));
+    // where one visit's time went, part by part
+    const timeBar = (v) => {
+      const parts = v.steps.filter((s) => (s.e === "sec" || s.e === "field") && s.n);
+      if (!parts.length) return "";
+      const longest = parts.reduce((a, b) => (b.n > a.n ? b : a));
+      return `<div class="where">${parts.map((s) => `<i style="flex:${s.n} 1 0" data-tip="${esc(s.x)}: ${esc(dur(s.n))}"></i>`).join("")}</div><span class="sub2">Most time: ${esc(longest.x)}, ${esc(dur(longest.n))}</span>`;
+    };
     const once = (v) => shownSteps(v).length <= 1;
     const F = { all: (v) => !once(v), once, stuck: (v) => v.friction, bought: (v) => v.value || v.outcome === "Paid", left: (v) => v.outcome === "Left checkout" };
     const gone = d.visits.filter(once).length;
     const list = d.visits.filter(F[state.visitFilter]);
     const row = (v) => { const shown = shownSteps(v); return `<div class="tw"><div class="thr" data-open="${esc(v.s)}" role="button" tabindex="0" data-tip="${esc(v.source)}, ${esc(v.device)}: ${esc(v.outcome)}"><time>${esc(clock(v.start))}</time><div class="beads">${shown.slice(0, 40).map((s) => `<i class="${beadOf(s)}"></i>`).join("")}</div></div>
-      <div class="vd hide" id="j-${esc(v.s)}"><span class="sub2">${esc(stamp(v.start))} · ${esc(v.source)} · ${esc(v.device)}${v.returning ? " · returning" : ""} · ${esc(dur(v.engaged))} · ${esc(v.outcome)}</span><ol class="journey">${shown.map((s) => `<li class="${tone(s.e)}"><time>${clock(s.t)}</time>${esc((WORD[s.e] || (() => s.e))(s))}</li>`).join("")}</ol></div></div>`; };
+      <div class="vd hide" id="j-${esc(v.s)}"><span class="sub2">${esc(stamp(v.start))} · ${esc(v.source)} · ${esc(v.device)}${v.returning ? " · returning" : ""} · ${esc(dur(v.engaged))} · ${esc(v.outcome)}</span>${timeBar(v)}<ol class="journey">${v.steps.filter((s) => s.e !== "section").map((s) => `<li class="${tone(s.e)}"><time>${clock(s.t)}</time>${esc((WORD[s.e] || (() => s.e))(s))}</li>`).join("")}</ol></div></div>`; };
     $("v-visits").innerHTML = card("Every visit is a thread", `
       <div class="chips" style="margin-bottom:10px">${[["all", "All"], ["stuck", "Got stuck"], ["left", "Left checkout"], ["bought", "Bought"], ["once", "Left at once"]].map(([k, l]) => `<button type="button" data-vf="${k}" class="${state.visitFilter === k ? "on" : ""}">${l}</button>`).join("")}</div>
       <div class="key" style="margin:0 0 8px"><span><i style="background:var(--neutral)"></i>Looking around</span><span><i></i>A product</span><span><i style="border-radius:2px"></i>Checkout</span><span><i class="r" style="border-radius:2px"></i>Stuck</span><span><i class="g"></i>Bought</span></div>
@@ -763,8 +843,8 @@
   }
 
   // ---- page control ----
-  const state = { view: "now", from: today(), to: today(), data: null, visitFilter: "all" };
-  const RENDER = { loop: renderLoop, traffic: renderTraffic, behave: renderBehave, products: renderProducts, visits: renderVisits };
+  const state = { view: "now", from: today(), to: today(), data: null, visitFilter: "all", formKind: "checkout" };
+  const RENDER = { loop: renderLoop, form: renderForm, traffic: renderTraffic, behave: renderBehave, products: renderProducts, visits: renderVisits };
   function show(v) {
     state.view = v;
     document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.v === v));
