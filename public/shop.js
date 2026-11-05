@@ -157,7 +157,8 @@
     card.onpointerenter = (e) => { if (e.pointerType === "mouse") hovering = true; };
     card.onpointerleave = () => { hovering = false; };
 
-    const draw = (title, wave, text) => {
+    const draw = (title, wave, text, short = false) => {
+      card.classList.toggle("short", short); // phones: nothing worth a second line
       card.innerHTML = `<b></b><p></p><div class="vx-hi-acts"></div><button class="vx-hi-x" type="button" aria-label="Close">×</button>`;
       card.querySelector("b").textContent = title;
       if (wave) card.querySelector("b").insertAdjacentHTML("beforeend", ' <span class="vx-hi-wave" aria-hidden="true">👋</span>');
@@ -178,7 +179,7 @@
       const title = name ? (h >= 23 || h < 5 ? `Still up, ${name}?` : `Good ${part}, ${name}`) : `Good ${part}`;
       const text = fresh ? `${fresh} new ${fresh === 1 ? "piece" : "pieces"} since your last visit.`
         : name ? "Good to see you again." : lastVisit ? "Welcome back to Vibe X." : "Welcome to Vibe X, all the way from Srinagar.";
-      const acts = draw(title, Boolean(name), text);
+      const acts = draw(title, Boolean(name), text, !fresh);
       if (fresh) {
         acts.insertAdjacentHTML("beforeend", `<a href="#rack" data-jump="All">See what's new →</a>`);
         acts.lastElementChild.addEventListener("click", close);
@@ -206,6 +207,8 @@
     }
 
     hello();
+    const head = document.querySelector(".top");
+    if (head) card.style.setProperty("--hi-top", `${Math.max(0, head.getBoundingClientRect().bottom) + 8}px`);
     document.body.append(card);
     requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add("on")));
     wait();
