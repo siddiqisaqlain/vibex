@@ -139,6 +139,41 @@ try {
   const ret = await post("/api/billing/returns", { kind: "sale_return", invoiceId: sale.invoice.id, lines: [{ productId: web2.id, qty: 1 }], refund: 2500, mode: "cash" });
   assert.equal(ret.status, 200); assert.equal((await all()).find((p) => p.id === web2.id).quantity, 4); ok("a return on an earlier bill restocks the linked item");
 
+  // Website is a subset of the inventory: taking an item off it never deletes anything
+  const onSite = (await all()).find((p) => p.id === web2.id);
+  await post("/api/message", { text: "clear" }); // the test photo from above is still waiting
+  // Commands still work while a batch of photos waits, whether or not the photos are finished
+  const IMG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  for (const [label, photos] of [
+    ["finished", [{ image: IMG, text: "Dior perfume 999" }, { image: IMG, text: "Dior perfume 1999" }]],
+    ["unfinished", [{ image: IMG, text: "Dior perfume" }, { image: IMG, text: "Dior perfume" }]],
+    ["no caption", [{ image: IMG }, { image: IMG }]],
+  ]) {
+    await post("/api/message", { photos });
+    const held = await post("/api/message", { text: "remove Web Only" });
+    assert.equal(held.status, 200, `${label}: ${JSON.stringify(held)}`);
+    assert.match(held.reply, /off the website/, label);
+    await post(`/api/billing/items/${web2.id}`, { onWebsite: true });
+    await post("/api/message", { text: "clear" });
+  }
+  ok("'remove' works while a batch of photos is waiting");
+
+  let m2 = await post("/api/message", { text: "remove Web Only" });
+  assert.match(m2.reply, /off the website/);
+  let keep = (await all()).find((p) => p.id === web2.id);
+  assert.ok(keep); assert.equal(keep.hidden, true); assert.equal(keep.quantity, onSite.quantity);
+  assert.ok(!(await (await fetch(base + "/api/products")).json()).some((p) => p.id === web2.id)); ok("'remove' takes an item off the website and keeps it in stock");
+  r = await post("/api/billing/invoices", { lines: [{ productId: web2.id, qty: 1 }], payment: "cash" });
+  assert.equal(r.status, 200); ok("an item off the website still bills at the counter");
+  const noPhoto = (await post("/api/billing/items", { name: "No Photo Yet", price: 100 })).product;
+  assert.equal((await post(`/api/billing/items/${noPhoto.id}`, { onWebsite: true })).status, 409);
+  r = await post(`/api/billing/items/${web2.id}`, { onWebsite: true }); assert.equal(r.status, 200);
+  const back = (await (await fetch(base + "/api/products")).json()).find((p) => p.id === web2.id);
+  assert.ok(back); assert.equal(back.quantity, 3); ok("'Show on website' brings it back with the right stock, and needs a photo");
+  r = await post("/api/billing/invoices", { lines: [{ productId: web2.id, qty: 3 }], payment: "cash" });
+  const gone = (await (await fetch(base + "/api/products")).json()).find((p) => p.id === web2.id);
+  assert.equal(gone.status, "sold"); assert.equal(gone.quantity, 0); ok("selling the last pieces at the counter shows sold out on the website");
+
   console.log(`\nAll ${pass} import checks passed.`);
 } catch (e) { console.error("\nFAILED:", e); console.error(log.slice(-1500)); process.exitCode = 1; }
 finally { srv.kill(); fs.rmSync(dir, { recursive: true, force: true }); }

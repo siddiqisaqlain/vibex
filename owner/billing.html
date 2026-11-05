@@ -4,11 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <title>Vibe X Billing</title>
 <style>
   :root{--ink:#1c2333;--mute:#667085;--line:#e4e7ee;--bg:#f2f4f8;--card:#fff;--red:#d92d20;--primary:#4b3fd6;--side:#0f1a2e;--sideText:#c9d1e0;--green:#1f8a4c;--amber:#b7791f}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 "Source Sans 3",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
   button,input,select{font:inherit;color:inherit}
   .shell{display:grid;grid-template-columns:244px minmax(0,1fr);min-height:100vh}
   #side{background:var(--side);color:var(--sideText);position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;padding:10px 10px 14px;gap:2px;z-index:7}
@@ -46,7 +48,19 @@
   select,input[type=date]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
   input:not([type]){width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
   .form{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0}
-  .form summary{font-weight:700;cursor:pointer}
+  details.form{border:0;padding:0;margin:0 0 12px;display:flow-root}
+  details.form>summary{list-style:none;float:right;background:var(--primary);color:#fff;font-weight:700;padding:9px 16px;border-radius:8px;cursor:pointer;margin-bottom:10px}
+  details.form>summary::-webkit-details-marker{display:none}
+  details.form[open]>summary{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+  details.form[open]{border:1px solid var(--line);border-radius:10px;padding:12px}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}.filters>input[type=search]{flex:1 1 220px;width:auto}.filters select{width:auto;flex:0 1 190px}
+  .filters .primary{margin-left:auto}.tbtn.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.chip{border:1px solid var(--line);background:#fff;border-radius:18px;padding:6px 14px;cursor:pointer;font-weight:600}.chip.on{background:#ece9fd;border-color:var(--primary);color:var(--primary)}
+  .repCols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}.repCols>div{border-right:1px solid var(--line);padding:0 8px 10px}.repCols h3{background:#f2f4f7;margin:0 -8px 6px;padding:10px 14px}
+  .repTitle{display:flex;align-items:center;gap:10px}
+  th[data-sort]{cursor:pointer}th[data-sort]::after{content:" ⇅";opacity:.5}
+  @media (max-width:760px){.repCols{grid-template-columns:minmax(0,1fr)}}
+  @media print{#side,.page>header,#repBack,#repCsv,#repPrint,.repDates{display:none!important}.shell{display:block}main{padding:0}}
   .row3{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
   .owed-in{color:var(--green)}.owed-out{color:var(--red)}
   .repGrid{display:grid;grid-template-columns:200px minmax(0,1fr);gap:18px}
@@ -101,7 +115,7 @@
   .empty{color:var(--mute);text-align:center;padding:26px 0}
   table{width:100%;border-collapse:collapse}
   th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
-  th{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+  th{font-size:13px;color:var(--ink);background:#f2f4f7;font-weight:700}
   .n{text-align:right;white-space:nowrap}
   .src{font-size:12px;font-weight:700;padding:2px 7px;border-radius:99px;background:#f0eee9;white-space:nowrap}
   .src.website{background:#eaf1fd;color:#2457b8}.src.whatsapp{background:#e8f8ee;color:#1d7a43}
@@ -226,22 +240,27 @@
   <section class="panel hide" id="tab-bills">
     <div class="topRow"><button class="primary" id="newBillBtn">Create Sales Invoice</button></div>
     <div class="summary" id="summary"></div>
-    <input type="search" id="bq" placeholder="Search bill number, customer, item…" autocomplete="off">
+    <div class="filters"><input type="search" id="bq" placeholder="Search bill number, customer, item…" autocomplete="off">
+      <select id="bRange" aria-label="Date range"><option value="7">Last 7 Days</option><option value="30">Last 30 Days</option><option value="365" selected>Last 365 Days</option><option value="0">All</option></select></div>
     <div class="scroll"><table>
-      <thead><tr><th>Date</th><th>Invoice Number</th><th>Party Name</th><th class="hideSm">Items</th><th class="n">Amount</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th data-sort="at">Date</th><th>Invoice Number</th><th>Party Name</th><th class="hideSm">Items</th><th class="n" data-sort="total">Amount</th><th>Status</th><th></th></tr></thead>
       <tbody id="billRows"></tbody>
     </table></div>
   </section>
 
   <section class="panel hide" id="tab-stock">
     <div class="cards" id="itemCards"></div>
-    <input type="search" id="sq" placeholder="Search stock or scan a barcode…" autocomplete="off">
-    <label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="sCheck"> Only items that need checking</label>
-    <div class="repDates" id="stockTools"><button class="tbtn" id="addItem">Add item</button><button class="tbtn" id="linkItems">Link website items</button><button class="tbtn" id="printLabels">Print labels for ticked items</button><label class="sub">Labels each <input type="number" id="lblCount" value="1" min="1" max="200" style="width:64px"></label></div>
+    <div class="filters"><input type="search" id="sq" placeholder="Search by name, code or scan a barcode" autocomplete="off">
+      <select id="sCat" aria-label="Category"><option value="">All Categories</option><option>Clothing</option><option>Footwear</option><option>Fragrances</option><option>Accessories</option></select>
+      <button class="tbtn" id="sLow">Low Stock</button>
+      <span id="stockTools" class="filters" style="margin:0;margin-left:auto"><select id="bulk" aria-label="Bulk Actions"><option value="">Bulk Actions</option><option value="labels">Print labels (ticked items)</option><option value="link">Link website items</option></select>
+      <label class="sub">Labels each <input type="number" id="lblCount" value="1" min="1" max="200" style="width:60px"></label>
+      <button class="primary" id="addItem">Create Item</button></span></div>
+    <label class="sub" style="display:block;margin-bottom:8px"><input type="checkbox" id="sCheck"> Only items that need checking</label>
     <div id="itemBox"></div>
     <p class="sub">Changes here show on the website and in WhatsApp straight away. Use it for new stock coming in and stock counts. Sales go through <b>Create Sales Invoice</b>.</p>
     <div class="scroll"><table>
-      <thead><tr><th></th><th>Item Name</th><th>Item Code</th><th class="n">Stock QTY</th><th class="n">Selling Price</th><th class="n" id="thCost">Purchase Price</th><th class="n">MRP</th><th></th></tr></thead>
+      <thead><tr><th></th><th data-sort="name">Item Name</th><th>Item Code</th><th class="n" data-sort="qty">Stock QTY</th><th class="n">Selling Price</th><th class="n" id="thCost">Purchase Price</th><th class="n">MRP</th><th></th></tr></thead>
       <tbody id="stockRows"></tbody>
     </table></div>
   </section>
@@ -445,11 +464,13 @@
   // ---- Bills ----
   const SRC = { counter: "Counter", whatsapp: "WhatsApp", website: "Website" };
   const PAY = { cash: "Cash", upi: "UPI", card: "Card", credit: "Credit" };
+  let billSort = "at", billDir = -1;
   function renderBills() {
     if (today) $("summary").innerHTML = `<div>Today<b>${inr(today.total)}</b></div><div>Bills<b>${today.bills}</b></div><div>Pieces<b>${today.pieces}</b></div>` +
       Object.entries(today.byPayment).map(([k, v]) => `<div>${PAY[k] || k}<b>${inr(v)}</b></div>`).join("");
     const q = $("bq").value.trim().toLowerCase();
-    const list = invoices.filter((x) => !q || `${x.number} ${x.customer.name} ${x.customer.phone} ${x.order || ""} ${x.lines.map((l) => l.name + " " + l.code).join(" ")}`.toLowerCase().includes(q)).slice(0, 200);
+    const days = Number($("bRange").value), since = days ? Date.now() - days * 864e5 : 0;
+    const list = invoices.filter((x) => new Date(x.at) >= since).sort((a, b) => billDir * (billSort === "total" ? a.total - b.total : a.at.localeCompare(b.at))).filter((x) => !q || `${x.number} ${x.customer.name} ${x.customer.phone} ${x.order || ""} ${x.lines.map((l) => l.name + " " + l.code).join(" ")}`.toLowerCase().includes(q)).slice(0, 200);
     $("billRows").innerHTML = list.length ? list.map((x) => { const due = x.total - (x.paid ?? x.total); return `<tr class="${x.status}">
       <td>${new Date(x.at).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" })}</td>
       <td><b>${esc(x.number)}</b>${x.source !== "counter" ? `<div><span class="src ${x.source}">${SRC[x.source] || x.source}</span></div>` : ""}</td>
@@ -470,18 +491,21 @@
     });
   }
   $("bq").oninput = renderBills;
+  $("bRange").onchange = renderBills;
+  document.querySelectorAll("#tab-bills th[data-sort]").forEach((th) => (th.onclick = () => { if (billSort === th.dataset.sort) billDir = -billDir; else { billSort = th.dataset.sort; billDir = -1; } renderBills(); }));
 
   // ---- Stock ----
   let editing = null; // don't redraw the row being typed in
   const picks = new Set(); // items ticked for labels
+  let stockSort = "name", stockDir = 1, lowOnly = false;
   $("addItem").onclick = () => window.VX.itemForm(null);
-  $("linkItems").onclick = () => window.VX.linkPanel();
-  $("printLabels").onclick = () => window.VX.printLabels([...picks]).catch((e) => toast(e.message));
+
   function renderStock() {
     const q = $("sq").value.trim().toLowerCase();
-    const check = $("sCheck").checked;
+    const check = $("sCheck").checked, cat = $("sCat").value;
     const list = products.filter((p) => (!check || p.needsCount || p.needsName || !p.price) && (!q || `${p.code} ${p.barcode || ""} ${p.name} ${p.brand || ""} ${p.category || ""}`.toLowerCase().includes(q)))
-      .sort((a, b) => String(a.name).localeCompare(String(b.name))).slice(0, 300);
+      .filter((p) => (!cat || p.category === cat) && (!lowOnly || (stockOf(p) > 0 && stockOf(p) <= (p.reorderAt ?? 1))))
+      .sort((a, b) => stockDir * (stockSort === "qty" ? stockOf(a) - stockOf(b) : String(a.name).localeCompare(String(b.name)))).slice(0, 400);
     $("stockRows").innerHTML = list.length ? list.map((p) => `<tr>
       <td><input type="checkbox" data-pick="${esc(p.id)}" ${picks.has(p.id) ? "checked" : ""} aria-label="Pick ${esc(p.name)}"></td>
       <td><div class="name">${esc(p.name)}</div><div class="sub">#${esc(p.code)} ${stockPill(p)}${p.hidden ? ` <span class="pill low">Not on website</span>` : ""}${p.needsCount ? ` <span class="pill out">Count this</span>` : ""}${p.needsName ? ` <span class="pill out">Needs a name</span>` : ""}</div></td>
@@ -509,6 +533,10 @@
   }
   $("sq").oninput = renderStock;
   $("sCheck").onchange = renderStock;
+  $("sCat").onchange = renderStock;
+  $("sLow").onclick = () => { lowOnly = !lowOnly; $("sLow").classList.toggle("on", lowOnly); renderStock(); };
+  $("bulk").onchange = (e) => { const v = e.target.value; e.target.value = ""; if (v === "link") window.VX.linkPanel(); if (v === "labels") window.VX.printLabels([...picks]).catch((err) => toast(err.message)); };
+  document.querySelectorAll("#tab-stock th[data-sort]").forEach((th) => (th.onclick = () => { if (stockSort === th.dataset.sort) stockDir = -stockDir; else { stockSort = th.dataset.sort; stockDir = 1; } renderStock(); }));
 
   function render() {
     if (today) $("todayBox").innerHTML = `Today <b>${inr(today.total)}</b> · ${today.bills} bill${today.bills === 1 ? "" : "s"}`;

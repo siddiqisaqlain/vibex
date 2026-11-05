@@ -441,7 +441,7 @@ _Faster:_ put it all in the caption, e.g. _Zara shirt 1499 M L_, and it's one ta
 *More came in:* _add 4795 3_
 *Set stock:* _stock 4795 5_
 *Wrong section:* _move 4795 perfume_ (or clothes, shoes, accessory)
-*Take down:* _remove 4795_
+*Take off the website (stays in stock):* _remove 4795_
 *Sizes:* _sizes 4795 50ml 2999 100ml 4999_ (or _sizes 4795 M L XL_)
 *Description:* _desc 4795 your words_
 *Start over:* _clear_ drops every photo still waiting to be posted
@@ -776,11 +776,14 @@ async function ownerMessage(body) {
 
   if (parsed.type === "command") {
     const want = parsed.action === "restock" ? "sold" : parsed.action === "sold" ? "available" : null;
-    const target = findTarget(items, parsed.query, want);
+    // "remove" only takes things off the website, so it only looks at what's on the website.
+    const target = findTarget(parsed.action === "remove" ? items.filter(isPublic) : items, parsed.query, want);
     if (!target) return { reply: "I couldn't find that item on the website. Try a word from its name, like “sold puffer”." };
     if (parsed.action === "remove") {
-      save(items.filter((p) => p.id !== target.id));
-      return { reply: `🗑️ Removed “${target.name}” from the website.` };
+      // This is his inventory too, so the item stays for billing and its bills stay whole.
+      target.hidden = true;
+      save(items);
+      return { reply: `👁️ “${target.name}” is off the website. It's still in your stock for billing.\nTo show it again, tick *Show on website* in Items.` };
     }
     if (parsed.action === "sold") {
       if (target.status === "sold") return { reply: `“${target.name}” (#${target.code}) is already sold out.` };
@@ -1086,7 +1089,7 @@ function batchReply(text) {
   if (!items.length) return null;
   const raw = text.trim();
   const t = raw.replace(/^[^\p{L}\p{N}₹]+/u, "").trim();
-  if (items.some((x) => x.groupAsk)) return groupAnswer(queue, items, t);
+  if (items.some((x) => x.groupAsk)) return parseMessage(raw).type === "product" ? groupAnswer(queue, items, t) : null;
   const dropImage = (x) => { if (x.image) try { fs.unlinkSync(path.join(UPLOADS, path.basename(x.image))); } catch { /* gone */ } };
   const todo = items.filter((x) => batchMissing(x).length);
 
@@ -1112,6 +1115,7 @@ function batchReply(text) {
       savePending(queue);
       return step(queue[0], { fresh: true });
     }
+    if (parseMessage(raw).type !== "product") return null; // a real command ("sold 4795") still works while they wait
     return { ...batchSummary(items), reply: `Tap *Post all* to put them all live, or *Check each* to look at them one by one.` };
   }
 
@@ -1342,6 +1346,7 @@ function draftReply(text, hasImage) {
     if (DONE.test(raw) || CANCEL.test(raw) || CHANGE.test(raw) || (kind && (kind === "name" || /^[₹\d,.\/-]+$/.test(rest.join(""))))) return { reply: "Nothing is waiting right now. 📸 Send a product photo to put it on your website." };
     return null;
   }
+  if (item.batch) return null; // batchReply already passed on this text: it's a command, not an answer
   const l = item.listing;
   const nextUp = (out) => {
     if (!queue.length) return out;

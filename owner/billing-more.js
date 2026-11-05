@@ -13,12 +13,14 @@
       <div class="row3">${f("price", "Selling price ₹", "number")}${f("cost", "Purchase price ₹", "number")}${f("mrp", "MRP ₹", "number")}</div>
       <div class="row3">${f("barcode", "Barcode")}${f("sizes", "Sizes")}${f("reorderAt", "Alert when stock at", "number")}</div>
       <div class="row3">${f("hsn", "HSN code")}${f("gstRate", "GST % (blank = default)", "number")}${p ? "<div></div>" : f("quantity", "Opening stock", "number")}</div>
+      ${p ? `<label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="it-onWebsite" ${p.hidden ? "" : "checked"} ${p.image ? "" : "disabled"}> Show on website${p.image ? "" : " (needs a photo: send it on WhatsApp with the code)"}</label>` : ""}
       <div class="row2" style="margin-top:8px"><button class="big" id="itSave" style="margin:0">Save</button><button class="tbtn" id="itClose">Close</button></div><div class="err" id="itErr"></div></div>`;
     box.scrollIntoView({ block: "center" });
     $("itClose").onclick = () => (box.innerHTML = "");
     $("itSave").onclick = async () => {
       const b = {};
       for (const k of ["name", "category", "price", "cost", "mrp", "barcode", "sizes", "reorderAt", "hsn", "gstRate", "quantity"]) if ($(`it-${k}`)) b[k] = $(`it-${k}`).value;
+      if ($("it-onWebsite") && !$("it-onWebsite").disabled) b.onWebsite = $("it-onWebsite").checked;
       try {
         await api(p ? `/api/billing/items/${p.id}` : "/api/billing/items", { method: "POST", body: JSON.stringify(b) });
         box.innerHTML = ""; toast(p ? "Saved." : "Added. It stays off the website until it has a photo."); await window.VX.reload();

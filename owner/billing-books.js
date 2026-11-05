@@ -83,7 +83,7 @@
         <label><input type="radio" name="ptype" value="supplier" ${partyType === "supplier" ? "checked" : ""}><span>Suppliers</span></label>
       </div>
       <input type="search" id="psearch" placeholder="Search name or mobile…" value="${esc(partySearch)}" style="margin-top:10px" autocomplete="off">
-      <details class="form"><summary>Add ${partyType}</summary>
+      <details class="form"><summary>Create Party</summary>
         <div class="row2"><input id="pName" placeholder="Name"><input id="pPhone" type="tel" placeholder="Mobile"></div>
         <div class="row2"><input id="pGst" placeholder="GSTIN (optional)"><input id="pOpen" type="number" placeholder="${partyType === "customer" ? "Already owes you ₹" : "You already owe ₹"}"></div>
         <div class="row2"><input id="pAddr" placeholder="Address"><input id="pLimit" type="number" placeholder="Credit limit ₹ (optional)"></div>
@@ -116,7 +116,7 @@
       ${remind ? `<a class="tbtn" href="${remind}" target="_blank" rel="noopener">Send WhatsApp reminder</a>` : ""}
       <button class="tbtn" id="shareLedger">${p.shareToken ? "Stop sharing ledger" : "Share ledger link"}</button>
       ${p.shareToken ? `<p class="sub">Anyone with this link can see this ledger: <a href="/l/${p.shareToken}" target="_blank" rel="noopener">${esc(location.origin)}/l/${p.shareToken}</a></p>` : ""}
-      <details class="form" open><summary>${direction === "in" ? "Record payment received" : "Record payment made"}</summary>
+      <details class="form"><summary>${direction === "in" ? "Payment In" : "Payment Out"}</summary>
         <div class="row2"><input id="payAmt" type="number" min="1" placeholder="Amount ₹"><input id="payDay" type="date" value="${today()}" max="${today()}"></div>
         ${modePick("payMode")}
         <input id="payNote" placeholder="Note (optional)" style="margin-top:8px">
@@ -147,7 +147,7 @@
     const name = new Map(ps.map((x) => [x.id, x.name]));
     $("tab-purchases").innerHTML = `
       ${sup.length ? "" : `<p class="sub">Add a supplier under Parties first.</p>`}
-      <details class="form" open><summary>New purchase</summary>
+      <details class="form"><summary>Create Purchase Invoice</summary>
         <div class="row2"><select id="buySup"><option value="">Supplier…</option>${sup.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select><input id="buyBill" placeholder="Supplier's bill no."></div>
         <input id="buyDay" type="date" value="${today()}" max="${today()}" style="margin-top:8px">
         <label class="sub" style="display:block;margin-top:8px">Scan the supplier's bill (photo)<input type="file" id="buyScan" accept="image/jpeg,image/png,image/webp"></label><div class="sub" id="buyScanMsg"></div>
@@ -214,7 +214,7 @@
   async function expenses() {
     const { list, types } = await api("/api/billing/expenses");
     $("tab-expenses").innerHTML = `
-      <details class="form" open><summary>Add expense</summary>
+      <details class="form"><summary>Create Expense</summary>
         <div class="row2"><select id="exType">${types.map((t) => `<option>${esc(t)}</option>`).join("")}</select><input id="exAmt" type="number" min="1" placeholder="Amount ₹"></div>
         <div class="row2"><input id="exDay" type="date" value="${today()}" max="${today()}"><input id="exNote" placeholder="Note (optional)"></div>
         ${modePick("exMode")}

@@ -27,14 +27,14 @@
     const shown = list.filter((d) => d.kind === kind);
     const who = parties.filter((p) => p.type === (buying ? "supplier" : "customer"));
     $("tab-docs").innerHTML = `
-      ${kind === "dispatch" ? `<details class="form" open><summary>New Dispatch Note</summary>
+      ${kind === "dispatch" ? `<details class="form"><summary>Create Dispatch Note</summary>
         <p class="sub">A shipping slip from a bill. It isn't a government e-way bill.</p>
         <div class="row2"><input id="dpBill" placeholder="Bill number, e.g. 7651"><input id="dpCourier" placeholder="Courier or transporter"></div>
         <div class="row2"><input id="dpTrack" placeholder="Tracking or LR number"><input id="dpVehicle" placeholder="Vehicle number (optional)"></div>
         <div class="row2"><input id="dpPack" type="number" min="1" value="1" aria-label="Packages"><input id="dpWeight" placeholder="Weight, e.g. 2 kg"></div>
         <input id="dpTo" placeholder="Ship to (blank = address on the bill)" style="margin-top:8px">
         <button class="big" id="dpSave">Save</button><div class="err" id="dpErr"></div>
-      </details>` : `<details class="form" open><summary>New ${esc(KINDS.find((k) => k[0] === kind)[1])}</summary>
+      </details>` : `<details class="form" ${lines.length ? "open" : ""}><summary>Create ${esc(KINDS.find((k) => k[0] === kind)[1])}</summary>
         <div class="row2"><select id="dParty"><option value="">${buying ? "Supplier…" : "Saved customer (optional)…"}</option>${who.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>${buying ? `<div></div>` : `<input id="dName" placeholder="Or type a name">`}</div>
         ${kind === "quotation" ? `<label class="sub" style="display:block;margin-top:8px">Valid until<input type="date" id="dValid" min="${today()}"></label>` : ""}
         <input type="search" id="dQ" placeholder="Scan or type an item…" style="margin-top:8px" autocomplete="off">
@@ -105,7 +105,7 @@
     const shown = list.filter((r) => r.kind === rtype);
     const sale = rtype === "sale_return";
     $("tab-returns").innerHTML = `
-      <details class="form" open><summary>New ${esc(RTYPES.find((r) => r[0] === rtype)[1])}</summary>
+      <details class="form"><summary>Create ${esc(RTYPES.find((r) => r[0] === rtype)[1])}</summary>
       ${goods ? `<div class="row2"><input id="rFind" placeholder="${sale ? "Bill number, e.g. 7651" : "Purchase number, e.g. PB/26-27/0001"}"><button class="tbtn" id="rLoad">Find</button></div><div id="rLines"></div>
         <div class="row2" style="margin-top:8px"><input id="rRefund" type="number" min="0" placeholder="${sale ? "Money paid back ₹" : "Money received back ₹"}"><div></div></div>${pills("rmode", MODES, "cash")}`
       : `<div class="row2"><select id="rParty"><option value="">Party…</option>${parties.filter((p) => p.type === (rtype === "credit_note" ? "customer" : "supplier")).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select><input id="rAmt" type="number" min="1" placeholder="Amount ₹"></div>`}
@@ -139,8 +139,11 @@
     $("rLines").innerHTML = `<p class="sub">${esc(src.customer?.name || "")} · ${inr(src.total)}</p>` + src.lines.map((l) => `<div class="line"><div class="grow"><div class="name">${esc(l.name)}</div><div class="sub">${l.qty} on ${sale ? "bill" : "purchase"} · ${inr(l.amount / l.qty)} each</div></div><label class="sub">Back<input class="rate" type="number" min="0" max="${l.qty}" value="0" data-rq="${esc(l.productId)}"></label></div>`).join("");
   }
 
-  // ---- Reports ----
-  let groups = null, current = null;
+  // ---- Reports: a grid of report names with filter chips, like the screen he knows ----
+  const TAGS = { party: ["parties", "ageing", "category"], category: ["category"], payment: ["cash", "daybook", "parties", "ageing"], item: ["items", "stock", "low", "rate"], invoice: ["sales", "daily", "daybook"], summary: ["items", "stock", "category", "sales"] };
+  const CHIPS = [["party", "Party"], ["category", "Category"], ["payment", "Payment Collection"], ["item", "Item"], ["invoice", "Invoice Details"], ["summary", "Summary"]];
+  const COLUMNS = [["Favourite", ["balance", "pnl"]], ["GST", ["gstr1b2b", "gstr1b2c", "hsn", "gstr3b"]], ["Transaction", ["cash", "daybook", "sales", "daily"]], ["Item", ["items", "low", "rate", "stock"]], ["Party", ["ageing", "parties", "category"]]];
+  let groups = null, current = null, chip = "";
   const range = { from: "", to: "" };
   function setPreset(p) {
     const t = today(), y = Number(t.slice(0, 4)), m = Number(t.slice(5, 7));
@@ -149,25 +152,35 @@
     if (p === "fy") { const s = m >= 4 ? y : y - 1; range.from = `${s}-04-01`; range.to = t; }
     if (p === "all") { range.from = ""; range.to = ""; }
   }
-  async function reports() {
+  async function reports(sub) {
     groups ||= await api("/api/billing/reports");
-    if (!current) { current = "daily"; setPreset("month"); }
+    if (sub === undefined && !reports.inner) current = null;
+    reports.inner = false;
+    if (!current) {
+      const names = Object.fromEntries(groups.flatMap(([, l]) => l));
+      const show = (k) => !chip || TAGS[chip].includes(k);
+      $("tab-reports").innerHTML = `<div class="chips"><span class="sub">Filter By</span>${CHIPS.map(([k, l]) => `<button class="chip ${chip === k ? "on" : ""}" data-chip="${k}">${l}${chip === k ? " ×" : ""}</button>`).join("")}</div>
+        <div class="repCols">${COLUMNS.map(([t, keys]) => { const list = keys.filter(show); return `<div><h3>${t}</h3>${list.length ? list.map((k) => `<button class="repBtn" data-rep="${k}">${esc(names[k])}</button>`).join("") : `<p class="sub">No Reports Found</p>`}</div>`; }).join("")}</div>`;
+      document.querySelectorAll("[data-chip]").forEach((b) => (b.onclick = () => { chip = chip === b.dataset.chip ? "" : b.dataset.chip; reports(); }));
+      document.querySelectorAll("[data-rep]").forEach((b) => (b.onclick = () => { current = b.dataset.rep; setPreset("month"); reports.inner = true; reports(); }));
+      return;
+    }
     const q = new URLSearchParams(Object.entries(range).filter(([, v]) => v)).toString();
     const rep = await api(`/api/billing/reports/${current}?${q}`);
     const cell = (c, r) => (c.type === "money" && r[c.key] !== "" ? inr(r[c.key]) : esc(r[c.key] ?? ""));
+    const again = () => { reports.inner = true; reports(); };
     $("tab-reports").innerHTML = `
-      <div class="repGrid"><aside>${groups.map(([g, list]) => `<h3>${esc(g)}</h3>${list.map(([k, l]) => `<button class="repBtn ${k === current ? "on" : ""}" data-rep="${k}">${esc(l)}</button>`).join("")}`).join("")}</aside>
-      <div class="grow"><div class="repHead"><h2>${esc(rep.title)}</h2><button class="tbtn" id="repCsv">Download Excel</button></div>
-        ${rep.noDates ? "" : `<div class="repDates"><button class="tbtn" data-pre="today">Today</button><button class="tbtn" data-pre="month">This month</button><button class="tbtn" data-pre="fy">This year</button><button class="tbtn" data-pre="all">All</button><input type="date" id="repFrom" value="${range.from}" aria-label="From"><input type="date" id="repTo" value="${range.to}" aria-label="To"></div>`}
-        ${rep.note ? `<p class="sub">${esc(rep.note)}</p>` : ""}
-        <div class="scroll"><table><thead><tr>${rep.columns.map((c) => `<th class="${c.type ? "n" : ""}">${esc(c.label)}</th>`).join("")}</tr></thead><tbody>
-        ${rep.rows.length ? rep.rows.map((r) => `<tr>${rep.columns.map((c) => `<td class="${c.type ? "n" : ""}">${cell(c, r)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${rep.columns.length}" class="empty">Nothing for these dates.</td></tr>`}
-        ${rep.totals && rep.rows.length ? `<tr>${rep.columns.map((c, i) => `<td class="${c.type ? "n" : ""}"><b>${c.key in rep.totals ? cell(c, rep.totals) : i === 0 ? "Total" : ""}</b></td>`).join("")}</tr>` : ""}
-        </tbody></table></div></div></div>`;
-    document.querySelectorAll("[data-rep]").forEach((b) => (b.onclick = () => { current = b.dataset.rep; reports(); }));
-    document.querySelectorAll("[data-pre]").forEach((b) => (b.onclick = () => { setPreset(b.dataset.pre); reports(); }));
-    if ($("repFrom")) { $("repFrom").onchange = (e) => { range.from = e.target.value; reports(); }; $("repTo").onchange = (e) => { range.to = e.target.value; reports(); }; }
+      <div class="repHead"><div class="repTitle"><button class="tbtn" id="repBack" aria-label="Back to reports">←</button><h2>${esc(rep.title)}</h2></div><div><button class="tbtn" id="repCsv">Download Excel</button> <button class="tbtn" id="repPrint">Print PDF</button></div></div>
+      ${rep.noDates ? "" : `<div class="repDates"><select id="repRange" aria-label="Date range"><option value="">Choose dates</option><option value="today">Today</option><option value="month">This Month</option><option value="fy">Current Fiscal Year</option><option value="all">All</option></select><input type="date" id="repFrom" value="${range.from}" aria-label="From"><input type="date" id="repTo" value="${range.to}" aria-label="To"></div>`}
+      ${rep.note ? `<p class="sub">${esc(rep.note)}</p>` : ""}
+      <div class="scroll"><table><thead><tr>${rep.columns.map((c) => `<th class="${c.type ? "n" : ""}">${esc(c.label)}</th>`).join("")}</tr></thead><tbody>
+      ${rep.rows.length ? rep.rows.map((r) => `<tr>${rep.columns.map((c) => `<td class="${c.type ? "n" : ""}">${cell(c, r)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${rep.columns.length}" class="empty">No transactions available to generate report</td></tr>`}
+      ${rep.totals && rep.rows.length ? `<tr>${rep.columns.map((c, i) => `<td class="${c.type ? "n" : ""}"><b>${c.key in rep.totals ? cell(c, rep.totals) : i === 0 ? "Total" : ""}</b></td>`).join("")}</tr>` : ""}
+      </tbody></table></div>`;
+    $("repBack").onclick = () => { current = null; reports(); };
+    if ($("repRange")) { $("repRange").onchange = (e) => { if (e.target.value) { setPreset(e.target.value); again(); } }; $("repFrom").onchange = (e) => { range.from = e.target.value; again(); }; $("repTo").onchange = (e) => { range.to = e.target.value; again(); }; }
     $("repCsv").onclick = () => download(`/api/billing/reports/${current}.csv?${q}`, `vibex-${current}.csv`).catch((e) => toast(e.message));
+    $("repPrint").onclick = () => print();
   }
 
   Object.assign(window.VX.tabs, { docs: documents, returns, reports });
