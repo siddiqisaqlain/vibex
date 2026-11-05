@@ -10,7 +10,8 @@
     const f = (k, label, type = "text") => `<label class="sub">${label}<input id="it-${k}" type="${type}" value="${esc(p?.[k] ?? "")}"></label>`;
     box.innerHTML = `<div class="form"><b>${p ? `Edit #${esc(p.code)}` : "New item"}</b>
       <div class="row2">${f("name", "Name")}<label class="sub">Section<select id="it-category">${CATS.map((c) => `<option ${(p?.category || "Clothing") === c ? "selected" : ""}>${c}</option>`).join("")}</select></label></div>
-      <div class="row3">${f("price", "Selling price ₹", "number")}${f("cost", "Purchase price ₹", "number")}${f("mrp", "MRP ₹", "number")}</div>
+      <div class="row3">${f("mrp", "Actual price (MRP)", "number")}${f("price", "Selling price ₹", "number")}${f("cost", "Purchase price ₹", "number")}</div>
+      <p class="sub" id="it-offer" style="margin:4px 0 0"></p>
       <div class="row3">${f("barcode", "Barcode")}<label class="sub">Sizes<input id="it-sizes" value="${esc(p?.sizePrices ? Object.entries(p.sizePrices).map(([s, v]) => `${s} ${v}`).join(" · ") : p?.sizes ?? "")}" placeholder="50ml 2999 100ml 4999"></label>${f("reorderAt", "Alert when stock at", "number")}</div>
       <p class="sub" style="margin:4px 0 0">Perfume sizes: type <b>100ml</b> for one size, or <b>50ml 2999 100ml 4999</b> for a price on each. Those prices replace the selling price above.</p>
       <div id="it-sizeRows"></div>
@@ -34,6 +35,17 @@
     };
     $("it-sizes").oninput = drawSizes;
     drawSizes();
+    // What the website will show, redrawn as the prices change. Same sum as offPct in shop.js.
+    const drawOffer = () => {
+      const mrp = Number($("it-mrp").value), price = Number($("it-price").value), line = $("it-offer");
+      const priced = ($("it-sizes").value.match(/\d\s?mls?\s*[-:=@]?\s*(?:₹|rs\.?)?\s*\d{2}/gi) || []).length > 1; // "50ml 2999 100ml 4999"
+      if (!mrp) line.textContent = "No offer on the website. Enter the actual price to show one.";
+      else if (priced) line.textContent = "No offer badge: this item has a different price for each size.";
+      else if (!price || mrp <= price) line.textContent = "No offer on the website: the actual price must be higher than the selling price.";
+      else line.innerHTML = `Website shows: <b>${Math.round((1 - price / mrp) * 100)}% OFF</b>, ₹${price.toLocaleString("en-IN")} <s>₹${mrp.toLocaleString("en-IN")}</s>`;
+    };
+    for (const k of ["mrp", "price", "sizes"]) $(`it-${k}`).addEventListener("input", drawOffer);
+    drawOffer();
     $("itClose").onclick = () => (box.innerHTML = "");
     $("itSave").onclick = async () => {
       const b = {};

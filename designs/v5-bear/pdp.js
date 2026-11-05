@@ -59,7 +59,7 @@
           <h1>${esc(p.name)}</h1>
           <div class="pdp-price">
             <b>${price ? `${from ? "From " : ""}${rupees(price)}` : "Ask for price"}</b>
-            ${off ? `<s>${rupees(p.mrp)}</s><span class="off">−${off}% vs retail</span>` : ""}
+            ${off ? `<s>${rupees(p.mrp)}</s><span class="off">${off}% OFF</span>` : ""}
           </div>
           <p class="pdp-desc">${esc(p.description)}</p>
           ${sizePicker(p)}

@@ -227,7 +227,7 @@ section.range, section.vid, section.rack, section.find, section.looks, section.h
 .lot { display: none; }
 .badges { position: absolute; top: 10px; left: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
 .badge { padding: 6px 9px; border-radius: 999px; background: var(--paper); color: var(--ink); font: 500 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em; }
-.badge:first-child:not(.badge-low) { background: var(--ink); color: var(--paper); }
+.badge:first-child:not(.badge-low):not(.badge-off) { background: var(--ink); color: var(--paper); }
 .badge-low { background: var(--red); color: #fff; }
 .info { padding: 14px 2px 0; display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .brand { font: 500 10.5px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
@@ -773,3 +773,5 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .vx-hi form button { flex: none; height: 40px; padding: 0 14px; border: 0; border-radius: var(--r); background: var(--ink); color: var(--paper); font: 500 13px/1 var(--body); cursor: pointer; }
 @media (max-width: 760px) { .vx-hi { left: 10px; right: 10px; width: auto; bottom: calc(92px + env(safe-area-inset-bottom)); } }
 @media (prefers-reduced-motion: reduce) { .vx-hi { transition: opacity .2s; transform: none; } .vx-hi-wave { animation: none; } }
+.badge-off { background: var(--red); color: #fff; font-weight: 700; font-size: 11px; }
+.pdp-price .off { padding: 4px 9px; border-radius: 999px; background: var(--red); color: #fff; font: 600 12px/1 var(--mono); }

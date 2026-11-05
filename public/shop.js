@@ -245,6 +245,8 @@
   // Badges only say what is true right now: fresh posts and real stock counts.
   function badges(p) {
     const out = [];
+    const off = offPct(p);
+    if (off && !manyPrices(p) && p.status === "available") out.push(`<span class="badge badge-off">${off}% OFF</span>`);
     if (isNew(p)) out.push(`<span class="badge">${hoursOld(p) < 24 ? "New today" : "Just in"}</span>`);
     if (p.status === "available") {
       if (p.quantity >= 2 && p.quantity <= 3) out.push(`<span class="badge badge-low">Only ${p.quantity} left</span>`);
