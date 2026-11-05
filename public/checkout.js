@@ -13,7 +13,8 @@ window.VXCheckout = (() => {
   const COPY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
 
   function upiLink(amount, note) {
-    const q = new URLSearchParams({ pa: PAY.upiId, pn: PAY.payee, am: String(amount), cu: "INR", tn: note });
+    // A bank merchant ID wants the name and terminal printed in its own QR (shop.json: upiName, upiRef).
+    const q = new URLSearchParams({ pa: PAY.upiId, pn: PAY.upiName || PAY.payee, ...(PAY.upiRef ? { tr: PAY.upiRef } : {}), am: String(amount), cu: "INR", tn: note });
     return `upi://pay?${q.toString().replace(/\+/g, "%20")}`;
   }
 

@@ -39,8 +39,10 @@
     "_note": "Real details from the owner (2026-11-04). Bank fields empty = the Bank transfer option is hidden. Courier charge varies by location (shippingFee null = confirmed on WhatsApp before dispatch).",
     "demo": false,
     "payee": "Vibe X",
-    "upiId": "7006656599@ibl",
-    "qrImage": "",
+    "upiId": "JKBMERC00449997@jkb",
+    "upiName": "JKBANK MERCHANT",
+    "upiRef": "TERM00449997",
+    "qrImage": "/pay-qr.jpg",
     "phone": "+91 70066 56599",
     "bank": {
       "accountName": "",
