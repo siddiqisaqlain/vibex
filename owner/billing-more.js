@@ -5,10 +5,10 @@
 
   // ---- Add or edit an item ----
   const CATS = ["Clothing", "Footwear", "Fragrances", "Accessories"];
-  function itemForm(p) {
+  function itemForm(p, newName = "") {
     const box = $("itemBox");
     const f = (k, label, type = "text") => `<label class="sub">${label}<input id="it-${k}" type="${type}" value="${esc(p?.[k] ?? "")}"></label>`;
-    box.innerHTML = `<div class="form"><b>${p ? `Edit #${esc(p.code)}` : "New item"}</b>
+    box.innerHTML = `<details class="form" open><summary>${p ? `Edit #${esc(p.code)}` : "New item"}</summary><div>
       <div class="row2">${f("name", "Name")}<label class="sub">Section<select id="it-category">${CATS.map((c) => `<option ${(p?.category || "Clothing") === c ? "selected" : ""}>${c}</option>`).join("")}</select></label></div>
       <div class="row3">${f("mrp", "Actual price (MRP)", "number")}${f("price", "Selling price ₹", "number")}${f("cost", "Purchase price ₹", "number")}</div>
       <p class="sub" id="it-offer" style="margin:4px 0 0"></p>
@@ -18,8 +18,8 @@
       <div class="row3">${f("hsn", "HSN code")}${f("gstRate", "GST % (blank = default)", "number")}${p ? "<div></div>" : f("quantity", "Opening stock", "number")}</div>
       ${p ? `<label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="it-onWebsite" ${p.hidden ? "" : "checked"} ${p.image ? "" : "disabled"}> Show on website${p.image ? "" : " (needs a photo: send it on WhatsApp with the code)"}</label>
       <label class="sub" style="display:block;margin-top:4px"><input type="checkbox" id="it-featured" ${p.featured ? "checked" : ""}> Feature on home page (beside the video, up to 6)</label>` : ""}
-      <div class="row2" style="margin-top:8px"><button class="big" id="itSave" style="margin:0">Save</button><button class="tbtn" id="itClose">Close</button></div><div class="err" id="itErr"></div></div>`;
-    box.scrollIntoView({ block: "center" });
+      <button class="big" id="itSave">Save</button><div class="err" id="itErr"></div></div></details>`;
+    if (newName) $("it-name").value = newName;
     // A stock box for each size, redrawn as the Sizes field changes. Blank boxes keep one shared count.
     const typed = { ...(p?.sizeStock || {}) };
     const sizeNames = (t) => {
@@ -46,7 +46,6 @@
     };
     for (const k of ["mrp", "price", "sizes"]) $(`it-${k}`).addEventListener("input", drawOffer);
     drawOffer();
-    $("itClose").onclick = () => (box.innerHTML = "");
     $("itSave").onclick = async () => {
       const b = {};
       for (const k of ["name", "category", "price", "cost", "mrp", "barcode", "sizes", "reorderAt", "hsn", "gstRate", "quantity"]) if ($(`it-${k}`)) b[k] = $(`it-${k}`).value;
@@ -56,7 +55,7 @@
       if (boxes.length) b.sizeStock = boxes.some((i) => i.value !== "") ? Object.fromEntries(boxes.map((i) => [i.dataset.ss, i.value])) : {};
       try {
         await api(p ? `/api/billing/items/${p.id}` : "/api/billing/items", { method: "POST", body: JSON.stringify(b) });
-        box.innerHTML = ""; toast(p ? "Saved." : "Added. It stays off the website until it has a photo."); await window.VX.reload();
+        window.VX.closeDrawer(); toast(p ? "Saved." : "Added. It stays off the website until it has a photo."); await window.VX.reload();
       } catch (e) { $("itErr").textContent = e.message; }
     };
   }
@@ -68,17 +67,14 @@
   window.VX.linkPanel = async () => {
     const items = await api("/api/billing/products");
     const web = items.filter((p) => !p.hidden && !p.importKey), stock = items.filter((p) => p.hidden);
-    const box = $("itemBox");
-    if (!web.length) { box.innerHTML = `<div class="form"><b>All website items are linked.</b></div>`; return; }
-    if (!stock.length) { box.innerHTML = `<div class="form"><b>Import his stock first.</b><p class="sub">There are no imported items to link to yet.</p></div>`; return; }
+    if (!web.length) return toast("All website items are linked.");
+    if (!stock.length) return toast("Import the stock list first. There's nothing to link to yet.");
     const options = (p) => {
       const ranked = stock.map((s) => ({ s, n: overlap(p.name, s.name) })).sort((a, b) => b.n - a.n || a.s.name.localeCompare(b.s.name));
       return ranked.map(({ s, n }) => `<option value="${esc(s.id)}">${n ? "★ " : ""}${esc(s.name)} (${s.quantity} pcs, ₹${esc(s.price ?? "-")})</option>`).join("");
     };
-    box.innerHTML = `<div class="form"><b>Link website items</b><p class="sub">Pick the same item from his stock. The website keeps its photo and price, and takes the real stock count and barcode. ★ means a similar name. Check each one before linking: it can't be undone from here.</p>
-      <div class="scroll"><table><tbody>${web.map((p) => `<tr><td><div class="thumb" style="${p.image ? `background-image:url('${esc(p.image)}')` : ""}"></div></td><td><div class="name" style="white-space:normal">${esc(p.name)}</div><div class="sub">${inr(p.price)} · ${p.quantity ?? 1} on website</div></td><td><select data-lk="${esc(p.id)}"><option value="">Choose stock item…</option>${options(p)}</select></td><td class="n"><button class="tbtn" data-lkgo="${esc(p.id)}">Link</button></td></tr>`).join("")}</tbody></table></div>
-      <button class="tbtn" id="lkClose" style="margin-top:8px">Close</button></div>`;
-    $("lkClose").onclick = () => (box.innerHTML = "");
+    const box = window.VX.drawer("Link website items", `<p class="sub">Pick the same item from his stock. The website keeps its photo and price, and takes the real stock count and barcode. ★ means a similar name. Check each one before linking: it can't be undone from here.</p>
+      <div class="scroll"><table><tbody>${web.map((p) => `<tr><td><div class="thumb" style="${p.image ? `background-image:url('${esc(p.image)}')` : ""}"></div></td><td><div class="name" style="white-space:normal">${esc(p.name)}</div><div class="sub">${inr(p.price)} · ${p.quantity ?? 1} on website</div></td><td><select data-lk="${esc(p.id)}"><option value="">Choose stock item…</option>${options(p)}</select></td><td class="n"><button class="tbtn" data-lkgo="${esc(p.id)}">Link</button></td></tr>`).join("")}</tbody></table></div>`, { wide: true });
     box.querySelectorAll("[data-lkgo]").forEach((b) => (b.onclick = async () => {
       const stockId = box.querySelector(`[data-lk="${b.dataset.lkgo}"]`).value;
       if (!stockId) return toast("Choose the stock item first.");
@@ -106,14 +102,28 @@
         <label class="sub">Terms<input id="sTerms" value="${esc(s.terms)}"></label>
         <div class="row2"><label class="sub">Email<input id="sEmail" value="${esc(s.email)}"></label><label class="sub">YouTube<input id="sYt" value="${esc(s.youtube)}"></label></div>
         <div class="row2"><label class="sub">Theme<select id="sTheme">${THEMES.map(([v, l]) => `<option value="${v}" ${s.theme === v ? "selected" : ""}>${l}</option>`).join("")}</select></label><label class="sub">Logo ${s.logo ? "(set)" : "(none yet)"}<input type="file" id="sLogo" accept="image/png,image/jpeg,image/webp"></label></div>
-        <label class="sub">GSTIN<input id="sGst" value="${esc(s.gstin)}" placeholder="Blank until he registers"></label>
-        <p class="sub">Adding a GSTIN turns on tax invoices for new bills straight away. Check the rates and HSN codes with his CA first.</p>
+        <label class="sub">GSTIN<input id="sGst" value="${esc(s.gstin)}" placeholder="Blank until registered"></label>
+        <p class="sub">Adding a GSTIN turns on tax invoices for new bills straight away. Check the rates and HSN codes with a CA first.</p>
         <button class="big" id="sSave">Save</button><div class="err" id="sErr"></div></div>
       <div class="form"><b>Staff logins</b>
         <p class="sub">Staff can make bills and see stock. They can't see cost prices or profit, cancel bills, or open the other tabs.</p>
         <div class="row2"><input id="stName" placeholder="Name"><input id="stPin" type="password" inputmode="numeric" placeholder="PIN, 4 to 6 digits" autocomplete="new-password"></div>
         <button class="big" id="stAdd">Add staff</button><div class="err" id="stErr"></div>
-        <table style="margin-top:8px"><tbody>${people.length ? people.map((p) => `<tr><td>${esc(p.name)}</td><td class="n"><button class="tbtn danger" data-strm="${p.id}">Remove</button></td></tr>`).join("") : `<tr><td class="empty">No staff yet.</td></tr>`}</tbody></table></div>`;
+        <table style="margin-top:8px"><tbody>${people.length ? people.map((p) => `<tr><td>${esc(p.name)}</td><td class="n"><button class="tbtn danger" data-strm="${p.id}">Remove</button></td></tr>`).join("") : `<tr><td class="empty">No staff yet.</td></tr>`}</tbody></table></div>
+      <div class="form"><b>Printing on this device</b>
+        <div class="row2"><label class="sub">Paper<select id="prSize"><option value="a4">A4</option><option value="80">3-inch shop printer</option></select></label>
+        <label class="sub checkLine"><input type="checkbox" id="prAuto"> Print each bill as soon as it's saved</label></div></div>
+      <div class="form"><b>Backup</b>
+        <p class="sub">Download everything: items, bills, parties, payments, purchases, expenses, returns and orders. Keep a copy somewhere safe, away from the server.</p>
+        <button class="tbtn" id="backupGo">Download backup</button></div>
+      <div class="form onlyKeysBlock"><b>Keyboard shortcuts</b>
+        <table class="mini"><tbody><tr><td><kbd>F2</kbd></td><td>New bill</td></tr><tr><td><kbd>Ctrl K</kbd></td><td>Search everything</td></tr><tr><td><kbd>↑ ↓</kbd> <kbd>Enter</kbd></td><td>Pick an item while billing</td></tr><tr><td><kbd>Ctrl Enter</kbd></td><td>Create bill</td></tr><tr><td><kbd>Esc</kbd></td><td>Close a panel</td></tr></tbody></table></div>`;
+    const store = window.VX.store;
+    $("prSize").value = store.get("vx-print-size") || "a4";
+    $("prAuto").checked = store.get("vx-print-auto") === "1";
+    $("prSize").onchange = () => { store.set("vx-print-size", $("prSize").value); toast("Saved on this device."); };
+    $("prAuto").onchange = () => { store.set("vx-print-auto", $("prAuto").checked ? "1" : "0"); toast("Saved on this device."); };
+    $("backupGo").onclick = () => window.VX.download("/api/billing/backup", `vibex-backup-${window.VX.today()}.json`).catch((e) => toast(e.message, { bad: true }));
     $("sSave").onclick = async () => {
       try {
         const file = $("sLogo").files[0];
@@ -137,47 +147,50 @@
     const [list, parties] = await Promise.all([api("/api/billing/payments"), api("/api/billing/parties")]);
     const names = new Map(parties.map((p) => [p.id, p.name]));
     const shown = list.filter((p) => p.direction === dir);
+    // People you'd actually take this payment from, whoever owes the most first.
+    const who = parties.filter((p) => p.type === (dir === "in" ? "customer" : "supplier")).sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
+    const label = (p) => `${esc(p.name)}${p.balance ? ` (${p.balance > 0 ? "owes" : "you owe"} ${inr(Math.abs(p.balance))})` : ""}`;
     const dayFmt = (d) => new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
     const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
     $("tab-payments").innerHTML = `
       <details class="form"><summary>Create Payment ${dir === "in" ? "In" : "Out"}</summary>
-        <div class="row2"><select id="pyParty"><option value="">Party…</option>${parties.map((p) => `<option value="${p.id}">${esc(p.name)} (${inr(p.balance)})</option>`).join("")}</select><input id="pyAmt" type="number" min="1" placeholder="Amount ₹"></div>
-        <div class="row2"><input id="pyDay" type="date" value="${today}" max="${today}"><select id="pyMode"><option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option><option value="bank">Bank</option></select></div>
+        <div class="row2"><select id="pyParty"><option value="">Party…</option>${who.map((p) => `<option value="${p.id}">${label(p)}</option>`).join("")}</select><input id="pyAmt" type="number" min="1" placeholder="Amount ₹"></div>
+        <div class="row2"><input id="pyDay" type="date" value="${today}" max="${today}"><select id="pyMode" aria-label="Mode"><option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option><option value="bank">Bank</option></select></div>
         <input id="pyNote" placeholder="Note (optional)" style="margin-top:8px">
         <button class="big" id="pySave">Save</button><div class="err" id="pyErr"></div></details>
       <div class="scroll"><table><thead><tr><th>Date</th><th>Payment Number</th><th>Party Name</th><th>Mode</th><th class="n">Amount</th><th></th></tr></thead><tbody>
       ${shown.length ? shown.map((p) => `<tr class="${p.status === "cancelled" ? "cancelled" : ""}"><td>${dayFmt(p.day)}</td><td><b>${esc(p.number)}</b></td><td>${esc(names.get(p.partyId) || "")}</td><td>${esc(p.mode)}</td><td class="n"><b>${inr(p.amount)}</b></td><td class="n">${p.status === "cancelled" ? `<span class="sub">Cancelled</span>` : `<button class="tbtn danger" data-pcx="${p.id}">Cancel</button>`}</td></tr>`).join("") : `<tr><td colspan="6" class="empty">No payments yet.</td></tr>`}
       </tbody></table></div>`;
+    $("pyParty").onchange = () => { const p = who.find((x) => x.id === $("pyParty").value); if (p?.balance) $("pyAmt").value = Math.abs(p.balance); };
     $("pySave").onclick = async () => {
       try { await api("/api/billing/payments", { method: "POST", body: JSON.stringify({ direction: dir, partyId: $("pyParty").value, amount: $("pyAmt").value, day: $("pyDay").value, mode: $("pyMode").value, note: $("pyNote").value }) }); toast("Saved."); payments(); }
       catch (e) { $("pyErr").textContent = e.message; }
     };
     document.querySelectorAll("[data-pcx]").forEach((b) => {
-      const first = b.textContent;
-      b.onclick = async () => {
-        if (!b.classList.contains("sure")) { b.classList.add("sure"); b.textContent = "Tap again to cancel"; setTimeout(() => { b.classList.remove("sure"); b.textContent = first; }, 4000); return; }
-        await api(`/api/billing/payments/${b.dataset.pcx}/cancel`, { method: "POST", body: "{}" }); toast("Cancelled."); payments();
-      };
+      window.VX.twoTap(b, "Tap again to cancel", async () => { await api(`/api/billing/payments/${b.dataset.pcx}/cancel`, { method: "POST", body: "{}" }); toast("Cancelled."); await window.VX.reload(); payments(); });
     });
   }
 
   // ---- Online Orders: the website's orders, with the same confirm and cancel as WhatsApp ----
+  let orderView = "check";
   async function orders() {
     const list = await api("/api/billing/orders");
     const STATUS = { awaiting_payment: ["Awaiting payment", "low"], paid: ["Check payment", "low"], confirmed: ["Confirmed", ""], lapsed: ["Lapsed: back on sale", "out"], cancelled: ["Cancelled", "out"] };
-    $("tab-orders").innerHTML = `<div class="scroll"><table><thead><tr><th>Date</th><th>Order</th><th>Party Name</th><th>Item</th><th class="n">Amount</th><th>Status</th><th></th></tr></thead><tbody>
-      ${list.length ? list.map((o) => { const s = STATUS[o.status] || [o.status, ""]; return `<tr><td>${new Date(o.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td><td><b>${esc(o.code)}</b></td><td>${esc(o.name)}<div class="sub">${esc(o.phone)}</div></td><td>${esc(o.productName)}</td><td class="n"><b>${inr(o.amount)}</b></td><td><span class="pill ${s[1]}">${s[0]}</span>${o.utr ? `<div class="sub">Ref ${esc(o.utr)}</div>` : ""}</td>
-        <td class="n">${o.status === "paid" || o.status === "lapsed" ? `<button class="tbtn" data-oa="confirm" data-oc="${esc(o.code)}">Confirm</button> ` : ""}${o.status !== "cancelled" ? `<button class="tbtn danger" data-oa="cancel" data-oc="${esc(o.code)}">Cancel</button>` : ""}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">No website orders yet.</td></tr>`}
+    const waiting = list.filter((o) => o.status === "paid");
+    const shown = (orderView === "check" ? waiting : list).slice().sort((a, b) => (a.status === "paid") === (b.status === "paid") ? 0 : a.status === "paid" ? -1 : 1);
+    const left = (t) => { const ms = t - Date.now(), h = Math.floor(ms / 36e5), m = Math.max(0, Math.floor((ms % 36e5) / 6e4)); return ms <= 0 ? "Piece about to go back on sale" : `Piece held for ${h ? `${h}h ` : ""}${m}m more`; };
+    const wa = (o) => { const n = String(o.phone || "").replace(/\D/g, "").slice(-10); return n.length === 10 ? `https://wa.me/91${n}?text=${encodeURIComponent(`Hi ${o.name}, this is Vibe X about your order ${o.code}.`)}` : ""; };
+    $("tab-orders").innerHTML = `
+      <div class="chips"><button class="chip ${orderView === "check" ? "on" : ""}" data-ov="check">To check ${waiting.length}</button><button class="chip ${orderView === "all" ? "on" : ""}" data-ov="all">All ${list.length}</button></div>
+      <div class="scroll"><table><thead><tr><th>Date</th><th>Order</th><th>Party Name</th><th>Item</th><th class="n">Amount</th><th>Status</th><th></th></tr></thead><tbody>
+      ${shown.length ? shown.map((o) => { const s = STATUS[o.status] || [o.status, ""]; return `<tr><td>${new Date(o.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td><td><b>${esc(o.code)}</b></td><td>${esc(o.name)}<div class="sub">${esc(o.phone)}</div></td><td>${esc(o.productName)}</td><td class="n"><b>${inr(o.amount)}</b></td><td><span class="pill ${s[1]}">${s[0]}</span>${o.utr ? `<div class="sub">Ref ${esc(o.utr)}</div>` : ""}${o.lapsesAt ? `<div class="sub">${left(o.lapsesAt)}</div>` : ""}</td>
+        <td class="n">${wa(o) ? `<a class="tbtn" href="${wa(o)}" target="_blank" rel="noopener">WhatsApp</a> ` : ""}${o.status === "paid" || o.status === "lapsed" ? `<button class="tbtn good" data-oa="confirm" data-oc="${esc(o.code)}">Confirm</button> ` : ""}${o.status !== "cancelled" ? `<button class="tbtn danger" data-oa="cancel" data-oc="${esc(o.code)}">Cancel</button>` : ""}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">${orderView === "check" ? "No orders waiting. Nice." : "No website orders yet."}</td></tr>`}
       </tbody></table></div>`;
-    document.querySelectorAll("[data-oa]").forEach((b) => {
-      const first = b.textContent;
-      b.onclick = async () => {
-        if (!b.classList.contains("sure")) { b.classList.add("sure"); b.textContent = "Tap again"; setTimeout(() => { b.classList.remove("sure"); b.textContent = first; }, 4000); return; }
-        try { await api(`/api/billing/orders/${b.dataset.oc}/${b.dataset.oa}`, { method: "POST", body: "{}" }); toast("Done. Stock and bills updated."); }
-        catch (e) { toast(e.message); }
-        orders();
-      };
-    });
+    document.querySelectorAll("[data-ov]").forEach((b) => (b.onclick = () => { orderView = b.dataset.ov; orders(); }));
+    document.querySelectorAll("[data-oa]").forEach((b) => window.VX.twoTap(b, b.dataset.oa === "confirm" ? "Tap again: payment received" : "Tap again to cancel", async () => {
+      await api(`/api/billing/orders/${b.dataset.oc}/${b.dataset.oa}`, { method: "POST", body: "{}" });
+      toast("Done. Stock and bills updated."); await window.VX.reload(); orders();
+    }));
   }
   Object.assign(window.VX.tabs, { payments, orders });
 

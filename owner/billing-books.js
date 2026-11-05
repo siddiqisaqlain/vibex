@@ -8,93 +8,138 @@
   const modePick = (name, chosen = "cash") => `<div class="pay">${[["cash", "Cash"], ["upi", "UPI"], ["card", "Card"], ["bank", "Bank"]].map(([v, l]) => `<label><input type="radio" name="${name}" value="${v}" ${v === chosen ? "checked" : ""}><span>${l}</span></label>`).join("")}</div>`;
   const modeOf = (name) => document.querySelector(`input[name=${name}]:checked`).value;
   const bal = (n) => (n > 0 ? `<b class="owed-in">${inr(n)}</b> <span class="sub">to collect</span>` : n < 0 ? `<b class="owed-out">${inr(-n)}</b> <span class="sub">to pay</span>` : `<span class="sub">Settled</span>`);
-  // Two taps instead of a pop-up. The label says what the second tap will do.
-  function twoTap(b, label, run) {
-    const first = b.textContent;
-    b.onclick = async () => {
-      if (!b.classList.contains("sure")) { b.classList.add("sure"); b.textContent = label; setTimeout(() => { b.classList.remove("sure"); b.textContent = first; }, 4000); return; }
-      b.disabled = true;
-      try { await run(); } catch (e) { toast(e.message); b.disabled = false; }
-    };
-  }
+  const { twoTap } = window.VX;
 
-  // ---- Home ----
+  // ---- Home: what happened today, what needs doing, then the same numbers as before ----
+  const SINCE = { cash: "Cash", upi: "UPI", card: "Card", credit: "Credit" };
+  let chartDays = 7;
+  function waitText(t) {
+    const left = t - Date.now(), h = Math.floor(left / 36e5), m = Math.max(0, Math.floor((left % 36e5) / 6e4));
+    return left <= 0 ? "about to go back on sale" : h ? `goes back on sale in ${h}h ${m}m` : `goes back on sale in ${m} min`;
+  }
+  function todos(d) {
+    const a = d.attention, out = [];
+    if (a.ordersToCheck) out.push(["high", `${a.ordersToCheck} website order${a.ordersToCheck === 1 ? "" : "s"} to check`, a.nextLapse ? `A held piece ${waitText(a.nextLapse)}` : "Match the payment, then confirm", "Check", () => window.VX.go("orders")]);
+    if (d.topDues.length) out.push(["", `${inr(d.toCollect)} to collect`, `${d.topDues.length === 10 ? "10 or more" : d.topDues.length} customer${d.topDues.length === 1 ? "" : "s"} owe you`, "See who", () => window.VX.go("parties")]);
+    if (a.itemsToCount) out.push(["", `${a.itemsToCount} item${a.itemsToCount === 1 ? "" : "s"} to recount`, "Sold with no stock showing", "Count", () => window.VX.setStockFilter("check")]);
+    if (a.lowStock) out.push(["", `${a.lowStock} item${a.lowStock === 1 ? "" : "s"} running low`, "At or below the alert level", "View", () => window.VX.setStockFilter("low")]);
+    if (a.noPrice) out.push(["", `${a.noPrice} item${a.noPrice === 1 ? "" : "s"} missing a name or price`, "These can't be billed yet", "Fix", () => window.VX.setStockFilter("check")]);
+    return out;
+  }
   async function home() {
     const d = await api("/api/billing/dashboard");
-    const m = d.month;
+    const m = d.month, t = d.today, yest = d.week[5]?.total || 0, list = todos(d);
+    const compare = `Yesterday: ${inr(yest)}`; // a plain figure: "less than yesterday" would be wrong every morning
+    const tile = (label, val, cls, go) => `<button class="tile" data-go="${go}">${label}<b class="${cls}">${val}</b></button>`;
     $("tab-home").innerHTML = `
-      <div class="dash">
-        <div><b>Latest Transactions</b>
-          <div class="scroll"><table><thead><tr><th>Date</th><th>Type</th><th>Txn No</th><th>Party Name</th><th class="n">Amount</th></tr></thead><tbody>
-          ${d.latest.length ? d.latest.map((t) => `<tr><td>${dayText(t.day)}</td><td>${esc(t.type)}</td><td>${esc(t.ref)}</td><td>${esc(t.party)}</td><td class="n">${inr(t.amount)}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">Nothing yet.</td></tr>`}
-          </tbody></table></div></div>
-        <div><b>Sales Report, last 7 days</b>${weekChart(d.week)}</div>
+      <div class="todayRow">
+        <button class="hero" id="heroToday"><span>Today's Sales</span><b>${inr(t.total)}</b>
+          <small>${t.bills} bill${t.bills === 1 ? "" : "s"} · ${t.pieces} piece${t.pieces === 1 ? "" : "s"}</small><small>${compare}</small>
+          ${Object.keys(t.byPayment).length ? `<small class="modes">${Object.entries(t.byPayment).map(([k, v]) => `${SINCE[k] || k} ${inr(v)}`).join(" · ")}</small>` : ""}</button>
+        <div class="todo"><b>Needs your attention</b>
+          ${list.length ? list.map((x, i) => `<button class="todoRow ${x[0]}" data-todo="${i}"><span><b>${x[1]}</b><small>${x[2]}</small></span><em>${x[3]} →</em></button>`).join("") : `<div class="empty">All clear. Nothing needs you right now.</div>`}
+        </div>
       </div>
       <h3>Your shop</h3>
-      <div class="summary">
-        <div>To collect<b class="owed-in">${inr(d.toCollect)}</b></div><div>To pay<b class="owed-out">${inr(d.toPay)}</b></div>
-        <div>Cash<b>${inr(d.cash)}</b></div><div>Bank<b>${inr(d.bank)}</b></div><div>Stock at cost<b>${inr(d.stockAtCost)}</b></div>
+      <div class="tiles">
+        ${tile("To collect", inr(d.toCollect), "owed-in", "parties")}${tile("To pay", inr(d.toPay), "owed-out", "parties")}${tile("Cash", inr(d.cash), "", "cash")}${tile("Bank", inr(d.bank), "", "cash")}${tile("Stock at cost", inr(d.stockAtCost), "", "stock")}
       </div>
-      <h3>This month</h3>
-      <div class="summary">
-        <div>Sales${d.gst ? " (before GST)" : ""}<b>${inr(m.sales)}</b></div><div>Cost of goods<b>${inr(m.cogs)}</b></div><div>Expenses<b>${inr(m.expenses)}</b></div><div>Profit<b>${inr(m.net)}</b></div>
+      <div class="dash">
+        <div><div class="dashHead"><b>Latest Transactions</b><button class="x" id="allBills">See all</button></div>
+          <div class="scroll"><table><thead><tr><th>Date</th><th>Type</th><th>Txn No</th><th>Party Name</th><th class="n">Amount</th></tr></thead><tbody>
+          ${d.latest.length ? d.latest.map((x) => `<tr class="${x.id ? "click" : ""}" ${x.id ? `data-bill="${x.id}"` : ""}><td>${dayText(x.day)}</td><td>${esc(x.type)}</td><td>${esc(x.ref)}</td><td>${esc(x.party)}</td><td class="n">${inr(x.amount)}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">Nothing yet. <button class="x" id="firstBill">Make your first bill</button></td></tr>`}
+          </tbody></table></div></div>
+        <div><div class="dashHead"><b>Sales Report</b><span class="seg"><button data-days="7" class="${chartDays === 7 ? "on" : ""}">7 days</button><button data-days="30" class="${chartDays === 30 ? "on" : ""}">30 days</button></span></div>
+          ${salesChart(chartDays === 7 ? d.week : d.month30)}</div>
       </div>
-      ${m.piecesWithoutCost ? `<p class="sub">⚠ ${m.piecesWithoutCost} piece(s) sold have no purchase price, so profit looks higher than it is. Enter a purchase to set their cost.</p>` : ""}
-      ${d.gst ? "" : turnoverBox(d.turnover)}
-      <h3>Who owes the most</h3>
-      ${d.topDues.length ? `<div class="scroll"><table><tbody>${d.topDues.map((x) => `<tr><td>${esc(x.name)}</td><td class="n"><b>${inr(x.balance)}</b></td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Nobody owes anything.</div>`}`;
+      <div class="dash even">
+        <div><b>This month</b>
+          <div class="tiles flat"><div>Sales${d.gst ? " (before GST)" : ""}<b>${inr(m.sales)}</b></div><div>Cost of goods<b>${inr(m.cogs)}</b></div><div>Expenses<b>${inr(m.expenses)}</b></div><div>Profit<b>${inr(m.net)}</b></div></div>
+          ${m.piecesWithoutCost ? `<p class="sub">⚠ ${m.piecesWithoutCost} piece${m.piecesWithoutCost === 1 ? "" : "s"} sold had no purchase price, so profit looks higher than it is.</p>` : ""}
+          ${d.gst ? "" : turnoverBox(d.turnover)}
+        </div>
+        <div><b>Who owes the most</b>
+          ${d.topDues.length ? `<table class="dues"><tbody>${d.topDues.slice(0, 6).map((x) => `<tr><td class="click" data-party="${x.id}"><b>${esc(x.name)}</b><div class="sub">${esc(x.phone || "")}</div></td><td class="n"><b>${inr(x.balance)}</b></td><td class="n">${x.phone ? `<a class="tbtn" href="${window.VX.reminder(x, x.balance)}" target="_blank" rel="noopener">Remind</a> ` : ""}<button class="tbtn" data-get="${x.id}">Collect</button></td></tr>`).join("")}</tbody></table>` : `<div class="empty">Nobody owes anything.</div>`}
+        </div>
+      </div>`;
+    const P = $("tab-home");
+    $("heroToday").onclick = () => $("todayBox").click();
+    P.querySelectorAll("[data-todo]").forEach((b) => (b.onclick = () => list[+b.dataset.todo][4]()));
+    P.querySelectorAll(".tile[data-go]").forEach((b) => (b.onclick = () => window.VX.go(b.dataset.go)));
+    P.querySelectorAll("[data-bill]").forEach((r) => (r.onclick = async () => { await window.VX.go("bills"); window.VX.billPanel(r.dataset.bill); }));
+    P.querySelectorAll("[data-party]").forEach((r) => (r.onclick = () => window.VX.go("parties", r.dataset.party)));
+    P.querySelectorAll("[data-get]").forEach((b) => (b.onclick = () => window.VX.collect(b.dataset.get)));
+    P.querySelectorAll("[data-days]").forEach((b) => (b.onclick = () => { chartDays = +b.dataset.days; home(); }));
+    $("allBills").onclick = () => window.VX.go("bills");
+    if ($("firstBill")) $("firstBill").onclick = () => window.VX.go("new");
   }
 
-  // One series, thin line, hover shows the day. The total and bill count sit beside it as text.
-  function weekChart(days) {
-    const W = 240, H = 140, top = 12, base = H - 22, max = Math.max(...days.map((x) => x.total), 1);
-    const px = (i) => 10 + i * ((W - 20) / (days.length - 1)), py = (v) => base - (v / max) * (base - top);
-    const line = days.map((x, i) => `${i ? "L" : "M"}${px(i).toFixed(1)} ${py(x.total).toFixed(1)}`).join(" ");
-    const label = (x) => new Date(x.day).toLocaleDateString("en-IN", { weekday: "narrow" });
+  // One series, so one colour. Each column is a hover and tap target. The totals sit beside it as text.
+  function salesChart(days) {
+    const W = 340, H = 150, top = 10, base = H - 22, n = days.length, max = Math.max(...days.map((x) => x.total), 1);
+    const slot = (W - 8) / n, bar = Math.min(30, Math.max(3, slot - 2)), x0 = (i) => 4 + slot * i + (slot - bar) / 2;
+    const short = (x) => (n === 7 ? new Date(x.day).toLocaleDateString("en-IN", { weekday: "short" }) : new Date(x.day).toLocaleDateString("en-IN", { day: "numeric", month: "short" }));
     const full = (x) => new Date(x.day).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
-    window.VX.weekTip = (i, on) => { const t = $("wkTip"); if (!on) return t.classList.add("hide"); const x = days[i]; t.textContent = `${full(x)}: ${inr(x.total)}, ${x.bills} bill${x.bills === 1 ? "" : "s"}`; t.style.left = `${(px(i) / W) * 100}%`; t.style.top = `${(py(x.total) / H) * 100}%`; t.classList.remove("hide"); };
-    return `<div class="week"><div style="position:relative"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Sales for the last 7 days">
-      <line x1="10" x2="${W - 10}" y1="${base}" y2="${base}" stroke="var(--line)"/>
-      <path d="${line} L${px(days.length - 1)} ${base} L${px(0)} ${base} Z" fill="#1f8a4c" opacity=".14"/>
-      <path d="${line}" fill="none" stroke="#1f8a4c" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-      ${days.map((x, i) => `<text x="${px(i)}" y="${H - 6}" text-anchor="middle" font-size="12" fill="#667085">${label(x)}</text><rect x="${px(i) - 18}" y="0" width="36" height="${H}" fill="transparent" onmouseenter="VX.weekTip(${i},true)" onmouseleave="VX.weekTip(${i},false)"/>`).join("")}
-      </svg><div id="wkTip" class="hide"></div></div>
-      <div class="weekStat">Last 7 days sales<b>${inr(days.reduce((n, x) => n + x.total, 0))}</b>Invoices Made<b>${days.reduce((n, x) => n + x.bills, 0)}</b></div></div>`;
+    window.VX.barTip = (i, on) => {
+      const t = $("wkTip");
+      document.querySelectorAll(".bar").forEach((b, k) => b.classList.toggle("lit", on && k === i));
+      if (!on) return t.classList.add("hide");
+      const x = days[i];
+      t.textContent = `${full(x)}: ${inr(x.total)}, ${x.bills} bill${x.bills === 1 ? "" : "s"}`;
+      t.style.left = `${Math.min(82, Math.max(18, ((x0(i) + bar / 2) / W) * 100))}%`; t.style.top = "0";
+      t.classList.remove("hide");
+    };
+    const every = n === 7 ? 1 : 7;
+    const bars = days.map((x, i) => {
+      const h = x.total ? Math.max(3, (x.total / max) * (base - top)) : 0, r = Math.min(4, bar / 2, h), y = base - h;
+      const d = h ? `M${x0(i)} ${base}V${y + r}Q${x0(i)} ${y} ${x0(i) + r} ${y}H${x0(i) + bar - r}Q${x0(i) + bar} ${y} ${x0(i) + bar} ${y + r}V${base}Z` : "";
+      const lastOne = i === n - 1 && n > 7;
+      const label = (n - 1 - i) % every === 0 ? `<text x="${lastOne ? x0(i) + bar : x0(i) + bar / 2}" y="${H - 6}" text-anchor="${lastOne ? "end" : "middle"}" font-size="10.5" fill="#667085">${short(x)}</text>` : "";
+      return `${d ? `<path class="bar" d="${d}"/>` : `<g class="bar"></g>`}${label}<rect x="${4 + slot * i}" y="0" width="${slot}" height="${H}" fill="transparent" onpointerenter="VX.barTip(${i},true)" onpointerleave="VX.barTip(${i},false)" onclick="VX.barTip(${i},true)"/>`;
+    }).join("");
+    const sum = days.reduce((a, x) => a + x.total, 0), count = days.reduce((a, x) => a + x.bills, 0);
+    return `<div class="week"><div style="position:relative"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Sales for the last ${n} days, total ${inr(sum)}">
+        <line x1="4" x2="${W - 4}" y1="${base}" y2="${base}" stroke="var(--line)"/>${bars}</svg><div id="wkTip" class="hide"></div></div>
+      <div class="weekStat"><span>Total sales<b>${inr(sum)}</b></span><span>Invoices Made<b>${count}</b></span><span>Average a day<b>${inr(Math.round(sum / n))}</b></span></div></div>`;
   }
 
   // No GSTIN yet: how close the shop is to needing one.
-  function turnoverBox(t) {
-    const pct = Math.min(100, Math.round((t.total / t.limit) * 100));
-    return `<h3>GST check, this financial year</h3>
-      <div class="summary"><div>Sales so far<b>${inr(t.total)}</b></div><div>Limit<b>${inr(t.limit)}</b></div><div>Used<b class="${pct >= 80 ? "owed-out" : ""}">${pct}%</b></div><div>Shipped outside J&amp;K<b class="${t.outsideBills ? "owed-out" : ""}">${t.outsideBills} bill${t.outsideBills === 1 ? "" : "s"}</b></div></div>
+  function turnoverBox(x) {
+    const pct = Math.min(100, Math.round((x.total / x.limit) * 100));
+    return `<div class="gstBox"><div class="dashHead"><b>GST check, this financial year</b><span class="sub">${inr(x.total)} of ${inr(x.limit)}</span></div>
+      <div class="meter" role="img" aria-label="${pct}% of the limit used"><i class="${pct >= 80 ? "hot" : ""}" style="width:${Math.max(pct, 1)}%"></i></div>
+      <div class="sub">${pct}% used · Shipped outside J&amp;K: ${x.outsideBills} bill${x.outsideBills === 1 ? "" : "s"}</div>
       ${pct >= 80 ? `<p class="sub">⚠ Close to the limit. Talk to a CA about GST registration.</p>` : ""}
-      ${t.outsideBills ? `<p class="sub">⚠ Selling goods to other states can need GST registration at any turnover. Check with a CA.</p>` : ""}`;
+      ${x.outsideBills ? `<p class="sub">⚠ Selling goods to other states can need GST registration at any turnover. Check with a CA.</p>` : ""}</div>`;
   }
 
   // ---- Parties ----
-  let partyType = "customer", open = null, partySearch = "";
-  async function parties() {
-    if (open) return ledger(open);
-    const list = await api("/api/billing/parties");
-    const shown = list.filter((x) => x.type === partyType && (!partySearch || `${x.name} ${x.phone}`.toLowerCase().includes(partySearch)));
+  let partyType = "customer", partySearch = "", partyView = "", partyCache = [];
+  async function parties(id) {
+    if (id) return ledger(id);
+    partyCache = await api("/api/billing/parties");
+    const list = partyCache;
+    const of = list.filter((x) => x.type === partyType);
+    const owes = of.filter((x) => (partyType === "customer" ? x.balance > 0 : x.balance < 0));
+    const sum = owes.reduce((n, x) => n + Math.abs(x.balance), 0);
     $("tab-parties").innerHTML = `
-      <div class="pay" style="max-width:320px">
+      <div class="partyTop"><div class="pay" style="max-width:320px;margin:0">
         <label><input type="radio" name="ptype" value="customer" ${partyType === "customer" ? "checked" : ""}><span>Customers</span></label>
         <label><input type="radio" name="ptype" value="supplier" ${partyType === "supplier" ? "checked" : ""}><span>Suppliers</span></label>
       </div>
-      <input type="search" id="psearch" placeholder="Search name or mobile…" value="${esc(partySearch)}" style="margin-top:10px" autocomplete="off">
       <details class="form"><summary>Create Party</summary>
         <div class="row2"><input id="pName" placeholder="Name"><input id="pPhone" type="tel" placeholder="Mobile"></div>
         <div class="row2"><input id="pGst" placeholder="GSTIN (optional)"><input id="pOpen" type="number" placeholder="${partyType === "customer" ? "Already owes you ₹" : "You already owe ₹"}"></div>
         <div class="row2"><input id="pAddr" placeholder="Address"><input id="pLimit" type="number" placeholder="Credit limit ₹ (optional)"></div>
         <button class="big" id="pSave">Save</button><div class="err" id="pErr"></div>
-      </details>
-      <div class="scroll"><table><thead><tr><th>Party Name</th><th class="hideSm">Mobile Number</th><th>Party type</th><th class="n">Balance</th></tr></thead><tbody>
-      ${shown.length ? shown.map((x) => `<tr class="click" data-open="${x.id}"><td><b>${esc(x.name)}</b></td><td class="hideSm">${esc(x.phone)}</td><td>${x.type === "supplier" ? "Supplier" : "Customer"}</td><td class="n">${bal(x.balance)}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">No ${partyType}s yet.</td></tr>`}
-      </tbody></table></div>`;
-    document.querySelectorAll("input[name=ptype]").forEach((i) => (i.onchange = () => { partyType = i.value; parties(); }));
-    $("psearch").oninput = (e) => { partySearch = e.target.value.toLowerCase(); const at = e.target.selectionStart; parties().then(() => { $("psearch").focus(); $("psearch").setSelectionRange(at, at); }); };
-    document.querySelectorAll("[data-open]").forEach((r) => (r.onclick = () => { open = r.dataset.open; parties(); }));
+      </details></div>
+      <div class="chips"><button class="chip ${partyView ? "" : "on"}" data-pv="">All ${of.length}</button><button class="chip ${partyView ? "on" : ""}" data-pv="owes">${partyType === "customer" ? "Owe you" : "You owe"} ${owes.length} · ${inr(sum)}</button></div>
+      <input type="search" id="psearch" placeholder="Search name or mobile…" value="${esc(partySearch)}" autocomplete="off">
+      <div class="scroll" style="margin-top:10px"><table><thead><tr><th>Party Name</th><th class="hideSm">Mobile Number</th><th>Party type</th><th class="n">Balance</th><th></th></tr></thead><tbody id="partyRows"></tbody></table></div>`;
+    paintParties();
+    document.querySelectorAll("input[name=ptype]").forEach((i) => (i.onchange = () => { partyType = i.value; partyView = ""; parties(); }));
+    document.querySelectorAll("[data-pv]").forEach((b) => (b.onclick = () => { partyView = b.dataset.pv; parties(); }));
+    $("psearch").oninput = (e) => { partySearch = e.target.value.toLowerCase(); paintParties(); };
     $("pSave").onclick = async () => {
       // "Already owes" is entered as a positive number; a supplier's opening is what the shop owes.
       const o = Number($("pOpen").value) || 0;
@@ -104,37 +149,51 @@
       } catch (e) { $("pErr").textContent = e.message; }
     };
   }
+  function paintParties() {
+    const shown = partyCache.filter((x) => x.type === partyType && (!partyView || (partyType === "customer" ? x.balance > 0 : x.balance < 0)) && (!partySearch || `${x.name} ${x.phone}`.toLowerCase().includes(partySearch))).sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance) || a.name.localeCompare(b.name));
+    $("partyRows").innerHTML = shown.length ? shown.map((x) => `<tr class="click" data-open="${x.id}"><td><b>${esc(x.name)}</b></td><td class="hideSm">${esc(x.phone)}</td><td>${x.type === "supplier" ? "Supplier" : "Customer"}</td><td class="n">${bal(x.balance)}</td>
+      <td class="n">${x.balance > 0 && x.phone ? `<a class="tbtn" href="${window.VX.reminder(x, x.balance)}" target="_blank" rel="noopener">Remind</a> ` : ""}${x.balance ? `<button class="tbtn" data-get="${x.id}">${x.balance > 0 ? "Collect" : "Pay"}</button>` : ""}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">No ${partyType}s here yet.</td></tr>`;
+    document.querySelectorAll("[data-open]").forEach((r) => (r.onclick = (e) => { if (e.target.closest("a,button")) return; window.VX.go("parties", r.dataset.open); }));
+    document.querySelectorAll("#partyRows [data-get]").forEach((b) => (b.onclick = () => window.VX.collect(b.dataset.get)));
+  }
   async function ledger(id) {
     const { party: p, rows, balance } = await api(`/api/billing/parties/${id}/ledger`);
     const direction = p.type === "customer" ? "in" : "out";
-    const remind = balance > 0 && p.phone ? `https://wa.me/91${p.phone}?text=${encodeURIComponent(`Hi ${p.name}, this is Vibe X. Your balance with us is ${inr(balance)}. You can pay on UPI 7006656599@ibl. Thank you!`)}` : "";
+    const remind = balance > 0 && p.phone ? window.VX.reminder(p, balance) : "";
+    $("pageTitle").textContent = p.name;
     $("tab-parties").innerHTML = `
       <button class="tbtn" id="back">← All parties</button>
-      <h2 style="margin:12px 0 2px">${esc(p.name)}</h2>
-      <p class="sub">${esc([p.phone, p.gstin, p.address].filter(Boolean).join(" · "))}${p.creditLimit ? ` · Limit ${inr(p.creditLimit)}` : ""}</p>
-      <div class="summary"><div>Balance<span style="display:block;font-size:17px">${bal(balance)}</span></div></div>
-      ${remind ? `<a class="tbtn" href="${remind}" target="_blank" rel="noopener">Send WhatsApp reminder</a>` : ""}
-      <button class="tbtn" id="shareLedger">${p.shareToken ? "Stop sharing ledger" : "Share ledger link"}</button>
+      <div class="ledgerHead"><div><h2>${esc(p.name)}</h2>
+        <p class="sub">${esc([p.phone, p.gstin, p.address].filter(Boolean).join(" · ")) || "No contact details yet"}${p.creditLimit ? ` · Limit ${inr(p.creditLimit)}` : ""}</p></div>
+        <div class="ledgerBal"><span class="sub">Balance</span><div>${bal(balance)}</div></div></div>
+      <div class="actions">
+        <button class="primary" id="payNow">${direction === "in" ? "Payment In" : "Payment Out"}</button>
+        ${remind ? `<a class="tbtn wa" href="${remind}" target="_blank" rel="noopener">Send WhatsApp reminder</a>` : ""}
+        <button class="tbtn" id="shareLedger">${p.shareToken ? "Stop sharing ledger" : "Share ledger link"}</button>
+        <button class="tbtn" id="editParty">Edit party</button>
+      </div>
       ${p.shareToken ? `<p class="sub">Anyone with this link can see this ledger: <a href="/l/${p.shareToken}" target="_blank" rel="noopener">${esc(location.origin)}/l/${p.shareToken}</a></p>` : ""}
-      <details class="form"><summary>${direction === "in" ? "Payment In" : "Payment Out"}</summary>
-        <div class="row2"><input id="payAmt" type="number" min="1" placeholder="Amount ₹"><input id="payDay" type="date" value="${today()}" max="${today()}"></div>
-        ${modePick("payMode")}
-        <input id="payNote" placeholder="Note (optional)" style="margin-top:8px">
-        <button class="big" id="paySave">Save payment</button><div class="err" id="payErr"></div>
-      </details>
       <div class="scroll"><table><thead><tr><th>Date</th><th>Entry</th><th class="n">Amount</th><th class="n">Balance</th><th></th></tr></thead><tbody>
       ${rows.length ? rows.slice().reverse().map((r) => `<tr><td>${dayText(r.day)}</td><td>${esc(r.kind)}<div class="sub">${esc(r.ref)}</div></td><td class="n">${r.amount > 0 ? "+" : "−"}${inr(Math.abs(r.amount))}</td><td class="n">${inr(r.balance)}</td>
         <td class="n">${/^Payment/.test(r.kind) ? `<button class="tbtn danger" data-paycancel="${r.id}">Cancel</button>` : r.kind === "Sale" ? `<a class="tbtn" href="/bill/${r.id}?o" target="_blank" rel="noopener">View</a>` : ""}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">No entries yet.</td></tr>`}
       </tbody></table></div>`;
-    $("back").onclick = () => { open = null; parties(); };
+    $("back").onclick = () => window.VX.go("parties");
     $("shareLedger").onclick = async () => { await api(`/api/billing/parties/${id}/share`, { method: "POST", body: JSON.stringify({ on: !p.shareToken }) }); ledger(id); };
-    $("paySave").onclick = async () => {
-      try {
-        await api("/api/billing/payments", { method: "POST", body: JSON.stringify({ direction, partyId: id, amount: $("payAmt").value, day: $("payDay").value, mode: modeOf("payMode"), note: $("payNote").value }) });
-        toast("Payment saved."); ledger(id);
-      } catch (e) { $("payErr").textContent = e.message; }
+    $("payNow").onclick = () => window.VX.collect(id);
+    $("editParty").onclick = () => {
+      window.VX.drawer("Edit party", `<label class="sub">Name<input id="epName" value="${esc(p.name)}"></label>
+        <div class="row2"><label class="sub">Mobile<input id="epPhone" type="tel" value="${esc(p.phone)}"></label><label class="sub">GSTIN<input id="epGst" value="${esc(p.gstin)}"></label></div>
+        <label class="sub">Address<input id="epAddr" value="${esc(p.address)}"></label>
+        <label class="sub">Credit limit ₹<input id="epLimit" type="number" value="${esc(p.creditLimit || "")}"></label>
+        <button class="big" id="epSave">Save</button><div class="err" id="epErr"></div>`);
+      $("epSave").onclick = async () => {
+        try {
+          await api(`/api/billing/parties/${id}`, { method: "POST", body: JSON.stringify({ ...p, name: $("epName").value, phone: $("epPhone").value, gstin: $("epGst").value, address: $("epAddr").value, creditLimit: Number($("epLimit").value) || 0 }) });
+          window.VX.closeDrawer(); toast("Saved."); await window.VX.reload(); ledger(id);
+        } catch (e) { $("epErr").textContent = e.message; }
+      };
     };
-    document.querySelectorAll("[data-paycancel]").forEach((b) => twoTap(b, "Tap again to cancel", async () => { await api(`/api/billing/payments/${b.dataset.paycancel}/cancel`, { method: "POST", body: "{}" }); toast("Payment cancelled."); ledger(id); }));
+    document.querySelectorAll("[data-paycancel]").forEach((b) => twoTap(b, "Tap again to cancel", async () => { await api(`/api/billing/payments/${b.dataset.paycancel}/cancel`, { method: "POST", body: "{}" }); toast("Payment cancelled."); await window.VX.reload(); ledger(id); }));
   }
 
   // ---- Purchases ----
@@ -146,7 +205,7 @@
     const sup = ps.filter((x) => x.type === "supplier");
     const name = new Map(ps.map((x) => [x.id, x.name]));
     $("tab-purchases").innerHTML = `
-      ${sup.length ? "" : `<p class="sub">Add a supplier under Parties first.</p>`}
+      ${sup.length ? "" : `<p class="sub">Add a supplier first: <button class="x" onclick="VX.go('parties')">go to Parties</button>.</p>`}
       <details class="form"><summary>Create Purchase Invoice</summary>
         <div class="row2"><select id="buySup"><option value="">Supplier…</option>${sup.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select><input id="buyBill" placeholder="Supplier's bill no."></div>
         <input id="buyDay" type="date" value="${today()}" max="${today()}" style="margin-top:8px">
@@ -215,7 +274,7 @@
     const { list, types } = await api("/api/billing/expenses");
     $("tab-expenses").innerHTML = `
       <details class="form"><summary>Create Expense</summary>
-        <div class="row2"><select id="exType">${types.map((t) => `<option>${esc(t)}</option>`).join("")}</select><input id="exAmt" type="number" min="1" placeholder="Amount ₹"></div>
+        <div class="row2"><select id="exType" aria-label="Type">${types.map((t) => `<option>${esc(t)}</option>`).join("")}</select><input id="exAmt" type="number" min="1" placeholder="Amount ₹"></div>
         <div class="row2"><input id="exDay" type="date" value="${today()}" max="${today()}"><input id="exNote" placeholder="Note (optional)"></div>
         ${modePick("exMode")}
         <button class="big" id="exSave">Save expense</button><div class="err" id="exErr"></div>

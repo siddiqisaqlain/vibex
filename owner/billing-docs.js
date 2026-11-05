@@ -7,14 +7,7 @@
   const pills = (name, list, on) => `<div class="pay">${list.map(([v, l]) => `<label><input type="radio" name="${name}" value="${v}" ${v === on ? "checked" : ""}><span>${l}</span></label>`).join("")}</div>`;
   const picked = (name) => document.querySelector(`input[name=${name}]:checked`)?.value;
   const MODES = [["cash", "Cash"], ["upi", "UPI"], ["card", "Card"], ["bank", "Bank"]];
-  function twoTap(b, label, run) {
-    const first = b.textContent;
-    b.onclick = async () => {
-      if (!b.classList.contains("sure")) { b.classList.add("sure"); b.textContent = label; setTimeout(() => { b.classList.remove("sure"); b.textContent = first; }, 4000); return; }
-      b.disabled = true;
-      try { await run(); } catch (e) { toast(e.message); b.disabled = false; }
-    };
-  }
+  const { twoTap } = window.VX;
 
   // ---- Quotations, proforma, challans, purchase orders ----
   const KINDS = [["quotation", "Quotation"], ["proforma", "Proforma"], ["challan", "Challan"], ["purchase_order", "Purchase Order"], ["dispatch", "Dispatch Note"]];

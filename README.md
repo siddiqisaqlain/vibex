@@ -39,7 +39,7 @@ Open http://localhost:4300 for the shop and http://localhost:4300/demo for the o
 ## Deploy on Render
 
 1. render.com → **New** → **Blueprint** → choose this repository. `render.yaml` sets everything up and generates an `OWNER_KEY`.
-2. Open `https://YOUR-SITE.onrender.com/demo?key=OWNER_KEY` for the owner screen.
+2. Open `https://YOUR-DOMAIN/demo?key=OWNER_KEY` for the owner screen.
 
 On Render's free plan the server sleeps when idle and its disk resets on restart, so products and orders added after deploy go back to the samples. That's fine for a demo. For real use, add a persistent disk or a database.
 

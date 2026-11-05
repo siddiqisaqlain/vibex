@@ -4,155 +4,30 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
+<meta name="theme-color" content="#0f1a2e">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/billing.css">
 <title>Vibe X Billing</title>
-<style>
-  :root{--ink:#1c2333;--mute:#667085;--line:#e4e7ee;--bg:#f2f4f8;--card:#fff;--red:#d92d20;--primary:#4b3fd6;--side:#0f1a2e;--sideText:#c9d1e0;--green:#1f8a4c;--amber:#b7791f}
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 "Source Sans 3",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-  button,input,select{font:inherit;color:inherit}
-  .shell{display:grid;grid-template-columns:244px minmax(0,1fr);min-height:100vh}
-  #side{background:var(--side);color:var(--sideText);position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;padding:10px 10px 14px;gap:2px;z-index:7}
-  .brand{display:flex;gap:10px;align-items:center;padding:6px 6px 12px;color:#fff}
-  .brand i{width:36px;height:36px;border-radius:50%;background:#000;color:#fff;display:grid;place-items:center;font:800 13px/1 system-ui;font-style:normal;flex:none;overflow:hidden}
-  .brand i img{width:100%;height:100%;object-fit:cover}
-  .brand b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}.brand small{color:var(--sideText);font-size:12px}
-  .createWrap{position:relative;display:flex;margin-bottom:10px}
-  .createWrap button{border:0;background:#ddd9fb;color:var(--ink);font-weight:700;font-size:13px;padding:10px 8px;cursor:pointer}
-  #createMain{flex:1;border-radius:18px 0 0 18px}#createMore{width:40px;border-radius:0 18px 18px 0;border-left:1px solid #c0bbf0}
-  #createMenu{position:absolute;left:0;right:0;top:44px;background:#fff;color:var(--ink);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.3);padding:6px;z-index:9}
-  #createMenu button{display:block;width:100%;text-align:left;background:none;font-weight:500;border-radius:6px;padding:8px 10px}#createMenu button:hover{background:var(--bg)}
-  #side h6{margin:12px 8px 4px;font-size:11px;letter-spacing:.06em;color:#8d99b0;text-transform:uppercase}
-  #side button.nv{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:none;color:var(--sideText);font-size:14px;padding:9px 12px;border-radius:9px;cursor:pointer;text-align:left}
-  #side button.nv:hover{background:#1b2a45}#side button.nv.on{background:#233a63;color:#fff;font-weight:600}
-  #side .sub{margin:0 0 4px 12px;color:inherit}#side .subgroup{display:none;margin-left:10px}#side .subgroup.open{display:block}
-  #side .arrow{transition:transform .15s;font-size:11px}#side .head.open .arrow{transform:rotate(90deg)}
-  #side .bottom{margin-top:auto;padding-top:10px}
-  .page{min-width:0;display:flex;flex-direction:column}
-  .page>header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-  .page>header h1{font-size:18px;margin:0;font-weight:700}
-  #burger{display:none;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 10px;font-size:16px}
-  .cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}.cards>div{flex:1 1 200px;border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--mute)}.cards b{display:block;color:var(--ink);font-size:20px}
-  .topRow{display:flex;justify-content:flex-end;margin-bottom:10px}.primary{border:0;background:var(--primary);color:#fff;font-weight:700;padding:10px 16px;border-radius:8px;cursor:pointer}
-  .dash{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px}.dash>div{border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
-  .week{display:grid;grid-template-columns:minmax(0,1fr) 112px;gap:12px;align-items:center;position:relative}.week svg{width:100%;height:auto;display:block}.weekStat{text-align:right;font-size:13px;color:var(--mute)}.weekStat b{display:block;font-size:20px;color:var(--ink);margin-bottom:8px}
-  #wkTip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;padding:4px 8px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-110%)}
-  @media (max-width:860px){.shell{grid-template-columns:minmax(0,1fr)}#side{position:fixed;left:0;top:0;width:262px;transform:translateX(-100%);transition:transform .2s}#side.show{transform:none;box-shadow:0 0 0 100vmax rgba(0,0,0,.35)}#burger{display:block}.dash,.week{grid-template-columns:minmax(0,1fr)}.weekStat{text-align:left}}
-  .live{font-size:12px;color:var(--mute);display:flex;align-items:center;gap:6px}
-  .dot{width:8px;height:8px;border-radius:50%;background:#4ade80}
-  .dot.off{background:#f87171}
-  .todayBox{margin-left:auto;font-size:13px;text-align:right}
-  .todayBox b{font-size:16px}
-  h3{font-size:14px;margin:18px 0 8px}
-  select,input[type=date]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
-  input:not([type]){width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
-  .form{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0}
-  details.form{border:0;padding:0;margin:0 0 12px;display:flow-root}
-  details.form>summary{list-style:none;float:right;background:var(--primary);color:#fff;font-weight:700;padding:9px 16px;border-radius:8px;cursor:pointer;margin-bottom:10px}
-  details.form>summary::-webkit-details-marker{display:none}
-  details.form[open]>summary{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
-  details.form[open]{border:1px solid var(--line);border-radius:10px;padding:12px}
-  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}.filters>input[type=search]{flex:1 1 220px;width:auto}.filters select{width:auto;flex:0 1 190px}
-  .filters .primary{margin-left:auto}.tbtn.on{background:var(--primary);color:#fff;border-color:var(--primary)}
-  .chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.chip{border:1px solid var(--line);background:#fff;border-radius:18px;padding:6px 14px;cursor:pointer;font-weight:600}.chip.on{background:#ece9fd;border-color:var(--primary);color:var(--primary)}
-  .repCols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}.repCols>div{border-right:1px solid var(--line);padding:0 8px 10px}.repCols h3{background:#f2f4f7;margin:0 -8px 6px;padding:10px 14px}
-  .repTitle{display:flex;align-items:center;gap:10px}
-  th[data-sort]{cursor:pointer}th[data-sort]::after{content:" ⇅";opacity:.5}
-  @media (max-width:760px){.repCols{grid-template-columns:minmax(0,1fr)}}
-  @media print{#side,.page>header,#repBack,#repCsv,#repPrint,.repDates{display:none!important}.shell{display:block}main{padding:0}}
-  .row3{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-  .owed-in{color:var(--green)}.owed-out{color:var(--red)}
-  .repGrid{display:grid;grid-template-columns:200px minmax(0,1fr);gap:18px}
-  .repGrid h3{margin:10px 0 4px}.repBtn{display:block;width:100%;text-align:left;border:0;background:none;padding:6px 8px;border-radius:6px;cursor:pointer}
-  .repBtn.on{background:var(--ink);color:#fff}.repHead{display:flex;justify-content:space-between;align-items:center;gap:8px}.repHead h2{margin:6px 0;font-size:18px}
-  .repDates{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;align-items:center}.repDates input{width:150px}
-  @media (max-width:760px){.repGrid{grid-template-columns:minmax(0,1fr)}}
-  tr.click{cursor:pointer}tr.click:hover td{background:var(--bg)}
-  main{padding:16px 20px 40px;width:100%}
-  .panel{background:var(--card);border-radius:10px;padding:16px}
-  .hide{display:none!important}
-  .grid{display:grid;grid-template-columns:1fr 400px;gap:16px}
-  .grid>*{min-width:0}
-  @media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}.cart{position:static;order:-1}}
-  .item .price,.item .pill{flex:none}
-  input[type=search],input[type=text],input[type=tel],input[type=number]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
-  input:focus{outline:2px solid var(--ink);outline-offset:-1px}
-  .results{margin-top:10px;display:flex;flex-direction:column;gap:6px;max-height:62vh;overflow:auto}
-  .item{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;text-align:left;width:100%}
-  .item:hover{border-color:var(--ink)}
-  .item[disabled]{opacity:.45;cursor:not-allowed}
-  .thumb{width:44px;height:44px;border-radius:6px;background:#eee center/cover;flex:none}
-  .grow{flex:1;min-width:0}
-  .name{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .sub{font-size:12px;color:var(--mute)}
-  .price{font-weight:700;white-space:nowrap}
-  .pill{font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;background:#eef7f1;color:var(--green);white-space:nowrap}
-  .pill.low{background:#fdf5e6;color:var(--amber)}
-  .pill.out{background:#fdecec;color:var(--red)}
-  .cart{border:1px solid var(--line);border-radius:10px;padding:12px;align-self:start;position:sticky;top:64px}
-  .cart h2{margin:0 0 8px;font-size:15px}
-  .line{display:grid;grid-template-columns:1fr auto;gap:4px 8px;padding:8px 0;border-bottom:1px solid var(--line)}
-  .line.bad{background:#fff6f6}
-  .line .warn{grid-column:1/-1;color:var(--red);font-size:12px;font-weight:600}
-  .qty{display:flex;align-items:center;gap:4px}
-  .qty button{width:28px;height:28px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;font-weight:700}
-  .qty span{min-width:22px;text-align:center;font-weight:700}
-  .rate{width:96px!important;padding:5px 8px!important;text-align:right}
-  .x{border:0;background:none;color:var(--mute);cursor:pointer;font-size:12px;padding:0;text-decoration:underline}
-  .tot{display:flex;justify-content:space-between;font-size:20px;font-weight:800;margin:12px 0}
-  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-  .pay{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
-  .pay label{flex:1;min-width:70px}
-  .pay input{display:none}
-  .pay span{display:block;text-align:center;padding:8px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-weight:600;font-size:14px}
-  .pay input:checked+span{background:var(--primary);color:#fff;border-color:var(--primary)}
-  .big{width:100%;margin-top:12px;padding:13px;border:0;border-radius:10px;background:var(--primary);color:#fff;font-weight:800;font-size:16px;cursor:pointer}
-  .big:disabled{background:#d8d3ca;cursor:not-allowed}
-  .err{color:var(--red);font-weight:600;font-size:14px;margin-top:8px}
-  .ok{background:#eef7f1;border:1px solid #bfe3cc;border-radius:10px;padding:12px;margin-top:10px}
-  .ok a{font-weight:700;color:var(--ink)}
-  .empty{color:var(--mute);text-align:center;padding:26px 0}
-  table{width:100%;border-collapse:collapse}
-  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
-  th{font-size:13px;color:var(--ink);background:#f2f4f7;font-weight:700}
-  .n{text-align:right;white-space:nowrap}
-  .src{font-size:12px;font-weight:700;padding:2px 7px;border-radius:99px;background:#f0eee9;white-space:nowrap}
-  .src.website{background:#eaf1fd;color:#2457b8}.src.whatsapp{background:#e8f8ee;color:#1d7a43}
-  tr.cancelled td{color:#aaa;text-decoration:line-through}
-  tr.cancelled td:last-child{text-decoration:none}
-  .tbtn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 9px;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap}
-  a.tbtn{color:var(--ink);text-decoration:none;display:inline-block}
-  .tbtn.danger{color:var(--red)}
-  .tbtn.sure{background:var(--red);color:#fff;border-color:var(--red)}
-  .stockQty{display:flex;align-items:center;gap:4px;justify-content:flex-end}
-  .stockQty input{width:50px;padding:5px 2px;text-align:center}
-  #stockRows .name{white-space:normal;min-width:150px}#stockRows .rate{width:72px!important}#stockRows .tbtn{padding:4px 7px}#stockRows td,#tab-stock th{padding-left:5px;padding-right:5px}
-  .scroll{overflow-x:auto}
-  .summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-  .summary div{background:var(--bg);border-radius:8px;padding:8px 12px;font-size:13px}
-  .summary b{display:block;font-size:17px}
-  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-weight:600;font-size:14px;z-index:9;max-width:calc(100% - 32px)}
-  .lock{max-width:380px;margin:12vh auto;background:#fff;padding:24px;border-radius:12px}
-  @media (max-width:600px){.hideSm{display:none}.todayBox{margin-left:0;text-align:left}}
-</style>
 </head>
 <body>
 
 <div id="lock" class="lock hide">
   <h2 style="margin-top:0">Staff login</h2>
-  <div class="row2"><input type="text" id="staffName" placeholder="Name" autocomplete="off"><input type="password" id="staffPin" inputmode="numeric" placeholder="PIN" autocomplete="off"></div>
-  <button class="big" id="staffGo">Log in</button>
+  <form id="staffForm">
+    <div class="row2"><input type="text" id="staffName" placeholder="Name" autocomplete="off"><input type="password" id="staffPin" inputmode="numeric" placeholder="PIN" autocomplete="off"></div>
+    <button class="big" id="staffGo">Log in</button>
+  </form>
   <details style="margin-top:14px"><summary class="sub">Owner</summary>
-    <input type="password" id="keyIn" placeholder="Owner key" autocomplete="off" style="margin-top:8px">
-    <button class="big" id="keyGo">Open</button></details>
+    <form id="keyForm"><input type="password" id="keyIn" placeholder="Owner key" autocomplete="off" style="margin-top:8px">
+    <button class="big" id="keyGo">Open</button></form></details>
   <div class="err" id="keyErr"></div>
 </div>
 
 <div id="app" class="hide shell">
-<nav id="side">
+<nav id="side" aria-label="Main">
   <div class="brand"><i id="brandLogo">VX</i><div><b>Vibe X (The Surplus Store)</b><small>7006656599</small></div></div>
-  <div class="createWrap"><button id="createMain">+ Create Sales Invoice</button><button id="createMore" aria-label="More create options">⌄</button>
+  <div class="createWrap"><button id="createMain">+ Create Sales Invoice</button><button id="createMore" aria-label="More create options" aria-haspopup="true">⌄</button>
     <div id="createMenu" class="hide">
       <button data-go="parties">Create Party</button><button data-go="stock" data-new="item">Create Item</button>
       <button data-go="payments" data-sub="in">Payment In</button><button data-go="returns" data-sub="sale_return">Sales Return</button>
@@ -186,16 +61,20 @@
   <button class="nv" data-tab="expenses">Expenses</button>
   <button class="nv" data-tab="cash">Cash &amp; Bank</button>
   <h6>Business Tools</h6>
-  <button class="nv" data-tab="orders">Online Orders</button>
+  <button class="nv" data-tab="orders">Online Orders<i class="badge hide" data-badge="orders"></i></button>
   <div class="bottom"><button class="nv" data-tab="settings">Settings</button></div>
 </nav>
 <div class="page">
 <header>
   <button id="burger" aria-label="Menu">☰</button>
   <h1 id="pageTitle">Sales Invoice</h1>
-  <div class="live"><i class="dot" id="dot"></i><span id="sync">Connecting…</span></div>
-  <div class="todayBox" id="todayBox"></div>
+  <div class="live" title="Everything here updates by itself"><i class="dot" id="dot"></i><span id="sync">Connecting…</span></div>
+  <div class="searchBox"><input type="search" id="findAll" placeholder="Search bills, customers, items…" autocomplete="off" aria-label="Search everything"><kbd class="onlyKeys">Ctrl K</kbd>
+    <div id="findHits" class="hide"></div></div>
+  <button class="todayBox" id="todayBox" title="Open today's bills"></button>
+  <span id="who"></span>
 </header>
+<div id="offline" class="hide">No internet. Your bill is safe on this device. It can be saved once you're back online.</div>
 <main>
   <section class="panel hide" id="tab-home"></section>
   <section class="panel hide" id="tab-docs"></section>
@@ -211,86 +90,136 @@
   <section class="panel" id="tab-new">
     <div class="grid">
       <div>
-        <input type="search" id="q" placeholder="Scan a barcode, or type a code or name" autocomplete="off" autofocus>
+        <input type="search" id="q" placeholder="Scan a barcode, or type a code or name" autocomplete="off">
+        <div class="sub resultsHead" id="resultsHead"></div>
         <div class="results" id="results"></div>
       </div>
-      <aside class="cart">
-        <h2>Bill</h2>
-        <div id="lines"><div class="empty">Search an item and tap it to add.</div></div>
-        <div id="chargeList"></div>
-        <button class="x" id="addCharge">+ Add extra charge</button>
-        <div class="tot"><span>Total</span><span id="total">₹0</span></div>
-        <div class="row2">
-          <input type="text" id="cName" placeholder="Customer name (optional)" maxlength="60">
-          <input type="tel" id="cPhone" placeholder="Mobile (for WhatsApp bill)" maxlength="14">
+      <aside class="cart" id="cart">
+        <div id="billForm">
+          <div class="cartHead"><h2>Bill</h2><span class="cartTools"><button class="x" id="holdBill" title="Keep this bill aside and serve someone else">Hold bill</button><button class="x" id="clearBill">Clear</button></span></div>
+          <div id="heldList"></div>
+          <div id="lines"></div>
+          <div id="chargeList"></div>
+          <div class="addRow"><button class="x" id="addCharge">+ Add extra charge</button><button class="x" id="addDisc">+ Discount on bill</button></div>
+          <div id="discRow" class="hide"><label class="sub">Discount on whole bill (₹ or %)<span class="qty"><input type="text" id="billDisc" placeholder="e.g. 200 or 10%" inputmode="text"><button id="discOff" aria-label="Remove discount">×</button></span></label></div>
+          <div class="tot"><span>Total</span><span id="total">₹0</span></div>
+          <div class="sub" id="savedLine"></div>
+          <div class="custBox">
+            <div class="row2">
+              <label class="sub">Mobile<input type="tel" id="cPhone" placeholder="For WhatsApp bill" maxlength="14" autocomplete="off"></label>
+              <label class="sub">Customer name<input type="text" id="cName" placeholder="Optional" maxlength="60" autocomplete="off"></label>
+            </div>
+            <div id="custHits" class="hide"></div>
+            <div id="custNote" class="sub"></div>
+          </div>
+          <div class="pay">
+            <label><input type="radio" name="pay" value="cash" checked><span>Cash</span></label>
+            <label><input type="radio" name="pay" value="upi"><span>UPI</span></label>
+            <label><input type="radio" name="pay" value="card"><span>Card</span></label>
+            <label><input type="radio" name="pay" value="credit"><span>Credit</span></label>
+          </div>
+          <div id="cashBox" class="payExtra">
+            <label class="sub">Customer gave ₹<input type="number" id="gave" min="0" inputmode="numeric"></label>
+            <div class="notes" id="notes"></div>
+            <div class="change" id="change"></div>
+          </div>
+          <div id="creditBox" class="payExtra hide">
+            <div class="row2"><label class="sub">Received now ₹<input type="number" id="partPaid" min="0" inputmode="numeric" placeholder="0"></label>
+              <label class="sub">Received by<select id="partMode"><option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option></select></label></div>
+            <div class="sub" id="partLeft"></div>
+          </div>
+          <button class="big" id="make" disabled>Create bill <kbd class="onlyKeys">Ctrl Enter</kbd></button>
+          <div class="err" id="err"></div>
         </div>
-        <div class="pay">
-          <label><input type="radio" name="pay" value="cash" checked><span>Cash</span></label>
-          <label><input type="radio" name="pay" value="upi"><span>UPI</span></label>
-          <label><input type="radio" name="pay" value="card"><span>Card</span></label>
-          <label><input type="radio" name="pay" value="credit"><span>Credit</span></label>
-        </div>
-        <button class="big" id="make" disabled>Create bill</button>
-        <div class="err" id="err"></div>
-        <div id="done"></div>
+        <div id="done" class="hide"></div>
       </aside>
     </div>
+    <button id="cartBar" class="hide"></button>
   </section>
 
   <section class="panel hide" id="tab-bills">
-    <div class="topRow"><button class="primary" id="newBillBtn">Create Sales Invoice</button></div>
+    <div class="topRow"><button class="tbtn" id="billCsv">Download Excel (CSV)</button><button class="primary" id="newBillBtn">Create Sales Invoice</button></div>
     <div class="summary" id="summary"></div>
-    <div class="filters"><input type="search" id="bq" placeholder="Search bill number, customer, item…" autocomplete="off">
-      <select id="bRange" aria-label="Date range"><option value="7">Last 7 Days</option><option value="30">Last 30 Days</option><option value="365" selected>Last 365 Days</option><option value="0">All</option></select></div>
+    <div class="chips" id="billStatus"></div>
+    <div class="filters"><input type="search" id="bq" placeholder="Search bill number, customer, mobile, item…" autocomplete="off">
+      <select id="bRange" aria-label="Date range"><option value="today">Today</option><option value="7">Last 7 Days</option><option value="30" selected>Last 30 Days</option><option value="month">This Month</option><option value="365">Last 365 Days</option><option value="0">All</option></select></div>
     <div class="scroll"><table>
       <thead><tr><th data-sort="at">Date</th><th>Invoice Number</th><th>Party Name</th><th class="hideSm">Items</th><th class="n" data-sort="total">Amount</th><th>Status</th><th></th></tr></thead>
       <tbody id="billRows"></tbody>
     </table></div>
+    <div class="moreRow" id="billMore"></div>
   </section>
 
   <section class="panel hide" id="tab-stock">
     <div class="cards" id="itemCards"></div>
+    <div class="chips" id="stockChips"></div>
     <div class="filters"><input type="search" id="sq" placeholder="Search by name, code or scan a barcode" autocomplete="off">
       <select id="sCat" aria-label="Category"><option value="">All Categories</option><option>Clothing</option><option>Footwear</option><option>Fragrances</option><option>Accessories</option></select>
-      <button class="tbtn" id="sLow">Low Stock</button>
-      <span id="stockTools" class="filters" style="margin:0;margin-left:auto"><select id="bulk" aria-label="Bulk Actions"><option value="">Bulk Actions</option><option value="labels">Print labels (ticked items)</option><option value="link">Link website items</option></select>
-      <label class="sub">Labels each <input type="number" id="lblCount" value="1" min="1" max="200" style="width:60px"></label>
+      <span id="stockTools" class="filters" style="margin:0;margin-left:auto"><button class="tbtn" id="linkBtn">Link website items</button><button class="tbtn" id="stockCsv">Download Excel (CSV)</button>
       <button class="primary" id="addItem">Create Item</button></span></div>
-    <label class="sub" style="display:block;margin-bottom:8px"><input type="checkbox" id="sCheck"> Only items that need checking</label>
+    <div id="pickBar" class="hide"></div>
     <div id="itemBox"></div>
-    <p class="sub">Changes here show on the website and in WhatsApp straight away. Use it for new stock coming in and stock counts. Sales go through <b>Create Sales Invoice</b>.</p>
-    <div class="scroll"><table>
-      <thead><tr><th></th><th data-sort="name">Item Name</th><th>Item Code</th><th class="n" data-sort="qty">Stock QTY</th><th class="n">Selling Price</th><th class="n" id="thCost">Purchase Price</th><th class="n">MRP</th><th></th></tr></thead>
+    <p class="sub">Changes here show on the website and in WhatsApp straight away. Sales go through <b>Create Sales Invoice</b>.</p>
+    <div class="scroll"><table id="stockTable">
+      <thead><tr><th><input type="checkbox" id="pickAll" aria-label="Tick all shown"></th><th data-sort="name">Item Name</th><th>Item Code</th><th class="n" data-sort="qty">Stock QTY</th><th class="n">Selling Price</th><th class="n" id="thCost">Purchase Price</th><th class="n">MRP</th><th></th></tr></thead>
       <tbody id="stockRows"></tbody>
     </table></div>
+    <div class="moreRow" id="stockMore"></div>
   </section>
 </main>
 </div>
+<nav id="dock" aria-label="Quick">
+  <button data-tab="home">Dashboard</button>
+  <button data-tab="new" class="main">+ Bill</button>
+  <button data-tab="stock">Items</button>
+  <button data-tab="orders">Orders<i class="badge hide" data-badge="orders"></i></button>
+  <button id="dockMore">More</button>
+</nav>
 </div>
+<div id="veil" class="hide"></div>
+<div id="drawerHost"></div>
+<div id="toasts" aria-live="polite"></div>
+<iframe id="printer" title="Printing" tabindex="-1"></iframe>
 
 <script>
 (() => {
   // ---- Owner key: from ?key= once, then remembered on this device ----
-  const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+    json(k, fallback) { try { return JSON.parse(localStorage.getItem(k)) ?? fallback; } catch { return fallback; } },
+  };
   const u = new URL(location.href);
   let KEY = u.searchParams.get("key") || store.get("vx-owner-key") || "";
-  let SESSION = store.get("vx-session") || "", ROLE = "owner";
-  if (u.searchParams.get("key")) { store.set("vx-owner-key", KEY); u.searchParams.delete("key"); history.replaceState(null, "", u.pathname + u.search); }
+  let SESSION = store.get("vx-session") || "", ROLE = "owner", ME = {};
+  if (u.searchParams.get("key")) { store.set("vx-owner-key", KEY); u.searchParams.delete("key"); history.replaceState(null, "", u.pathname + u.search + u.hash); }
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const inr = (n) => (n < 0 ? "−" : "") + "₹" + Math.abs(Number(n || 0)).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  const inr = (n) => (n < 0 ? "−" : "") + "₹" + Math.abs(Number(n || 0)).toLocaleString("en-IN", { maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : 2 });
+  const hasKeys = matchMedia("(pointer:fine)").matches; // a real keyboard: safe to put the cursor in boxes
   const api = async (path, opts = {}) => {
-    const r = await fetch(path, { ...opts, cache: "no-store", headers: { "Content-Type": "application/json", "x-owner-key": KEY, "x-session": SESSION, ...(opts.headers || {}) } });
+    let r;
+    try { r = await fetch(path, { ...opts, cache: "no-store", headers: { "Content-Type": "application/json", "x-owner-key": KEY, "x-session": SESSION, ...(opts.headers || {}) } }); }
+    catch { throw new Error("No internet. Nothing was saved. Try again."); }
     const j = await r.json().catch(() => ({}));
     if (r.status === 401) { showLock("That key didn't work."); throw new Error("key"); }
     if (!r.ok) throw new Error(j.error || "Something went wrong.");
     return j;
   };
-  const toast = (msg) => { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3200); };
+  // A message that goes away by itself, with an optional button such as Undo.
+  const toast = (msg, opt = {}) => {
+    const t = document.createElement("div");
+    t.className = "toast" + (opt.bad ? " bad" : "");
+    t.append(msg);
+    if (opt.action) { const b = document.createElement("button"); b.textContent = opt.action; b.onclick = () => { t.remove(); opt.run(); }; t.append(b); }
+    $("toasts").append(t);
+    setTimeout(() => t.remove(), opt.action ? 7000 : 3600);
+  };
 
   function showLock(msg) { $("app").classList.add("hide"); $("lock").classList.remove("hide"); $("keyErr").textContent = msg || ""; }
-  $("staffGo").onclick = async () => {
+  $("staffForm").onsubmit = async (e) => {
+    e.preventDefault();
     $("keyErr").textContent = "";
     const r = await fetch("/api/billing/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: $("staffName").value, pin: $("staffPin").value }) });
     const j = await r.json().catch(() => ({}));
@@ -298,64 +227,114 @@
     SESSION = j.token; KEY = ""; store.set("vx-session", SESSION); store.set("vx-owner-key", ""); $("staffPin").value = "";
     $("lock").classList.add("hide"); start();
   };
-  $("keyGo").onclick = () => { KEY = $("keyIn").value.trim(); store.set("vx-owner-key", KEY); $("lock").classList.add("hide"); start(); };
+  $("keyForm").onsubmit = (e) => { e.preventDefault(); KEY = $("keyIn").value.trim(); store.set("vx-owner-key", KEY); $("lock").classList.add("hide"); start(); };
 
   // ---- Live data: the same products.json the website and WhatsApp use ----
-  let products = [], invoices = [], today = null, lastSync = 0, online = true;
+  let products = [], invoices = [], invoiceTotal = 0, today = null, lastSync = 0, online = true, parties = [], stamp = "", waitingOrders = null, allBills = false;
   const stockOf = (p) => (p.quantity != null ? p.quantity : p.status === "sold" ? 0 : 1);
   const byId = () => new Map(products.map((p) => [p.id, p]));
 
+  async function loadAll() {
+    const [ps, inv] = await Promise.all([api("/api/billing/products"), api("/api/billing/invoices" + (allBills ? "?all=1" : ""))]);
+    products = ps; invoices = inv.invoices; invoiceTotal = inv.total ?? inv.invoices.length; today = inv.today;
+    lastSync = Date.now(); online = true;
+    api("/api/billing/parties").then((list) => { parties = list; paintCustomer(); }).catch(() => {});
+    render();
+  }
+  // Ask "has anything changed?" and fetch the data only when it has. Stops while the tab is in the background.
   async function refresh() {
+    if (document.hidden) return;
     try {
-      const [ps, inv] = await Promise.all([
-        api("/api/billing/products"),
-        api("/api/billing/invoices"),
-      ]);
-      const changed = JSON.stringify(ps) !== JSON.stringify(products) || inv.invoices.length !== invoices.length || (inv.invoices[0] && invoices[0] && inv.invoices[0].status !== invoices[0].status) || JSON.stringify(inv.today) !== JSON.stringify(today);
-      products = ps; invoices = inv.invoices; today = inv.today;
+      const p = await api("/api/billing/pulse");
       lastSync = Date.now(); online = true;
-      if (changed) render();
+      if (waitingOrders !== null && p.orders > waitingOrders) toast("New website order to check.", { action: "Open", run: () => go("orders") });
+      waitingOrders = p.orders; paintBadges(p.orders);
+      if (p.v !== stamp) { const first = !stamp; stamp = p.v; if (!first) { await loadAll(); liveTab(); } }
     } catch (e) { if (e.message !== "key") online = false; }
     paintSync();
   }
+  function paintBadges(n) {
+    document.querySelectorAll('[data-badge="orders"]').forEach((b) => { b.textContent = n; b.classList.toggle("hide", !n); });
+    document.title = (n ? `(${n}) ` : "") + "Vibe X Billing";
+  }
   function paintSync() {
     const s = Math.round((Date.now() - lastSync) / 1000);
+    if ($("dot").classList.contains("off") === online) paintTotals(); // connection changed: lock or free Create bill
     $("dot").classList.toggle("off", !online);
-    $("sync").textContent = online ? `Live · synced ${s <= 1 ? "just now" : s + "s ago"}` : "Offline, retrying…";
+    $("sync").textContent = online ? (s <= 5 ? "Live" : `Synced ${s}s ago`) : "Offline, retrying…";
+    $("offline").classList.toggle("hide", online);
+  }
+  // Pages built on request are redrawn too, unless the owner is in the middle of something.
+  function liveTab() {
+    if (current === "new" || current === "bills" || current === "stock" || current === "reports" || current === "settings") return;
+    if ($("drawerHost").children.length || document.querySelector("main details.form[open]") || document.querySelector("main .sure")) return;
+    if (document.activeElement?.matches?.("input,select,textarea")) return;
+    window.VX.tabs[current]?.(currentSub).catch(() => {});
   }
 
-  // ---- Tabs ----
+  // ---- Pages. The address follows the page, so Back and refresh both work. ----
   const TABS = ["home", "new", "bills", "docs", "returns", "payments", "orders", "parties", "purchases", "expenses", "cash", "stock", "reports", "settings"];
-  function go(tab, sub) {
+  const STAFF_TABS = ["new", "bills", "stock"];
+  let current = "new", currentSub;
+  async function show(tab, sub) {
+    if (ROLE === "staff" && !STAFF_TABS.includes(tab)) tab = "new";
+    if (!TABS.includes(tab)) tab = "new";
+    current = tab; currentSub = sub;
     TABS.forEach((t) => $("tab-" + t).classList.toggle("hide", t !== tab));
-    const btn = [...document.querySelectorAll("#side .nv[data-tab]")].find((b) => b.dataset.tab === tab && (sub ? b.dataset.sub === sub : true));
+    const btn = [...document.querySelectorAll("#side .nv[data-tab]")].find((b) => b.dataset.tab === tab && (sub && b.dataset.sub ? b.dataset.sub === sub : true));
     document.querySelectorAll("#side .nv").forEach((b) => b.classList.toggle("on", b === btn));
+    document.querySelectorAll("#dock [data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
     const group = btn?.closest(".subgroup");
     document.querySelectorAll(".subgroup").forEach((g) => g.classList.toggle("open", g === group));
     document.querySelectorAll("#side .head").forEach((h) => h.classList.toggle("open", group?.id === "g-" + h.dataset.group));
     $("pageTitle").textContent = tab === "new" ? "Create Sales Invoice" : btn ? btn.childNodes[0].textContent.trim() : "";
     $("side").classList.remove("show");
-    if (tab === "new") $("q").focus();
+    window.VX.closeDrawer?.();
+    window.scrollTo(0, 0);
+    if (tab === "new" && hasKeys) $("q").focus();
     const load = window.VX.tabs && window.VX.tabs[tab];
-    if (load) load(sub).catch((e) => toast(e.message));
+    if (load) await load(sub).catch((e) => toast(e.message));
   }
+  function go(tab, sub) {
+    const hash = `#/${tab}${sub ? "/" + sub : ""}`;
+    if (location.hash !== hash) history.pushState(null, "", hash);
+    return show(tab, sub);
+  }
+  const fromAddress = () => { const [, tab, sub] = location.hash.split("/"); return show(tab || "new", sub); };
+  addEventListener("popstate", fromAddress);
+  const opened = (tab) => { const d = $("tab-" + tab).querySelector("details.form"); if (d) d.open = true; };
+
   document.querySelectorAll("#side .nv[data-tab]").forEach((b) => (b.onclick = () => go(b.dataset.tab, b.dataset.sub)));
+  document.querySelectorAll("#dock [data-tab]").forEach((b) => (b.onclick = () => go(b.dataset.tab)));
   document.querySelectorAll("#side .head").forEach((h) => (h.onclick = () => { const g = $("g-" + h.dataset.group), open = !g.classList.contains("open"); document.querySelectorAll(".subgroup").forEach((x) => x.classList.remove("open")); document.querySelectorAll("#side .head").forEach((x) => x.classList.remove("open")); g.classList.toggle("open", open); h.classList.toggle("open", open); }));
   $("createMain").onclick = () => go("new");
   $("createMore").onclick = (e) => { e.stopPropagation(); $("createMenu").classList.toggle("hide"); };
   document.addEventListener("click", () => $("createMenu").classList.add("hide"));
-  document.querySelectorAll("#createMenu button").forEach((b) => (b.onclick = () => { go(b.dataset.go, b.dataset.sub); if (b.dataset.new === "item") window.VX.itemForm(null); }));
-  $("burger").onclick = () => $("side").classList.toggle("show");
+  // The Create menu goes straight to the form, not just to the list behind it.
+  document.querySelectorAll("#createMenu button").forEach((b) => (b.onclick = async () => { await go(b.dataset.go, b.dataset.sub); if (b.dataset.new === "item") window.VX.itemForm(null); else opened(b.dataset.go); }));
+  const sideOpen = (on) => { $("side").classList.toggle("show", on); };
+  $("burger").onclick = (e) => { e.stopPropagation(); sideOpen(!$("side").classList.contains("show")); };
+  $("dockMore").onclick = (e) => { e.stopPropagation(); sideOpen(!$("side").classList.contains("show")); };
+  document.addEventListener("click", (e) => { if (!e.target.closest("#side")) sideOpen(false); });
   $("newBillBtn").onclick = () => go("new");
+  $("todayBox").onclick = async () => { $("bRange").value = "today"; billStatus = ""; await go("bills"); renderBills(); };
 
   // ---- New bill ----
-  const cart = []; // { id, qty, price (rate), disc (₹ off the line) }
-  const charges = []; // { label, amount }: extra lines that aren't stock, e.g. courier
-  $("addCharge").onclick = () => { charges.push({ label: "", amount: "" }); renderCart(); };
+  let cart = []; // { id, qty, price (rate), disc (₹ off the line), size }
+  let charges = []; // { label, amount }: extra lines that aren't stock, e.g. courier
+  let billDisc = ""; // "200" or "10%", spread over the lines when the bill is made
+  $("addCharge").onclick = () => { charges.push({ label: "", amount: "" }); renderCart(); $("chargeList").querySelector("input:last-of-type")?.focus(); };
+  $("addDisc").onclick = () => { $("discRow").classList.remove("hide"); $("billDisc").focus(); };
+  $("discOff").onclick = () => { billDisc = ""; $("billDisc").value = ""; $("discRow").classList.add("hide"); renderCart(); };
+  $("billDisc").oninput = () => { billDisc = $("billDisc").value; paintTotals(); saveDraft(); };
+  const money = (t, of) => { const s = String(t ?? "").trim(); return Math.max(0, Math.round(s.endsWith("%") ? (of * (parseFloat(s) || 0)) / 100 : Number(s) || 0)); };
+
+  let sold = new Map();
   function matches(q) {
     q = q.trim().toLowerCase();
     const list = products.filter((p) => p.price);
-    if (!q) return list.filter((p) => stockOf(p) > 0).slice(0, 40);
+    // Empty box: what sells most, so the usual items are one tap away.
+    if (!q) return list.filter((p) => stockOf(p) > 0).sort((a, b) => (sold.get(b.id) || 0) - (sold.get(a.id) || 0)).slice(0, 40);
     const words = q.split(/\s+/);
     return list.filter((p) => {
       if (p.code === q || p.barcode === q) return true;
@@ -369,15 +348,35 @@
     if (n <= 0) return `<span class="pill out">Sold out</span>`;
     return `<span class="pill ${n === 1 ? "low" : ""}">${n} left</span>`;
   }
+  let picked = -1; // the result the arrow keys are on
+  // Items list photo: only items with a photo can be tapped. A photo that won't load leaves the letter.
+  const itemPic = (p) => {
+    const letter = esc(String(p.name).slice(0, 1).toUpperCase());
+    if (!p.image) return `<div class="thumb none">${letter}</div>`;
+    return `<button class="thumb none itemPic" data-photo="${esc(p.id)}" aria-label="See photo of ${esc(p.name)}">${letter}<img src="${esc(p.image)}" alt="" loading="lazy" onerror="this.remove()"></button>`;
+  };
+  function photoPanel(p) {
+    if (!p) return;
+    const box = window.VX.drawer(p.name, `<img id="photoBig" src="${esc(p.image)}" alt="${esc(p.name)}" onerror="this.outerHTML='<p class=sub>This photo could not be loaded.</p>'">
+      <div class="sub">#${esc(p.code)}${p.sizes ? " · " + esc(p.sizes) : ""} ${stockPill(p)}</div>
+      <div class="price" style="margin-top:6px">${p.price ? inr(p.price) : "No price yet"}</div>
+      ${ROLE === "staff" ? "" : `<button class="big" id="photoEdit">Edit item</button>`}`);
+    box.querySelector("#photoEdit")?.addEventListener("click", () => { window.VX.closeDrawer(); window.VX.itemForm(p); });
+  }
   function renderResults() {
+    sold = new Map();
+    for (const x of invoices) if (x.status !== "cancelled") for (const l of x.lines) sold.set(l.productId, (sold.get(l.productId) || 0) + l.qty);
     const list = matches($("q").value);
+    picked = -1;
+    $("resultsHead").textContent = $("q").value.trim() ? `${list.length}${list.length === 40 ? "+" : ""} found` : "Sells most";
     $("results").innerHTML = list.length ? list.map((p) => `
       <button class="item" data-id="${esc(p.id)}" ${p.status === "hold" ? "disabled" : ""}>
-        <div class="thumb" style="${p.image ? `background-image:url('${esc(p.image)}')` : ""}"></div>
+        <div class="thumb ${p.image ? "" : "none"}" style="${p.image ? `background-image:url('${esc(p.image)}')` : ""}">${p.image ? "" : esc(String(p.name).slice(0, 1).toUpperCase())}</div>
         <div class="grow"><div class="name">${esc(p.name)}</div><div class="sub">#${esc(p.code)}${p.sizes ? " · " + esc(p.sizes) : ""}${p.category ? " · " + esc(p.category) : ""}</div></div>
         ${stockPill(p)}<div class="price">${inr(p.price)}</div>
-      </button>`).join("") : `<div class="empty">Nothing matches.</div>`;
-    $("results").querySelectorAll(".item").forEach((b) => b.onclick = () => { addToCart(b.dataset.id); $("q").value = ""; renderResults(); $("q").focus(); });
+      </button>`).join("") : `<div class="empty">Nothing matches. <button class="x" id="makeItem">Create this item</button></div>`;
+    $("results").querySelectorAll(".item").forEach((b) => b.onclick = () => { addToCart(b.dataset.id); $("q").value = ""; renderResults(); if (hasKeys) $("q").focus(); });
+    const mk = $("makeItem"); if (mk) mk.onclick = async () => { const name = $("q").value.trim(); await go("stock"); window.VX.itemForm(null, name); };
   }
   // Sizes a bill line can pick from: priced per size, or counted per size.
   const sizeOpts = (p) => Object.keys(p?.sizeStock || p?.sizePrices || {}).map((size) => ({ size, price: p.sizePrices?.[size] ?? p.price, left: p.sizeStock ? p.sizeStock[size] ?? 0 : null }));
@@ -389,12 +388,34 @@
     const line = cart.find((l) => l.id === id && l.size === first?.size);
     if (line) line.qty++;
     else cart.push({ id, qty: 1, price: first ? first.price : p.price, disc: 0, size: first?.size });
-    $("done").innerHTML = ""; $("err").textContent = "";
+    showForm(); $("err").textContent = "";
     renderCart();
+  }
+  const lineAmt = (l) => (Number(l.price) || 0) * l.qty - (Number(l.disc) || 0);
+  const subTotal = () => cart.reduce((n, l) => n + lineAmt(l), 0);
+  const chargeTotal = () => charges.reduce((n, c) => n + (Number(c.amount) || 0), 0);
+  const grandTotal = () => subTotal() + chargeTotal() - Math.min(subTotal(), money(billDisc, subTotal()));
+  let blocked = false;
+  function paintTotals() {
+    const total = grandTotal(), off = Math.min(subTotal(), money(billDisc, subTotal()));
+    $("total").textContent = inr(total);
+    $("savedLine").textContent = off ? `Includes ${inr(off)} off the bill` : "";
+    $("make").disabled = !cart.length || blocked || !online;
+    const count = cart.reduce((n, l) => n + l.qty, 0);
+    $("cartBar").classList.toggle("hide", !cart.length || !$("done").classList.contains("hide"));
+    $("cartBar").innerHTML = `<span>${count} item${count === 1 ? "" : "s"}</span><b>${inr(total)}</b><span>View bill ↓</span>`;
+    // Change to give back, and a shortcut for the notes the next round amounts come to.
+    const gave = Number($("gave").value) || 0;
+    $("change").innerHTML = !gave ? "" : gave >= total ? `Give back <b>${inr(gave - total)}</b>` : `<span class="short">Short by ${inr(total - gave)}</span>`;
+    const round = [100, 500, 1000, 2000].map((s) => Math.ceil(total / s) * s).filter((v, i, a) => v > 0 && a.indexOf(v) === i).slice(0, 3);
+    $("notes").innerHTML = total ? [total, ...round.filter((v) => v !== total)].map((v) => `<button class="tbtn" data-gave="${v}">${v === total ? "Exact" : inr(v)}</button>`).join("") : "";
+    $("notes").querySelectorAll("[data-gave]").forEach((b) => (b.onclick = () => { $("gave").value = b.dataset.gave; paintTotals(); }));
+    const part = Number($("partPaid").value) || 0;
+    $("partLeft").textContent = part ? (part > total ? "That's more than the bill." : `${inr(total - part)} goes in the ledger.`) : `All ${inr(total)} goes in the ledger.`;
   }
   function renderCart() {
     const m = byId();
-    let total = 0, bad = false;
+    blocked = false;
     $("lines").innerHTML = cart.length ? cart.map((l, i) => {
       const p = m.get(l.id);
       const have = !p ? 0 : p.sizeStock && l.size ? p.sizeStock[l.size] ?? 0 : stockOf(p);
@@ -402,152 +423,356 @@
       // A hold or a removed item stops the bill. Short stock only warns: the piece is in his hand.
       const warn = !p ? "Removed from the shop." : p.status === "hold" ? `Held for website order ${p.holdFor}.` : "";
       const note = p && !warn && l.qty > have ? `System shows ${Math.max(0, have)}. This will bill, and flag it for a recount.` : "";
-      if (warn) bad = true;
-      const amt = (Number(l.price) || 0) * l.qty - (Number(l.disc) || 0);
-      total += amt;
+      if (warn) blocked = true;
       const opts = sizeOpts(p);
       const list = opts.find((o) => o.size === l.size)?.price ?? p?.price;
       return `<div class="line ${warn ? "bad" : ""}">
-        <div class="grow"><div class="name">${esc(p ? p.name : "Item")}</div><div class="sub">#${esc(p ? p.code : "")}${p && list !== Number(l.price) ? ` · list ${inr(list)}` : ""} · <button class="x" data-rm="${i}">remove</button></div>${opts.length ? `<select data-size="${i}" aria-label="Size" style="margin-top:4px;max-width:170px">${opts.map((o) => `<option value="${esc(o.size)}" ${o.size === l.size ? "selected" : ""}>${esc(o.size)} · ${inr(o.price)}${o.left === null ? "" : ` · ${o.left} left`}</option>`).join("")}</select>` : ""}</div>
-        <div style="text-align:right"><input class="rate" type="number" min="0" step="1" value="${esc(l.price)}" data-rate="${i}" aria-label="Rate"><input class="rate" type="number" min="0" step="1" value="${l.disc ? esc(l.disc) : ""}" placeholder="Disc ₹" data-disc="${i}" aria-label="Discount" style="margin-top:4px;display:block"></div>
-        <div class="qty"><button data-dec="${i}" aria-label="Less">−</button><span>${l.qty}</span><button data-inc="${i}" aria-label="More">+</button></div>
-        <div class="price" style="text-align:right">${inr(amt)}</div>
+        <div class="lineTop"><div class="name">${esc(p ? p.name : "Item")}</div><button class="rm" data-rm="${i}" aria-label="Remove ${esc(p ? p.name : "item")}">×</button></div>
+        <div class="sub">#${esc(p ? p.code : "")}${p && list !== Number(l.price) ? ` · list price ${inr(list)}` : ""}</div>
+        ${opts.length ? `<select data-size="${i}" aria-label="Size">${opts.map((o) => `<option value="${esc(o.size)}" ${o.size === l.size ? "selected" : ""}>${esc(o.size)} · ${inr(o.price)}${o.left === null ? "" : ` · ${o.left} left`}</option>`).join("")}</select>` : ""}
+        <div class="lineNums">
+          <label class="sub">Qty<span class="qty"><button data-dec="${i}" aria-label="Less">−</button><input class="rate qtyIn" type="number" min="1" value="${l.qty}" data-q="${i}" aria-label="Quantity"><button data-inc="${i}" aria-label="More">+</button></span></label>
+          <label class="sub">Rate ₹<input class="rate" type="number" min="0" step="1" value="${esc(l.price)}" data-rate="${i}"></label>
+          <label class="sub">Disc ₹/%<input class="rate" type="text" value="${l.disc ? esc(l.disc) : ""}" placeholder="0" data-disc="${i}"></label>
+          <div class="lineAmt sub">Amount<b data-amt="${i}">${inr(lineAmt(l))}</b></div>
+        </div>
         ${warn ? `<div class="warn">⚠ ${esc(warn)}</div>` : ""}
         ${note ? `<div class="warn" style="color:var(--amber)">⚠ ${esc(note)}</div>` : ""}
       </div>`;
     }).join("") : `<div class="empty">Search an item and tap it to add.</div>`;
-    for (const c of charges) total += Number(c.amount) || 0;
     $("chargeList").innerHTML = charges.map((c, i) => `<div class="row2"><input value="${esc(c.label)}" placeholder="Charge, e.g. Courier" data-cl="${i}" aria-label="Charge name"><div class="qty"><input class="rate" type="number" min="0" value="${esc(c.amount)}" placeholder="₹" data-ca="${i}" aria-label="Charge amount"><button data-crm="${i}" aria-label="Remove charge">×</button></div></div>`).join("");
-    $("chargeList").querySelectorAll("[data-cl]").forEach((i) => (i.oninput = () => { charges[+i.dataset.cl].label = i.value; }));
-    $("chargeList").querySelectorAll("[data-ca]").forEach((i) => (i.onchange = () => { charges[+i.dataset.ca].amount = i.value; renderCart(); }));
+    $("chargeList").querySelectorAll("[data-cl]").forEach((i) => (i.oninput = () => { charges[+i.dataset.cl].label = i.value; saveDraft(); }));
+    $("chargeList").querySelectorAll("[data-ca]").forEach((i) => (i.oninput = () => { charges[+i.dataset.ca].amount = i.value; paintTotals(); saveDraft(); }));
     $("chargeList").querySelectorAll("[data-crm]").forEach((b) => (b.onclick = () => { charges.splice(+b.dataset.crm, 1); renderCart(); }));
-    $("total").textContent = inr(total);
-    $("make").disabled = !cart.length || bad;
-    $("lines").querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => { cart.splice(+b.dataset.rm, 1); renderCart(); });
-    $("lines").querySelectorAll("[data-inc]").forEach((b) => b.onclick = () => { const l = cart[+b.dataset.inc]; l.qty++; renderCart(); });
-    $("lines").querySelectorAll("[data-dec]").forEach((b) => b.onclick = () => { const i = +b.dataset.dec; if (cart[i].qty > 1) cart[i].qty--; else cart.splice(i, 1); renderCart(); });
-    $("lines").querySelectorAll("[data-size]").forEach((sel) => sel.onchange = () => { const l = cart[+sel.dataset.size]; l.size = sel.value; l.price = sizeOpts(m.get(l.id)).find((o) => o.size === l.size).price; renderCart(); });
-    $("lines").querySelectorAll("[data-rate]").forEach((inp) => inp.onchange = () => { cart[+inp.dataset.rate].price = Math.max(0, Math.round(Number(inp.value) || 0)); renderCart(); });
-    $("lines").querySelectorAll("[data-disc]").forEach((inp) => inp.onchange = () => { cart[+inp.dataset.disc].disc = Math.max(0, Math.round(Number(inp.value) || 0)); renderCart(); });
+    const L = $("lines");
+    L.querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => { cart.splice(+b.dataset.rm, 1); renderCart(); });
+    L.querySelectorAll("[data-inc]").forEach((b) => b.onclick = () => { const l = cart[+b.dataset.inc]; l.qty++; renderCart(); });
+    L.querySelectorAll("[data-dec]").forEach((b) => b.onclick = () => { const i = +b.dataset.dec; if (cart[i].qty > 1) cart[i].qty--; else cart.splice(i, 1); renderCart(); });
+    L.querySelectorAll("[data-size]").forEach((sel) => sel.onchange = () => { const l = cart[+sel.dataset.size]; l.size = sel.value; l.price = sizeOpts(m.get(l.id)).find((o) => o.size === l.size).price; renderCart(); });
+    L.querySelectorAll("[data-q]").forEach((i) => i.onchange = () => { cart[+i.dataset.q].qty = Math.max(1, Math.floor(Number(i.value) || 1)); renderCart(); });
+    // Typing updates the sums only: redrawing would throw the cursor out of the box.
+    const sums = (i) => { const el = L.querySelector(`[data-amt="${i}"]`); if (el) el.textContent = inr(lineAmt(cart[i])); paintTotals(); saveDraft(); };
+    L.querySelectorAll("[data-rate]").forEach((inp) => inp.oninput = () => { const i = +inp.dataset.rate; cart[i].price = Math.max(0, Math.round(Number(inp.value) || 0)); sums(i); });
+    L.querySelectorAll("[data-disc]").forEach((inp) => { inp.onchange = () => { const i = +inp.dataset.disc; cart[i].disc = money(inp.value, cart[i].price * cart[i].qty); inp.value = cart[i].disc || ""; sums(i); }; });
+    paintTotals(); saveDraft();
   }
   $("q").oninput = renderResults;
+  $("gave").oninput = paintTotals;
+  $("partPaid").oninput = paintTotals;
+  const payNow = () => document.querySelector("input[name=pay]:checked").value;
+  const paintPay = () => { const v = payNow(); $("cashBox").classList.toggle("hide", v !== "cash"); $("creditBox").classList.toggle("hide", v !== "credit"); };
+  document.querySelectorAll("input[name=pay]").forEach((i) => (i.onchange = () => { paintPay(); saveDraft(); }));
+
   $("q").onkeydown = (e) => {
+    const rows = [...$("results").querySelectorAll(".item:not([disabled])")];
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      picked = Math.max(0, Math.min(rows.length - 1, picked + (e.key === "ArrowDown" ? 1 : -1)));
+      rows.forEach((r, i) => r.classList.toggle("active", i === picked));
+      rows[picked]?.scrollIntoView({ block: "nearest" });
+      return;
+    }
     if (e.key !== "Enter") return;
     // A barcode scanner types the digits and presses Enter, so a scan lands here.
     e.preventDefault();
+    if (picked >= 0 && rows[picked]) { addToCart(rows[picked].dataset.id); $("q").value = ""; renderResults(); return; }
     const q = $("q").value.trim();
+    if (!q) return;
     const first = matches(q).find((p) => p.status !== "hold");
     if (first) { addToCart(first.id); $("q").value = ""; renderResults(); }
-    else if (q) { toast(matches(q).length ? "That item is held for a website order." : `Nothing found for ${q}`); $("q").select(); }
+    else { toast(matches(q).length ? "That item is held for a website order." : `Nothing found for ${q}`, { bad: true }); $("q").select(); }
   };
+
+  // The bill being made survives a refresh, a dropped connection or a closed tab.
+  const draft = () => ({ cart, charges, billDisc, name: $("cName").value, phone: $("cPhone").value, pay: payNow() });
+  let draftReady = false; // nothing is saved until the last draft has been read back
+  function saveDraft() { if (!draftReady) return; const d = draft(); store.set("vx-draft", cart.length || charges.length ? JSON.stringify(d) : ""); }
+  function loadDraft(d) {
+    cart = d.cart || []; charges = d.charges || []; billDisc = d.billDisc || "";
+    $("cName").value = d.name || ""; $("cPhone").value = d.phone || "";
+    $("billDisc").value = billDisc; $("discRow").classList.toggle("hide", !billDisc);
+    const r = document.querySelector(`input[name=pay][value=${d.pay || "cash"}]`); if (r) r.checked = true;
+    $("gave").value = ""; $("partPaid").value = "";
+    paintPay(); paintCustomer(); renderCart();
+  }
+  const emptyBill = () => loadDraft({});
+  $("clearBill").onclick = () => { if (!cart.length) return; const was = draft(); emptyBill(); toast("Bill cleared.", { action: "Undo", run: () => loadDraft(was) }); };
+
+  // Hold: serve the next customer and come back to this one. Stock is only taken when billed.
+  let held = store.json("vx-held", []);
+  const saveHeld = () => { store.set("vx-held", JSON.stringify(held)); paintHeld(); };
+  function paintHeld() {
+    $("heldList").innerHTML = held.map((h, i) => `<div class="held"><button class="x" data-unhold="${i}"><b>${esc(h.name || "Bill on hold")}</b> · ${h.cart.length} item${h.cart.length === 1 ? "" : "s"} · ${inr(h.total)}</button><button class="rm" data-hrm="${i}" aria-label="Delete held bill">×</button></div>`).join("");
+    $("heldList").querySelectorAll("[data-unhold]").forEach((b) => (b.onclick = () => {
+      const [h] = held.splice(+b.dataset.unhold, 1);
+      if (cart.length) held.push({ ...draft(), total: grandTotal() });
+      saveHeld(); showForm(); loadDraft(h);
+    }));
+    $("heldList").querySelectorAll("[data-hrm]").forEach((b) => (b.onclick = () => { const i = +b.dataset.hrm, [h] = held.splice(i, 1); saveHeld(); toast("Held bill deleted.", { action: "Undo", run: () => { held.push(h); saveHeld(); } }); }));
+  }
+  $("holdBill").onclick = () => {
+    if (!cart.length) return toast("Add an item first.", { bad: true });
+    held.push({ ...draft(), total: grandTotal() }); saveHeld(); emptyBill();
+    toast("Bill on hold. Stock is taken only when you bill it."); if (hasKeys) $("q").focus();
+  };
+
+  // Regular customers: type a few digits of the mobile or name and pick them.
+  const customers = () => parties.filter((p) => p.type === "customer");
+  function custSearch(text) {
+    const q = text.trim().toLowerCase();
+    const list = q.length < 2 ? [] : customers().filter((p) => `${p.name} ${p.phone}`.toLowerCase().includes(q)).slice(0, 5);
+    $("custHits").classList.toggle("hide", !list.length);
+    $("custHits").innerHTML = list.map((p) => `<button data-c="${esc(p.id)}"><b>${esc(p.name)}</b><span class="sub">${esc(p.phone)}${p.balance > 0 ? ` · owes ${inr(p.balance)}` : ""}</span></button>`).join("");
+    $("custHits").querySelectorAll("[data-c]").forEach((b) => (b.onmousedown = b.ontouchstart = (e) => { e.preventDefault(); const p = customers().find((x) => x.id === b.dataset.c); $("cName").value = p.name; $("cPhone").value = p.phone; $("custHits").classList.add("hide"); paintCustomer(); saveDraft(); }));
+  }
+  function paintCustomer() {
+    const phone = $("cPhone").value.replace(/\D/g, "").slice(-10);
+    const p = phone.length === 10 && customers().find((x) => x.phone === phone);
+    $("custNote").innerHTML = !p ? "" : p.balance > 0 ? `<span class="owed-out">Already owes ${inr(p.balance)}</span>` : "Saved customer";
+  }
+  for (const id of ["cPhone", "cName"]) {
+    $(id).oninput = () => { custSearch($(id).value); paintCustomer(); saveDraft(); };
+    $(id).onblur = () => setTimeout(() => $("custHits").classList.add("hide"), 120);
+  }
+
+  // Print on the page itself, so a pop-up blocker can't stop it.
+  const printBill = (id, size) => { if (!hasKeys) return void window.open(`/bill/${id}?o${size === "80" ? "&size=80" : ""}`, "_blank", "noopener"); const f = $("printer"); f.onload = () => { if (f.src !== "about:blank") f.contentWindow.print(); }; f.src = `/bill/${id}?o${size === "80" ? "&size=80" : ""}`; };
+  const billText = (inv, url) => `Hi${inv.customer.name ? " " + inv.customer.name : ""}, thank you for shopping at Vibe X! Your bill ${inv.number} (${inr(inv.total)}): ${location.origin}${url}`;
+  const prefs = () => ({ size: store.get("vx-print-size") || "a4", auto: store.get("vx-print-auto") === "1" });
+
+  function showForm() { $("billForm").classList.remove("hide"); $("done").classList.add("hide"); }
+  function billDone(inv, url, gaveBack) {
+    const phone = inv.customer.phone;
+    const size = prefs().size;
+    $("billForm").classList.add("hide"); $("done").classList.remove("hide");
+    $("cartBar").classList.add("hide");
+    $("done").innerHTML = `<div class="doneCard"><div class="tick">✓</div><h2>Bill ${esc(inv.number)} saved</h2><div class="doneAmt">${inr(inv.total)}</div>
+      ${gaveBack > 0 ? `<div class="change">Give back <b>${inr(gaveBack)}</b></div>` : ""}
+      ${inv.payment === "credit" ? `<p class="sub">${inr(inv.total - inv.paid)} added to ${esc(inv.customer.name || "the customer")}'s ledger.</p>` : ""}
+      <button class="big" id="dPrint">Print bill</button>
+      <div class="row2">${phone ? `<a class="tbtn wa" target="_blank" rel="noopener" href="https://wa.me/91${phone}?text=${encodeURIComponent(billText(inv, url))}">Send on WhatsApp</a>` : `<button class="tbtn" id="dAskPhone">Send on WhatsApp</button>`}<a class="tbtn" href="${url}?o" target="_blank" rel="noopener">Open bill</a></div>
+      <div id="dPhoneBox" class="row2 hide"><input type="tel" id="dPhone" placeholder="Customer's mobile" maxlength="14" aria-label="Customer's mobile"><a class="tbtn wa" id="dPhoneGo" target="_blank" rel="noopener">Send</a></div>
+      <button class="tbtn nextBill" id="dNext">Next bill <kbd class="onlyKeys">Enter</kbd></button></div>`;
+    $("dPrint").onclick = () => { printBill(inv.id, size); if (hasKeys) $("dNext").focus(); };
+    if ($("dAskPhone")) {
+      $("dAskPhone").onclick = () => { $("dPhoneBox").classList.remove("hide"); $("dPhone").focus(); };
+      $("dPhone").oninput = () => { const p = $("dPhone").value.replace(/\D/g, "").slice(-10); $("dPhoneGo").href = p.length === 10 ? `https://wa.me/91${p}?text=${encodeURIComponent(billText(inv, url))}` : ""; };
+    }
+    $("dNext").onclick = () => { showForm(); if (hasKeys) $("q").focus(); paintTotals(); };
+    if (hasKeys) $("dNext").focus();
+    if (innerWidth <= 860) $("cart").scrollIntoView({ block: "start" });
+    if (prefs().auto) printBill(inv.id, size);
+  }
+
   let overLimit = false; // set when the owner taps again after the credit limit warning
-  $("make").onclick = async () => {
+  const spreadDisc = () => {
+    // A discount on the whole bill is shared across the lines, so each line and the totals still add up.
+    const sub = subTotal(), off = Math.min(sub, money(billDisc, sub));
+    let left = off;
+    return cart.map((l, i) => {
+      const amt = lineAmt(l), share = i === cart.length - 1 ? left : Math.min(left, Math.round((off * amt) / (sub || 1)));
+      left -= share;
+      return { productId: l.id, qty: l.qty, price: l.price, disc: (Number(l.disc) || 0) + share, size: l.size };
+    });
+  };
+  async function makeBill() {
+    if ($("make").disabled) return;
     $("make").disabled = true; $("err").textContent = "";
+    const pay = payNow();
     try {
       const phone = $("cPhone").value.replace(/\D/g, "").slice(-10);
-      if ($("cPhone").value.trim() && phone.length !== 10) throw new Error("Mobile number should be 10 digits.");
+      if ($("cPhone").value.trim() && phone.length !== 10) { $("cPhone").focus(); throw new Error("Mobile number should be 10 digits."); }
+      if (pay === "credit" && phone.length !== 10) { $("cPhone").focus(); throw new Error("A credit bill needs the customer's mobile, so it can go in their ledger."); }
+      if (pay === "credit" && !$("cName").value.trim()) { $("cName").focus(); throw new Error("A credit bill needs the customer's name."); }
+      const gaveBack = pay === "cash" ? Math.max(0, (Number($("gave").value) || 0) - grandTotal()) : 0;
       const r = await api("/api/billing/invoices", { method: "POST", body: JSON.stringify({
-        lines: cart.map((l) => ({ productId: l.id, qty: l.qty, price: l.price, disc: l.disc || 0, size: l.size })),
+        lines: spreadDisc(),
         charges: charges.map((c) => ({ label: c.label, amount: Number(c.amount) })),
         customer: { name: $("cName").value, phone },
-        payment: document.querySelector("input[name=pay]:checked").value,
+        payment: pay,
+        received: pay === "credit" ? Number($("partPaid").value) || 0 : undefined,
+        paidMode: pay === "credit" ? $("partMode").value : undefined,
         overLimit,
         allowShort: true, // the piece is at the counter; the line above already warned
       }) });
-      overLimit = false; $("make").textContent = "Create bill";
+      overLimit = false; $("make").firstChild.textContent = "Create bill ";
       const inv = r.invoice;
-      const wa = phone ? `https://wa.me/91${phone}?text=${encodeURIComponent(`Hi${inv.customer.name ? " " + inv.customer.name : ""}, thank you for shopping at Vibe X! Your bill ${inv.number} (${inr(inv.total)}): ${location.origin}${r.url}`)}` : "";
-      $("done").innerHTML = `<div class="ok">✅ <b>${esc(inv.number)}</b> · ${inr(inv.total)}<br>Stock updated on the website and WhatsApp.<br>
-        <a href="${r.url}?o" target="_blank" rel="noopener">Open / print bill</a>${wa ? ` · <a href="${wa}" target="_blank" rel="noopener">Send on WhatsApp</a>` : ""}</div>`;
-      cart.length = 0; charges.length = 0; $("cName").value = ""; $("cPhone").value = ""; document.querySelector("input[name=pay][value=cash]").checked = true;
-      await refresh(); render(); $("q").focus();
+      emptyBill();
+      billDone(inv, r.url, gaveBack);
+      await loadAll();
     } catch (e) {
+      if (e.message === "key") return;
       $("err").textContent = e.message;
-      if (/credit limit/.test(e.message)) { overLimit = true; $("make").textContent = "Bill anyway"; }
-      await refresh(); renderCart();
+      if (/credit limit/.test(e.message)) { overLimit = true; $("make").firstChild.textContent = "Bill anyway "; }
+      if (online) await loadAll().catch(() => {});
+      renderCart();
     }
-  };
+  }
+  $("make").onclick = makeBill;
+  $("cartBar").onclick = () => $("cart").scrollIntoView({ behavior: "smooth", block: "start" });
 
   // ---- Bills ----
   const SRC = { counter: "Counter", whatsapp: "WhatsApp", website: "Website" };
   const PAY = { cash: "Cash", upi: "UPI", card: "Card", credit: "Credit" };
-  let billSort = "at", billDir = -1;
+  const dayOf = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  let billSort = "at", billDir = -1, billStatus = "", billShown = 50;
+  function billList() {
+    const q = $("bq").value.trim().toLowerCase(), r = $("bRange").value, now = dayOf(Date.now());
+    const since = r === "today" ? now : r === "month" ? now.slice(0, 8) + "01" : Number(r) ? dayOf(Date.now() - Number(r) * 864e5) : "";
+    return invoices.filter((x) => dayOf(x.at) >= since)
+      .filter((x) => !q || `${x.number} ${x.customer.name} ${x.customer.phone} ${x.order || ""} ${x.lines.map((l) => l.name + " " + l.code).join(" ")}`.toLowerCase().includes(q))
+      .sort((a, b) => billDir * (billSort === "total" ? a.total - b.total : a.at.localeCompare(b.at)));
+  }
+  const billState = (x) => (x.status === "cancelled" ? "cancelled" : x.due > 0 ? "unpaid" : "paid");
   function renderBills() {
-    if (today) $("summary").innerHTML = `<div>Today<b>${inr(today.total)}</b></div><div>Bills<b>${today.bills}</b></div><div>Pieces<b>${today.pieces}</b></div>` +
-      Object.entries(today.byPayment).map(([k, v]) => `<div>${PAY[k] || k}<b>${inr(v)}</b></div>`).join("");
-    const q = $("bq").value.trim().toLowerCase();
-    const days = Number($("bRange").value), since = days ? Date.now() - days * 864e5 : 0;
-    const list = invoices.filter((x) => new Date(x.at) >= since).sort((a, b) => billDir * (billSort === "total" ? a.total - b.total : a.at.localeCompare(b.at))).filter((x) => !q || `${x.number} ${x.customer.name} ${x.customer.phone} ${x.order || ""} ${x.lines.map((l) => l.name + " " + l.code).join(" ")}`.toLowerCase().includes(q)).slice(0, 200);
-    $("billRows").innerHTML = list.length ? list.map((x) => { const due = x.total - (x.paid ?? x.total); return `<tr class="${x.status}">
+    const dated = billList(), live = dated.filter((x) => x.status !== "cancelled");
+    const by = {}; for (const x of live) { const k = x.payment; by[k] = (by[k] || 0) + x.total; }
+    const owed = live.reduce((n, x) => n + (x.due || 0), 0);
+    $("summary").innerHTML = `<div>Total Sales<b>${inr(live.reduce((n, x) => n + x.total, 0))}</b></div><div>Bills<b>${live.length}</b></div>` +
+      Object.entries(by).map(([k, v]) => `<div>${PAY[k] || k}<b>${inr(v)}</b></div>`).join("") + (owed ? `<div>Still to collect<b class="owed-out">${inr(owed)}</b></div>` : "");
+    const count = (s) => dated.filter((x) => billState(x) === s).length;
+    $("billStatus").innerHTML = [["", "All", dated.length], ["unpaid", "Unpaid", count("unpaid")], ["paid", "Paid", count("paid")], ["cancelled", "Cancelled", count("cancelled")]]
+      .map(([v, l, n]) => `<button class="chip ${billStatus === v ? "on" : ""}" data-st="${v}">${l} ${n}</button>`).join("");
+    $("billStatus").querySelectorAll("[data-st]").forEach((b) => (b.onclick = () => { billStatus = b.dataset.st; billShown = 50; renderBills(); }));
+    const list = dated.filter((x) => !billStatus || billState(x) === billStatus);
+    const hasBills = invoices.length > 0;
+    $("billRows").innerHTML = list.length ? list.slice(0, billShown).map((x) => `<tr class="${x.status} click" data-bill="${x.id}">
       <td>${new Date(x.at).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" })}</td>
       <td><b>${esc(x.number)}</b>${x.source !== "counter" ? `<div><span class="src ${x.source}">${SRC[x.source] || x.source}</span></div>` : ""}</td>
       <td>${esc(x.customer.name || "Walk-in")}${x.order ? `<div class="sub">${esc(x.order)}</div>` : ""}</td>
       <td class="hideSm">${x.lines.map((l) => `${l.qty > 1 ? l.qty + "× " : ""}${esc(l.name)}`).join("<br>")}</td>
-      <td class="n"><b>${inr(x.total)}</b></td>
-      <td>${x.status === "cancelled" ? `<span class="sub">Cancelled</span>` : due > 0 ? `<span class="pill ${x.paid ? "low" : "out"}">${x.paid ? "Partial" : "Unpaid"}</span>` : `<span class="pill">Paid</span>`}</td>
-      <td class="n"><a class="tbtn" href="/bill/${x.id}?o" target="_blank" rel="noopener">View</a>
-        ${x.status === "cancelled" || ROLE === "staff" ? "" : `<button class="tbtn danger" data-cancel="${x.id}">Cancel</button>`}</td>
-    </tr>`; }).join("") : `<tr><td colspan="7" class="empty">No bills yet.</td></tr>`;
-    $("billRows").querySelectorAll("[data-cancel]").forEach((b) => b.onclick = async () => {
-      // Two taps: first arms it, second cancels (no pop-up).
-      if (!b.classList.contains("sure")) { b.classList.add("sure"); b.textContent = "Tap again: stock back, payment removed"; setTimeout(() => { b.classList.remove("sure"); b.textContent = "Cancel"; }, 4000); return; }
-      b.disabled = true;
-      try { const r = await api(`/api/billing/invoices/${b.dataset.cancel}/cancel`, { method: "POST", body: "{}" }); toast(`${r.invoice.number} cancelled. Items back in stock.`); }
-      catch (e) { toast(e.message); }
-      await refresh(); render();
+      <td class="n"><b>${inr(x.total)}</b>${x.due > 0 && x.due < x.total ? `<div class="sub">${inr(x.due)} left</div>` : ""}</td>
+      <td>${x.status === "cancelled" ? `<span class="sub">Cancelled</span>` : x.due > 0 ? `<span class="pill ${x.due < x.total ? "low" : "out"}">${x.due < x.total ? "Partial" : "Unpaid"}</span>` : `<span class="pill">Paid${x.payment === "credit" ? "" : ` · ${PAY[x.payment] || ""}`}</span>`}</td>
+      <td class="n">${x.due > 0 && x.partyId && ROLE !== "staff" ? `<button class="tbtn" data-collect="${x.id}">Collect</button> ` : ""}<button class="tbtn" data-view="${x.id}">View</button></td>
+    </tr>`).join("") : `<tr><td colspan="7" class="empty">${hasBills ? "No bills for this search. Try a wider date range." : "No bills yet. Your first bill will appear here."}</td></tr>`;
+    $("billMore").innerHTML = list.length > billShown ? `<span class="sub">Showing ${billShown} of ${list.length}</span> <button class="tbtn" id="billNext">Show 50 more</button>` : "";
+    if ($("billNext")) $("billNext").onclick = () => { billShown += 50; renderBills(); };
+    $("billRows").querySelectorAll("[data-bill]").forEach((r) => (r.onclick = (e) => { if (e.target.closest("[data-collect]")) return; billPanel(r.dataset.bill); }));
+    $("billRows").querySelectorAll("[data-collect]").forEach((b) => (b.onclick = () => { const x = invoices.find((i) => i.id === b.dataset.collect); window.VX.collect(x.partyId, x.due, `Bill ${x.number}`); }));
+  }
+  // One place for everything you can do to a bill.
+  function billPanel(id) {
+    const x = invoices.find((i) => i.id === id);
+    if (!x) return;
+    const phone = x.customer.phone, url = `/bill/${x.id}`, off = x.status === "cancelled";
+    const box = window.VX.drawer(`Bill ${x.number}`, `
+      <p class="sub">${new Date(x.at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })} · ${SRC[x.source] || x.source}${x.by ? ` · by ${esc(x.by)}` : ""}</p>
+      <div class="billHead"><div><b>${esc(x.customer.name || "Walk-in")}</b><div class="sub">${esc(phone || "")}</div></div>${off ? `<span class="pill out">Cancelled</span>` : x.due > 0 ? `<span class="pill out">${inr(x.due)} due</span>` : `<span class="pill">Paid${x.payment === "credit" ? "" : ` · ${PAY[x.payment] || ""}`}</span>`}</div>
+      <table class="mini"><tbody>${x.lines.map((l) => `<tr><td>${l.qty} × ${esc(l.name)}${l.size ? ` <span class="sub">${esc(l.size)}</span>` : ""}</td><td class="n">${inr(l.amount)}</td></tr>`).join("")}${(x.charges || []).map((c) => `<tr><td>${esc(c.label || "Charge")}</td><td class="n">${inr(c.amount)}</td></tr>`).join("")}<tr><td><b>Total</b></td><td class="n"><b>${inr(x.total)}</b></td></tr></tbody></table>
+      <div class="actions">
+        <button class="primary" id="bpPrint">Print</button><a class="tbtn" href="${url}?o" target="_blank" rel="noopener">Open bill</a>
+        ${phone ? `<a class="tbtn wa" target="_blank" rel="noopener" href="https://wa.me/91${phone}?text=${encodeURIComponent(billText(x, url))}">WhatsApp</a>` : ""}
+        ${x.due > 0 && x.partyId && ROLE !== "staff" ? `<button class="tbtn" id="bpCollect">Collect ${inr(x.due)}</button>` : ""}
+        ${off || ROLE === "staff" ? "" : `<button class="tbtn" id="bpReturn">Sales Return</button><button class="tbtn danger" id="bpCancel">Cancel bill</button>`}
+      </div>`);
+    box.querySelector("#bpPrint").onclick = () => printBill(x.id, prefs().size);
+    const c = box.querySelector("#bpCollect"); if (c) c.onclick = () => window.VX.collect(x.partyId, x.due, `Bill ${x.number}`);
+    const ret = box.querySelector("#bpReturn");
+    if (ret) ret.onclick = async () => { await go("returns", "sale_return"); opened("returns"); $("rFind").value = x.number.split("/").pop(); $("rLoad").click(); };
+    const can = box.querySelector("#bpCancel");
+    if (can) window.VX.twoTap(can, "Tap again: stock back, payment removed", async () => {
+      const r = await api(`/api/billing/invoices/${x.id}/cancel`, { method: "POST", body: "{}" });
+      window.VX.closeDrawer(); toast(`${r.invoice.number} cancelled. Items back in stock.`); await loadAll();
     });
   }
-  $("bq").oninput = renderBills;
-  $("bRange").onchange = renderBills;
+  $("bq").oninput = () => { billShown = 50; renderBills(); };
+  $("bRange").onchange = async () => {
+    billShown = 50;
+    if (["0", "365"].includes($("bRange").value) && !allBills && invoiceTotal > invoices.length) { allBills = true; await loadAll(); return; }
+    renderBills();
+  };
   document.querySelectorAll("#tab-bills th[data-sort]").forEach((th) => (th.onclick = () => { if (billSort === th.dataset.sort) billDir = -billDir; else { billSort = th.dataset.sort; billDir = -1; } renderBills(); }));
+  const csvCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const saveCsv = (name, rows) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + rows.map((r) => r.map(csvCell).join(",")).join("\n")], { type: "text/csv" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); };
+  $("billCsv").onclick = () => saveCsv(`vibex-bills-${dayOf(Date.now())}.csv`, [["Date", "Bill", "Customer", "Mobile", "Items", "Payment", "Total", "Still due", "Status"], ...billList().map((x) => [dayOf(x.at), x.number, x.customer.name || "Walk-in", x.customer.phone, x.lines.map((l) => `${l.qty} x ${l.name}`).join("; "), PAY[x.payment] || x.payment, x.total, x.due || 0, billState(x)])]);
 
   // ---- Stock ----
   let editing = null; // don't redraw the row being typed in
   const picks = new Set(); // items ticked for labels
-  let stockSort = "name", stockDir = 1, lowOnly = false;
+  let stockSort = "name", stockDir = 1, stockChip = "", stockShown = 60;
   $("addItem").onclick = () => window.VX.itemForm(null);
+  $("linkBtn").onclick = () => window.VX.linkPanel();
 
+  const STOCK_CHIPS = [
+    ["", "All", () => true],
+    ["in", "In stock", (p) => stockOf(p) > 0],
+    ["low", "Low stock", (p) => stockOf(p) > 0 && stockOf(p) <= (p.reorderAt ?? 1)],
+    ["out", "Sold out", (p) => stockOf(p) <= 0],
+    ["check", "Needs checking", (p) => p.needsCount || p.needsName || !p.price],
+    ["off", "Not on website", (p) => p.hidden],
+  ];
+  function stockList() {
+    const q = $("sq").value.trim().toLowerCase(), cat = $("sCat").value;
+    const test = STOCK_CHIPS.find((c) => c[0] === stockChip)[2];
+    return products.filter((p) => test(p) && (!cat || p.category === cat) && (!q || `${p.code} ${p.barcode || ""} ${p.name} ${p.brand || ""} ${p.category || ""}`.toLowerCase().includes(q)))
+      .sort((a, b) => stockDir * (stockSort === "qty" ? stockOf(a) - stockOf(b) : String(a.name).localeCompare(String(b.name))));
+  }
+  function setChip(c) { stockChip = c; stockShown = 60; renderStock(); }
   function renderStock() {
-    const q = $("sq").value.trim().toLowerCase();
-    const check = $("sCheck").checked, cat = $("sCat").value;
-    const list = products.filter((p) => (!check || p.needsCount || p.needsName || !p.price) && (!q || `${p.code} ${p.barcode || ""} ${p.name} ${p.brand || ""} ${p.category || ""}`.toLowerCase().includes(q)))
-      .filter((p) => (!cat || p.category === cat) && (!lowOnly || (stockOf(p) > 0 && stockOf(p) <= (p.reorderAt ?? 1))))
-      .sort((a, b) => stockDir * (stockSort === "qty" ? stockOf(a) - stockOf(b) : String(a.name).localeCompare(String(b.name)))).slice(0, 400);
+    const all = stockList(), list = all.slice(0, stockShown), staff = ROLE === "staff";
+    $("stockChips").innerHTML = STOCK_CHIPS.map(([v, l, t]) => `<button class="chip ${stockChip === v ? "on" : ""}" data-sc="${v}">${l} ${products.filter(t).length}</button>`).join("");
+    $("stockChips").querySelectorAll("[data-sc]").forEach((b) => (b.onclick = () => setChip(b.dataset.sc)));
     $("stockRows").innerHTML = list.length ? list.map((p) => `<tr>
       <td><input type="checkbox" data-pick="${esc(p.id)}" ${picks.has(p.id) ? "checked" : ""} aria-label="Pick ${esc(p.name)}"></td>
-      <td><div class="name">${esc(p.name)}</div><div class="sub">#${esc(p.code)} ${stockPill(p)}${p.hidden ? ` <span class="pill low">Not on website</span>` : ""}${p.needsCount ? ` <span class="pill out">Count this</span>` : ""}${p.needsName ? ` <span class="pill out">Needs a name</span>` : ""}</div></td>
+      <td><div class="itemCell">${itemPic(p)}<div class="grow"><div class="name">${esc(p.name)}</div><div class="sub">#${esc(p.code)} ${stockPill(p)}${p.hidden ? ` <span class="pill low">Not on website</span>` : ""}${p.needsCount ? ` <span class="pill out">Count this</span>` : ""}${p.needsName ? ` <span class="pill out">Needs a name</span>` : ""}</div></div></div></td>
       <td>${esc(p.barcode || "-")}</td>
-      <td>${p.sizeStock ? `<b>${stockOf(p)}</b><div class="sub">${Object.entries(p.sizeStock).map(([s, n]) => `${esc(s)}: ${n}`).join(" · ")}</div>` : `<div class="stockQty"><button class="tbtn" data-step="-1" data-id="${esc(p.id)}">−</button><input type="number" min="0" value="${stockOf(p)}" data-qty="${esc(p.id)}"><button class="tbtn" data-step="1" data-id="${esc(p.id)}">+</button></div>`}</td>
-      <td class="n"><input type="number" class="rate" min="1" value="${esc(p.price || "")}" data-price="${esc(p.id)}"></td>
+      <td>${p.sizeStock ? `<b>${stockOf(p)}</b><div class="sub">${Object.entries(p.sizeStock).map(([s, n]) => `${esc(s)}: ${n}`).join(" · ")}</div>` : `<div class="stockQty"><button class="tbtn" data-step="-1" data-id="${esc(p.id)}" aria-label="One less">−</button><input type="number" min="0" value="${stockOf(p)}" data-qty="${esc(p.id)}" aria-label="Stock of ${esc(p.name)}"><button class="tbtn" data-step="1" data-id="${esc(p.id)}" aria-label="One more">+</button></div>`}</td>
+      <td class="n"><input type="number" class="rate" min="1" value="${esc(p.price || "")}" data-price="${esc(p.id)}" aria-label="Selling price of ${esc(p.name)}"></td>
       <td class="n costCol">${p.cost ? inr(p.cost) : "-"}</td>
       <td class="n">${p.mrp ? inr(p.mrp) : "-"}</td>
-      <td class="n">${ROLE === "staff" ? "" : `<button class="tbtn" data-edit="${esc(p.id)}">Edit</button>`}</td>
-    </tr>`).join("") : `<tr><td colspan="8" class="empty">No items.</td></tr>`;
-    $("thCost").classList.toggle("hide", ROLE === "staff");
-    document.querySelectorAll(".costCol").forEach((c) => c.classList.toggle("hide", ROLE === "staff"));
-    $("itemCards").innerHTML = ROLE === "staff" ? "" : `<div>Stock Value<b>${inr(products.reduce((n, p) => n + Math.max(0, stockOf(p)) * (p.price || 0), 0))}</b></div><div>Low Stock<b>${products.filter((p) => stockOf(p) > 0 && stockOf(p) <= (p.reorderAt ?? 1)).length}</b></div>`;
-    $("stockRows").querySelectorAll("[data-pick]").forEach((c) => (c.onchange = () => { if (c.checked) picks.add(c.dataset.pick); else picks.delete(c.dataset.pick); }));
+      <td class="n">${staff ? "" : `<button class="tbtn" data-edit="${esc(p.id)}">Edit</button>`}</td>
+    </tr>`).join("") : `<tr><td colspan="8" class="empty">No items match. Try All, or clear the search.</td></tr>`;
+    $("stockMore").innerHTML = all.length > stockShown ? `<span class="sub">Showing ${stockShown} of ${all.length}</span> <button class="tbtn" id="stockNext">Show 60 more</button>` : "";
+    if ($("stockNext")) $("stockNext").onclick = () => { stockShown += 60; renderStock(); };
+    $("thCost").classList.toggle("hide", staff);
+    document.querySelectorAll(".costCol").forEach((c) => c.classList.toggle("hide", staff));
+    const sell = products.reduce((n, p) => n + Math.max(0, stockOf(p)) * (p.price || 0), 0), cost = products.reduce((n, p) => n + Math.max(0, stockOf(p)) * (p.cost || 0), 0);
+    $("itemCards").innerHTML = staff ? "" : `<div>Stock Value (selling price)<b>${inr(sell)}</b></div><div>Stock Value (purchase price)<b>${inr(cost)}</b></div><div>Pieces in stock<b>${products.reduce((n, p) => n + Math.max(0, stockOf(p)), 0).toLocaleString("en-IN")}</b></div>`;
+    $("stockRows").querySelectorAll("[data-pick]").forEach((c) => (c.onchange = () => { if (c.checked) picks.add(c.dataset.pick); else picks.delete(c.dataset.pick); paintPicks(); }));
     $("stockRows").querySelectorAll("[data-edit]").forEach((b) => (b.onclick = () => window.VX.itemForm(byId().get(b.dataset.edit))));
-    if (ROLE === "staff") $("stockRows").querySelectorAll("[data-step],[data-qty],[data-price]").forEach((el) => (el.disabled = true));
-    const push = async (id, body) => {
-      try { await api("/api/billing/stock", { method: "POST", body: JSON.stringify({ productId: id, ...body }) }); toast("Saved. Website updated."); }
-      catch (e) { toast(e.message); }
-      editing = null; await refresh(); render();
+    $("stockRows").querySelectorAll("[data-photo]").forEach((b) => (b.onclick = () => photoPanel(byId().get(b.dataset.photo))));
+    if (staff) $("stockRows").querySelectorAll("[data-step],[data-qty],[data-price]").forEach((el) => (el.disabled = true));
+    const push = async (id, body, undo) => {
+      try {
+        await api("/api/billing/stock", { method: "POST", body: JSON.stringify({ productId: id, ...body }) });
+        toast("Saved. Website updated.", undo ? { action: "Undo", run: () => push(id, undo) } : {});
+      } catch (e) { toast(e.message, { bad: true }); }
+      editing = null; await loadAll();
     };
-    $("stockRows").querySelectorAll("[data-step]").forEach((b) => b.onclick = () => { const p = byId().get(b.dataset.id); push(b.dataset.id, { quantity: Math.max(0, stockOf(p) + Number(b.dataset.step)) }); });
-    $("stockRows").querySelectorAll("[data-qty]").forEach((i) => { i.onfocus = () => (editing = i.dataset.qty); i.onchange = () => push(i.dataset.qty, { quantity: i.value }); });
-    $("stockRows").querySelectorAll("[data-price]").forEach((i) => { i.onfocus = () => (editing = i.dataset.price); i.onchange = () => push(i.dataset.price, { price: i.value }); });
+    $("stockRows").querySelectorAll("[data-step]").forEach((b) => b.onclick = () => { const p = byId().get(b.dataset.id), was = stockOf(p); push(b.dataset.id, { quantity: Math.max(0, was + Number(b.dataset.step)) }, { quantity: was }); });
+    $("stockRows").querySelectorAll("[data-qty]").forEach((i) => { i.onfocus = () => (editing = i.dataset.qty); i.onchange = () => push(i.dataset.qty, { quantity: i.value }, { quantity: stockOf(byId().get(i.dataset.qty)) }); });
+    $("stockRows").querySelectorAll("[data-price]").forEach((i) => { i.onfocus = () => (editing = i.dataset.price); i.onchange = () => push(i.dataset.price, { price: i.value }, { price: byId().get(i.dataset.price).price }); });
+    paintPicks();
   }
-  $("sq").oninput = renderStock;
-  $("sCheck").onchange = renderStock;
-  $("sCat").onchange = renderStock;
-  $("sLow").onclick = () => { lowOnly = !lowOnly; $("sLow").classList.toggle("on", lowOnly); renderStock(); };
-  $("bulk").onchange = (e) => { const v = e.target.value; e.target.value = ""; if (v === "link") window.VX.linkPanel(); if (v === "labels") window.VX.printLabels([...picks]).catch((err) => toast(err.message)); };
+  // Ticked items: what can be done with them sits right above the list.
+  function paintPicks() {
+    const n = picks.size;
+    $("pickBar").classList.toggle("hide", !n);
+    if ($("pickBar").dataset.n === String(n)) return;
+    $("pickBar").dataset.n = n;
+    $("pickBar").innerHTML = `<b>${n} ticked</b><label class="sub">Labels each <input type="number" id="lblCount" value="1" min="1" max="200"></label><button class="primary" id="pickPrint">Print labels</button><button class="x" id="pickClear">Clear</button>`;
+    if (!n) return;
+    $("pickPrint").onclick = () => window.VX.printLabels([...picks]).catch((err) => toast(err.message));
+    $("pickClear").onclick = () => { picks.clear(); renderStock(); };
+  }
+  $("sq").oninput = () => { stockShown = 60; renderStock(); };
+  $("sq").onkeydown = (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const q = $("sq").value.trim().toLowerCase(), p = products.find((x) => x.barcode === q || x.code === q);
+    if (p && ROLE !== "staff") { $("sq").value = ""; renderStock(); window.VX.itemForm(p); }
+  };
+  $("sCat").onchange = () => { stockShown = 60; renderStock(); };
+  $("pickAll").onchange = (e) => { for (const p of stockList().slice(0, stockShown)) if (e.target.checked) picks.add(p.id); else picks.delete(p.id); renderStock(); };
+  $("stockCsv").onclick = () => saveCsv(`vibex-items-${dayOf(Date.now())}.csv`, [["Name", "Code", "Barcode", "Category", "Stock", "Selling price", ...(ROLE === "staff" ? [] : ["Purchase price"]), "MRP", "On website"], ...stockList().map((p) => [p.name, p.code, p.barcode, p.category, stockOf(p), p.price, ...(ROLE === "staff" ? [] : [p.cost]), p.mrp, p.hidden ? "No" : "Yes"])]);
   document.querySelectorAll("#tab-stock th[data-sort]").forEach((th) => (th.onclick = () => { if (stockSort === th.dataset.sort) stockDir = -stockDir; else { stockSort = th.dataset.sort; stockDir = 1; } renderStock(); }));
 
   function render() {
-    if (today) $("todayBox").innerHTML = `Today <b>${inr(today.total)}</b> · ${today.bills} bill${today.bills === 1 ? "" : "s"}`;
-    renderResults(); renderCart(); renderBills();
+    if (today && ROLE !== "staff") $("todayBox").innerHTML = `<span class="onlyWide">Today</span> <b>${inr(today.total)}</b> <span class="onlyWide">· ${today.bills} bill${today.bills === 1 ? "" : "s"}</span>`;
+    renderResults();
+    // Never redraw a box being typed in.
+    if (!document.activeElement?.closest?.("#lines,#chargeList")) renderCart();
+    renderBills();
     if (!editing) renderStock();
   }
 
@@ -558,33 +783,45 @@
     const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   };
-  window.VX = { api, esc, inr, toast, download, go, tabs: {}, reload: async () => { await refresh(); render(); } };
+  window.VX = Object.assign(window.VX || {}, { api, esc, inr, toast, download, go, store, addToCart, billPanel, tabs: {},
+    reload: loadAll, reloadTab: () => window.VX.tabs[current]?.(currentSub), data: () => ({ products, invoices, parties, role: ROLE, me: ME }),
+    makeBill: () => { if (current === "new") makeBill(); },
+    setStockFilter: async (c) => { await go("stock"); setChip(c); } });
 
+  function lockButton() {
+    $("who").innerHTML = `<button class="tbtn" id="logout">${ROLE === "staff" ? `${esc(ME.name)} · Log out` : "Lock"}</button>`;
+    $("logout").onclick = () => { store.set("vx-session", ""); store.set("vx-owner-key", ""); store.set("vx-draft", ""); location.href = "/billing"; };
+  }
   async function start() {
-    let me;
-    try { me = await api("/api/billing/me"); } catch { return; }
-    ROLE = me.role;
+    try { ME = await api("/api/billing/me"); } catch { return; }
+    ROLE = ME.role;
+    if (ME.logo) $("brandLogo").innerHTML = `<img src="${esc(ME.logo)}" alt="">`;
     // Staff see the counter only. The server refuses the rest anyway.
     if (ROLE === "staff") {
-      const open = ["bills", "stock"];
-      document.querySelectorAll("#side .nv[data-tab]").forEach((b) => b.classList.toggle("hide", !open.includes(b.dataset.tab)));
+      document.querySelectorAll("#side .nv[data-tab]").forEach((b) => b.classList.toggle("hide", !STAFF_TABS.includes(b.dataset.tab)));
       document.querySelector('[data-group="purchases"]').classList.add("hide");
       document.querySelector('[data-group="sales"]').classList.add("hide");
       document.getElementById("g-sales").style.display = "block";
-      document.querySelectorAll("#side h6, #createMore").forEach((b) => b.classList.add("hide"));
-      document.getElementById("stockTools").classList.add("hide");
-      $("sync").parentElement.insertAdjacentHTML("afterend", `<div class="live">${esc(me.name)} · <button class="x" id="logout">Log out</button></div>`);
-      $("logout").onclick = () => { store.set("vx-session", ""); location.reload(); };
+      document.querySelectorAll("#side h6, #createMore, #dock [data-tab=home], #dock [data-tab=orders], #stockTools .primary, #linkBtn, #todayBox").forEach((b) => b.classList.add("hide"));
     }
+    lockButton();
     $("app").classList.remove("hide");
-    await refresh(); render();
-    go("new"); // ready for the first scan
-    setInterval(refresh, 2000);
+    await loadAll().catch((e) => toast(e.message));
+    const d = store.json("vx-draft", null);
+    draftReady = true;
+    if (d?.cart?.length) { loadDraft(d); toast("Your unfinished bill is back."); }
+    paintHeld(); paintPay();
+    await fromAddress(); // a refresh stays on the same page; a fresh open is ready for the first scan
+    await refresh();
+    setInterval(refresh, 3000);
     setInterval(paintSync, 1000);
+    document.addEventListener("visibilitychange", refresh);
+    addEventListener("online", refresh);
   }
-  start();
+  document.addEventListener("DOMContentLoaded", start);
 })();
 </script>
+<script src="/billing-ux.js"></script>
 <script src="/billing-books.js"></script>
 <script src="/billing-docs.js"></script>
 <script src="/billing-more.js"></script>

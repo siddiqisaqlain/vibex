@@ -164,7 +164,7 @@ billing.hooks.canCancel = (inv) => (documents.hasReturn("invoiceId", inv.id) ? `
 const BOOK_FILES = ["staff.json", "products.json", "invoices.json", "parties.json", "payments.json", "purchases.json", "expenses.json", "books.json", "orders.json", "returns.json", "docs.json"];
 if (LIVE) { dailyBackup(STORE, BOOK_FILES); setInterval(() => dailyBackup(STORE, BOOK_FILES), 3600e3).unref(); }
 // Bill links in WhatsApp replies. Locally there's no public address, so it's a path.
-const billUrl = (inv) => `${process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || ""}`.replace(/\/$/, "") + `/bill/${inv.id}`;
+const billUrl = (inv) => siteUrl() + `/bill/${inv.id}`;
 const PAY_LABEL = { cash: "Cash", upi: "UPI", card: "Card", credit: "Credit" };
 // "bills" in the chat: today's bills from every channel (counter, WhatsApp, website).
 function billsReply() {
@@ -263,8 +263,18 @@ function tooMany(ip) {
   return list.length > 5;
 }
 
-// The site's public address, for photo links sent on WhatsApp (Render sets RENDER_EXTERNAL_URL).
-const siteUrl = () => (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+// The site's public address, for every link we send out. Never the host's own address: customers
+// must only ever see the shop's domain, so on Render (which sets RENDER) it falls back to that.
+const siteUrl = () => (process.env.PUBLIC_URL || (process.env.RENDER ? "https://vibexindia.com" : "")).replace(/\/$/, "");
+// Someone opening a page on the host's address lands on the shop's domain instead. /webhook and
+// /api stay put: the WhatsApp router posts to /webhook here, and Render checks /api/products.
+function toDomain(req, res, p, url) {
+  if (!/\.onrender\.com(:\d+)?$/i.test(req.headers.host || "") || !siteUrl() || siteUrl().includes(".onrender.com")) return false;
+  if ((req.method !== "GET" && req.method !== "HEAD") || p === "/webhook" || p.startsWith("/api/")) return false;
+  res.writeHead(301, { Location: siteUrl() + url.pathname + url.search });
+  res.end();
+  return true;
+}
 
 function sendToOwner(msg) {
   const inbox = loadInbox();
@@ -734,7 +744,7 @@ function productMeta(req, id) {
   const p = load().filter(isPublic).find((x) => x.id === id);
   // Hosts like Render sit behind HTTPS and pass the real scheme in x-forwarded-proto.
   const proto = String(req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
-  const origin = (process.env.PUBLIC_URL || `${proto}://${req.headers.host}`).replace(/\/$/, "");
+  const origin = siteUrl() || `${proto}://${req.headers.host}`;
   const title = p ? `${p.name}${p.price ? ` · ₹${p.price.toLocaleString("en-IN")}` : ""} · Vibe X` : "Vibe X · The Surplus Room";
   const desc = p?.description ? p.description.slice(0, 200) : p
     ? [p.brand, p.category, p.sizes, p.status === "sold" ? "Sold" : "In stock at Vibe X, Srinagar"].filter(Boolean).join(" · ")
@@ -1627,11 +1637,47 @@ if (LIVE) setInterval(() => { try { sweepHolds(); } catch (e) { console.warn("or
 const noCost = (p) => { const c = { ...p }; delete c.cost; delete c.supplierId; return c; };
 const billForStaff = (x) => ({ ...x, lines: x.lines.map(({ cost, ...l }) => l) });
 const BILL_FIELDS = ["headerLine", "terms", "email", "youtube", "theme"];
+const PULSE_FILES = ["products.json", "invoices.json", "orders.json", "parties.json", "payments.json", "purchases.json", "expenses.json", "returns.json"];
+const BACKUP_FILES = ["products", "invoices", "parties", "payments", "purchases", "expenses", "returns", "docs", "books", "orders"];
+
+// When a paid website order lets go of its piece. Only last pieces are held, so most orders never lapse.
+function lapsesAt(o, items = load()) {
+  if (o.status !== "paid" || !o.paidAt) return null;
+  const p = (Array.isArray(items) ? items : load()).find((x) => x.id === o.productId);
+  return p && p.status === "hold" && p.holdFor === o.code ? Date.parse(o.paidAt) + HOLD_MS : null;
+}
+
+// Stock and money waiting on the owner, shown at the top of the dashboard.
+function attention() {
+  const items = load(), paid = loadOrders().filter((o) => o.status === "paid" && o.paidAt);
+  const stockOf = billing.stockOf;
+  const lapses = paid.map((o) => lapsesAt(o, items)).filter(Boolean);
+  return {
+    ordersToCheck: paid.length,
+    nextLapse: lapses.length ? Math.min(...lapses) : null,
+    itemsToCount: items.filter((p) => p.needsCount).length,
+    lowStock: items.filter((p) => stockOf(p) > 0 && stockOf(p) <= (p.reorderAt ?? 1)).length,
+    noPrice: items.filter((p) => !p.price || p.needsName).length,
+  };
+}
+
 async function billingApi(req, res, route, url, who = { role: "owner" }) {
   const body = async () => { try { return JSON.parse((await readBody(req, 64 * 1024)) || "{}"); } catch { return null; } };
   const reply = (r) => (r.error ? send(res, 409, { error: r.error }) : send(res, 200, r));
   const post = req.method === "POST", get = req.method === "GET";
-  if (get && route === "me") return send(res, 200, { role: who.role, name: who.name });
+  if (get && route === "me") return send(res, 200, { role: who.role, name: who.name, upi: SHOP.pay.upiId, phone: SHOP.pay.phone, logo: SHOP.billing.logo || "" });
+  // A cheap "has anything changed?" so an open portal doesn't download the whole shop every few seconds.
+  if (get && route === "pulse") {
+    const stamp = (f) => { try { return fs.statSync(path.join(STORE, f)).mtimeMs; } catch { return 0; } };
+    const orders = who.role === "owner" ? loadOrders().filter((o) => o.status === "paid").length : 0;
+    return send(res, 200, { v: [...PULSE_FILES.map(stamp), orders, new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })].join("-"), orders });
+  }
+  // Everything the shop needs to start again, for keeping a copy off the server's disk.
+  if (get && route === "backup") {
+    const data = Object.fromEntries(BACKUP_FILES.map((f) => [f, readJson(path.join(STORE, `${f}.json`), null)]));
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Content-Disposition": `attachment; filename="vibex-backup-${new Date().toISOString().slice(0, 10)}.json"`, "Cache-Control": "no-store" });
+    return res.end(JSON.stringify({ takenAt: new Date().toISOString(), ...data }));
+  }
   if (get && route === "products") return send(res, 200, who.role === "staff" ? load().map(noCost) : load());
   if (post && route === "items") { const b = await body(); return b ? reply(billing.saveItem(b, null, newCode)) : send(res, 400, { error: "Bad request." }); }
   let im = /^items\/([\w-]{1,40})$/.exec(route);
@@ -1682,7 +1728,9 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
     save(r.items);
     return send(res, 200, { preview: false, report: r.report });
   }
-  if (get && route === "dashboard") return send(res, 200, books.dashboard());
+  if (get && route === "dashboard") {
+    return send(res, 200, { ...books.dashboard(), today: billing.today(), attention: attention() });
+  }
   if (get && route === "parties") return send(res, 200, who.role === "staff" ? books.partyList().map(({ shareToken, ...p }) => p) : books.partyList());
   if (post && route === "parties") { const b = await body(); return b ? reply(books.saveParty(b)) : send(res, 400, { error: "Bad request." }); }
   let m = /^parties\/([a-f0-9]{16})(\/ledger)?$/.exec(route);
@@ -1710,7 +1758,7 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
     const b = (await body()) || {};
     return reply(dm[3] === "cancel" ? documents.cancelDoc(dm[2]) : documents.convertDoc(dm[2], b));
   }
-  if (get && route === "orders") return send(res, 200, loadOrders().slice(-200).reverse().map(({ proof, ...o }) => o));
+  if (get && route === "orders") { const items = load(); return send(res, 200, loadOrders().slice(-200).reverse().map(({ proof, ...o }) => ({ ...o, lapsesAt: lapsesAt(o, items) }))); }
   const om2 = /^orders\/(VX-\d{4})\/(confirm|cancel)$/.exec(route);
   if (post && om2) { const text = orderCommand(`${om2[2]} ${om2[1]}`); return /^[✅❌]/.test(text) ? send(res, 200, { ok: true, text }) : send(res, 409, { error: text.replace(/\n[\s\S]*/, "") }); }
   if (get && route === "reports") return send(res, 200, reports.LIST);
@@ -1728,9 +1776,10 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
   if (m && post) return reply({ payments: books.cancelPayment, purchases: books.cancelPurchase, expenses: books.cancelExpense }[m[1]](m[2]));
   if (get && route === "profit") return send(res, 200, books.profit(url.searchParams.get("from") || "0000-01-01", url.searchParams.get("to") || "9999-12-31"));
   if (req.method === "GET" && route === "invoices") {
-    const list = billing.loadInvoices();
-    if (who.role === "staff") return send(res, 200, { invoices: list.slice(-100).reverse().map(billForStaff), today: { bills: 0, total: 0, pieces: 0, byPayment: {} }, gst: billing.gstOn() });
-    return send(res, 200, { invoices: list.slice(-500).reverse(), today: billing.today(), gst: billing.gstOn() });
+    const list = billing.loadInvoices(), dues = books.billDues();
+    if (who.role === "staff") return send(res, 200, { invoices: list.slice(-100).reverse().map((x) => ({ ...billForStaff(x), due: dues.get(x.id) || 0 })), today: { bills: 0, total: 0, pieces: 0, byPayment: {} }, gst: billing.gstOn() });
+    const shown = (url.searchParams.get("all") === "1" ? list : list.slice(-500)).slice().reverse();
+    return send(res, 200, { invoices: shown.map((x) => ({ ...x, due: dues.get(x.id) || 0 })), total: list.length, today: billing.today(), gst: billing.gstOn() });
   }
   if (req.method === "POST" && route === "invoices") {
     const b = await body();
@@ -1742,10 +1791,12 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
       if (!partyId) return send(res, 409, { error: "A credit bill needs the customer's name and mobile, so it can go in their ledger." });
       const total = (b.lines || []).reduce((n, l) => n + Number(l.price || 0) * Number(l.qty || 0) - Number(l.disc || 0), 0)
         + (b.charges || []).reduce((n, c) => n + Number(c.amount || 0), 0);
-      const over = (who.role === "staff" || !b.overLimit) && books.creditCheck(partyId, total);
+      const received = Math.max(0, Number(b.received) || 0);
+      if (received > total) return send(res, 409, { error: "Received can't be more than the bill." });
+      const over = (who.role === "staff" || !b.overLimit) && books.creditCheck(partyId, total - received);
       if (over) return send(res, 409, { error: over, overLimit: true });
     }
-    const r = billing.sell(b.lines, { source: "counter", customer: b.customer, payment: b.payment, note: b.note, partyId, charges: b.charges, allowShort: b.allowShort === true, by: who.role === "staff" ? who.name : undefined });
+    const r = billing.sell(b.lines, { source: "counter", customer: b.customer, payment: b.payment, note: b.note, partyId, charges: b.charges, received: b.received, paidMode: b.paidMode, allowShort: b.allowShort === true, by: who.role === "staff" ? who.name : undefined });
     if (r.error) return send(res, 409, { error: r.error });
     return send(res, 200, { invoice: who.role === "staff" ? billForStaff(r.invoice) : r.invoice, url: `/bill/${r.invoice.id}` });
   }
@@ -1777,6 +1828,7 @@ http
     const url = new URL(req.url, `http://${req.headers.host}`);
     const p = decodeURIComponent(url.pathname);
     try {
+      if (toDomain(req, res, p, url)) return;
       if (req.method === "GET" && p === "/api/products") return send(res, 200, publicProducts());
       if (req.method === "GET" && p === "/api/recent-sales") return send(res, 200, recentSales());
       if (p === "/webhook" && (req.method === "GET" || req.method === "POST")) return await whatsappWebhook(req, res, url);
@@ -1831,7 +1883,7 @@ http
       }
       // The portal page itself is harmless without the key: every call it makes needs it.
       if (p === "/billing") return serveFile(res, path.join(ROOT, "owner"), "billing.html");
-      if (p === "/billing-books.js" || p === "/billing-docs.js" || p === "/billing-more.js") return serveFile(res, path.join(ROOT, "owner"), p.slice(1));
+      if (p === "/billing-books.js" || p === "/billing-docs.js" || p === "/billing-more.js" || p === "/billing-ux.js" || p === "/billing.css") return serveFile(res, path.join(ROOT, "owner"), p.slice(1));
       if (p === "/billing-code128.js") return serveFile(res, path.join(ROOT, "owner"), "code128.js");
       if (p === "/billing/labels") return serveFile(res, path.join(ROOT, "owner"), "labels.html");
       const lm = /^\/l\/([a-f0-9]{32})$/.exec(p);
