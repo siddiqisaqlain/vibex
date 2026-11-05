@@ -72,6 +72,13 @@ button { font-family: inherit; color: inherit; }
 .top-row { display: flex; align-items: center; gap: 20px; height: 66px; }
 .logo { font: 800 25px/1 var(--display); letter-spacing: -.045em; text-decoration: none; color: var(--ink); white-space: nowrap; }
 .logo span { color: var(--accent); margin-left: 2px; }
+/* the rack logo (logo.js): letters hang from a rail that only shows itself while they swing */
+.rack-logo { display: inline-block; position: relative; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+.rack-logo::before { content: ""; position: absolute; left: -5px; right: -5px; top: -7px; height: 1.5px; border-radius: 2px; background: var(--ink); opacity: 0; transition: opacity .3s; }
+.lg { display: inline-block; position: relative; font: inherit; letter-spacing: inherit; transform-origin: 50% -7px; }
+.lg::before { content: ""; position: absolute; left: 50%; top: -7px; width: 1px; height: 11px; margin-left: -.5px; background: currentColor; opacity: 0; transition: opacity .3s; }
+.lg-x { color: var(--accent); margin-left: 2px; }
+.rack-logo.swaying::before, .rack-logo.swaying .lg::before { opacity: 1; }
 .nav { display: flex; gap: 30px; margin-left: auto; align-items: center; }
 .home .nav { margin: 0 auto; }
 .nav a { position: relative; font: 500 14px/1 var(--body); text-decoration: none; color: var(--ink-2); padding: 8px 0; }
