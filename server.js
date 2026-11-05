@@ -351,7 +351,7 @@ function applyOffer(raw, phone, orders) {
   if (!want) return null;
   const offer = OFFERS.find((o) => o.code.toUpperCase() === want);
   if (!offer) return { error: `“${want.slice(0, 20)}” isn't a valid code.` };
-  if (offer.firstOrderOnly && orders.some((o) => o.phone === phone && o.status !== "cancelled")) {
+  if (offer.firstOrderOnly && orders.some((o) => o.phone === phone && !["cancelled", "lapsed"].includes(o.status))) {
     return { error: `${offer.code} is for your first order only, and this number has ordered before.` };
   }
   return { offer };
@@ -534,9 +534,11 @@ function orderCommand(text) {
     if (o.status === "cancelled") return `${o.code} is already cancelled.`;
     // Already confirmed = already billed: cancelling the bill puts the piece back on sale.
     if (o.invoice) { const r = billing.cancel(o.invoice, `Order ${o.code} cancelled`); if (!r.error) o.invoice = null; }
+    const lapsed = o.status === "lapsed"; // its piece was released already, and may have sold since
     o.status = "cancelled";
     if (p && p.status === "hold" && p.holdFor === o.code) { p.status = "available"; delete p.holdFor; save(items); }
     saveOrders(orders);
+    if (lapsed) return `❌ ${o.code} closed. If ${o.name} did pay, refund ${inr(o.amount)} to ${prettyPhone(o.phone)}.`;
     return `❌ ${o.code} cancelled. “${o.productName}” is back on sale.\nTell the customer: ${hello(`Hi ${o.name}, Vibe X here. We couldn't find your payment for order ${o.code}. Could you send the payment screenshot?`)}`;
   }
   if (o.status === "confirmed") return `${o.code} is already confirmed.`;
@@ -546,6 +548,7 @@ function orderCommand(text) {
     source: "website", order: o.code, holdFor: o.code, payment: "upi",
     customer: { name: o.name, phone: o.phone, address: o.delivery === "ship" ? `${o.address}, ${o.city} ${o.pin}` : "" },
   });
+  if (sale.error && o.status === "lapsed") return `⚠️ Can't confirm ${o.code}: “${o.productName}” has gone since the order lapsed.\nIf ${o.name} paid, refund ${inr(o.amount)} to ${prettyPhone(o.phone)}, then send *cancel ${o.code}*.`;
   if (sale.error) return `⚠️ Can't confirm ${o.code}: ${sale.error}\nIf the customer has paid, refund them and send *cancel ${o.code}*.`;
   o.status = "confirmed";
   o.confirmedAt = new Date().toISOString();
@@ -1562,6 +1565,44 @@ function lowStockDigest() {
   if (text) sendToOwner({ id: crypto.randomBytes(6).toString("hex"), at: now.toISOString(), kind: "low-stock", summary: { kind: "low stock", ref: "today" }, text });
 }
 if (LIVE) setInterval(() => { try { lowStockDigest(); } catch (e) { console.warn("low stock digest:", e.message); } }, 10 * 60e3).unref();
+
+// ---- Last pieces held for an order nobody has checked ----
+// "I've paid" needs no proof, so a last piece could stay off sale for good. If the owner neither
+// confirms nor cancels, he's warned, then the order lapses and the piece goes back on sale.
+// The times come from the orders file, so a restart loses nothing. Only held pieces lapse:
+// items with more in stock aren't held, and those orders wait for him as before.
+const HOLD_MS = Number(process.env.ORDER_HOLD_MS) || 12 * 3600e3;
+const HOLD_WARN_MS = Number(process.env.ORDER_WARN_MS) || 30 * 60e3;
+function sweepHolds(now = Date.now()) {
+  const orders = loadOrders();
+  const items = load();
+  const alerts = [];
+  let changedOrders = false, changedItems = false;
+  for (const o of orders) {
+    if (o.status !== "paid" || !o.paidAt) continue;
+    const p = items.find((x) => x.id === o.productId);
+    if (!p || p.status !== "hold" || p.holdFor !== o.code) continue;
+    const paid = Date.parse(o.paidAt);
+    if (!o.holdWarnedAt) {
+      if (now < paid + HOLD_MS - HOLD_WARN_MS) continue;
+      o.holdWarnedAt = new Date(now).toISOString();
+      changedOrders = true;
+      alerts.push({ o, kind: "order reminder", text: `⏰ *${o.code} still needs checking*\n“${o.productName}” · ${inr(o.amount)} · ${o.name}\nIt goes back on sale in ${Math.round(HOLD_WARN_MS / 60e3)} minutes.\n\nPayment came? Send *confirm ${o.code}*\nNo payment? Send *cancel ${o.code}*` });
+      continue;
+    }
+    // Always a full warning first, even if the server was down for part of the hold.
+    if (now < Math.max(paid + HOLD_MS, Date.parse(o.holdWarnedAt) + HOLD_WARN_MS)) continue;
+    Object.assign(o, { status: "lapsed", lapsedAt: new Date(now).toISOString() });
+    p.status = "available"; delete p.holdFor;
+    changedOrders = changedItems = true;
+    alerts.push({ o, kind: "order lapsed", text: `⌛ *${o.code} lapsed*\n“${o.productName}” is back on sale, because nobody confirmed the payment.\n\nIf ${o.name} did pay ${inr(o.amount)}: send *confirm ${o.code}* while the piece is unsold. If it has sold, refund them on ${prettyPhone(o.phone)}.` });
+  }
+  // Save first: a failed alert must not send the same warning again on the next sweep.
+  if (changedItems) save(items);
+  if (changedOrders) saveOrders(orders);
+  for (const { o, kind, text } of alerts) sendToOwner({ id: crypto.randomBytes(6).toString("hex"), at: new Date(now).toISOString(), kind: "order", summary: { kind, ref: o.code }, text });
+}
+if (LIVE) setInterval(() => { try { sweepHolds(); } catch (e) { console.warn("order holds:", e.message); } }, Number(process.env.ORDER_SWEEP_MS) || 60e3).unref();
 
 // ---- Billing portal API (owner key) ----
 // Staff logins never receive cost prices.

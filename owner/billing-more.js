@@ -131,10 +131,10 @@
   // ---- Online Orders: the website's orders, with the same confirm and cancel as WhatsApp ----
   async function orders() {
     const list = await api("/api/billing/orders");
-    const STATUS = { awaiting_payment: ["Awaiting payment", "low"], paid: ["Check payment", "low"], confirmed: ["Confirmed", ""], cancelled: ["Cancelled", "out"] };
+    const STATUS = { awaiting_payment: ["Awaiting payment", "low"], paid: ["Check payment", "low"], confirmed: ["Confirmed", ""], lapsed: ["Lapsed: back on sale", "out"], cancelled: ["Cancelled", "out"] };
     $("tab-orders").innerHTML = `<div class="scroll"><table><thead><tr><th>Date</th><th>Order</th><th>Party Name</th><th>Item</th><th class="n">Amount</th><th>Status</th><th></th></tr></thead><tbody>
       ${list.length ? list.map((o) => { const s = STATUS[o.status] || [o.status, ""]; return `<tr><td>${new Date(o.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td><td><b>${esc(o.code)}</b></td><td>${esc(o.name)}<div class="sub">${esc(o.phone)}</div></td><td>${esc(o.productName)}</td><td class="n"><b>${inr(o.amount)}</b></td><td><span class="pill ${s[1]}">${s[0]}</span>${o.utr ? `<div class="sub">Ref ${esc(o.utr)}</div>` : ""}</td>
-        <td class="n">${o.status === "paid" ? `<button class="tbtn" data-oa="confirm" data-oc="${esc(o.code)}">Confirm</button> ` : ""}${o.status !== "cancelled" ? `<button class="tbtn danger" data-oa="cancel" data-oc="${esc(o.code)}">Cancel</button>` : ""}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">No website orders yet.</td></tr>`}
+        <td class="n">${o.status === "paid" || o.status === "lapsed" ? `<button class="tbtn" data-oa="confirm" data-oc="${esc(o.code)}">Confirm</button> ` : ""}${o.status !== "cancelled" ? `<button class="tbtn danger" data-oa="cancel" data-oc="${esc(o.code)}">Cancel</button>` : ""}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">No website orders yet.</td></tr>`}
       </tbody></table></div>`;
     document.querySelectorAll("[data-oa]").forEach((b) => {
       const first = b.textContent;
