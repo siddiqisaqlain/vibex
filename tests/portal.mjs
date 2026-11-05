@@ -209,7 +209,7 @@ try {
   // Items.
   await d.tap('#side [data-tab=stock]');
   ok(await d.until(`document.querySelector('[data-photo=b2] img')?.naturalWidth>0`), "Items shows the product photo");
-  ok(await d.js(`!!document.querySelector('#stockRows .thumb.none:not(.itemPic)')`), "an item with no photo shows its letter");
+  ok(await d.js(`(()=>{const t=document.querySelector('#stockRows .thumb.none:not(.itemPic)');return !!t&&!t.textContent.trim()&&/svg/.test(getComputedStyle(t).backgroundImage)})()`), "an item with no photo shows the default image");
   await d.tap("[data-photo=b2]");
   ok(await d.until(`document.getElementById('photoBig')?.naturalWidth>0`), "tapping the photo opens it large");
   await d.tap("#photoEdit");

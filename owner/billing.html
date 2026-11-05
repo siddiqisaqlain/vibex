@@ -350,12 +350,10 @@
     return `<span class="pill ${n === 1 ? "low" : ""}">${n} left</span>`;
   }
   let picked = -1; // the result the arrow keys are on
-  // Items list photo: only items with a photo can be tapped. A photo that won't load leaves the letter.
-  const itemPic = (p) => {
-    const letter = esc(String(p.name).slice(0, 1).toUpperCase());
-    if (!p.image) return `<div class="thumb none">${letter}</div>`;
-    return `<button class="thumb none itemPic" data-photo="${esc(p.id)}" aria-label="See photo of ${esc(p.name)}">${letter}<img src="${esc(p.image)}" alt="" loading="lazy" onerror="this.remove()"></button>`;
-  };
+  // Items list photo: only items with a photo can be tapped. No photo, or one that won't load, shows the default.
+  const itemPic = (p) => p.image
+    ? `<button class="thumb none itemPic" data-photo="${esc(p.id)}" aria-label="See photo of ${esc(p.name)}"><img src="${esc(p.image)}" alt="" loading="lazy" onerror="this.remove()"></button>`
+    : `<div class="thumb none" role="img" aria-label="No photo yet"></div>`;
   function photoPanel(p) {
     if (!p) return;
     const box = window.VX.drawer(p.name, `<img id="photoBig" src="${esc(p.image)}" alt="${esc(p.name)}" onerror="this.outerHTML='<p class=sub>This photo could not be loaded.</p>'">
@@ -372,7 +370,7 @@
     $("resultsHead").textContent = $("q").value.trim() ? `${list.length}${list.length === 40 ? "+" : ""} found` : "Sells most";
     $("results").innerHTML = list.length ? list.map((p) => `
       <button class="item" data-id="${esc(p.id)}" ${p.status === "hold" ? "disabled" : ""}>
-        <div class="thumb ${p.image ? "" : "none"}" style="${p.image ? `background-image:url('${esc(p.image)}')` : ""}">${p.image ? "" : esc(String(p.name).slice(0, 1).toUpperCase())}</div>
+        <div class="thumb ${p.image ? "" : "none"}" style="${p.image ? `background-image:url('${esc(p.image)}')` : ""}"></div>
         <div class="grow"><div class="name">${esc(p.name)}</div><div class="sub">#${esc(p.code)}${p.sizes ? " · " + esc(p.sizes) : ""}${p.category ? " · " + esc(p.category) : ""}</div></div>
         ${stockPill(p)}<div class="price">${inr(p.price)}</div>
       </button>`).join("") : `<div class="empty">Nothing matches. <button class="x" id="makeItem">Create this item</button></div>`;
