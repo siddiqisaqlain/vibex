@@ -185,17 +185,17 @@ const TYPES = {
   ".json": "application/json", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
 };
 
-function send(res, status, body, type = "application/json") {
-  res.writeHead(status, { "Content-Type": type, "Cache-Control": "no-store" });
+function send(res, status, body, type = "application/json", cache = "no-store") {
+  res.writeHead(status, { "Content-Type": type, "Cache-Control": cache });
   res.end(typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
-function serveFile(res, base, rel) {
+function serveFile(res, base, rel, cache) {
   const file = path.normalize(path.join(base, rel));
   if (!file.startsWith(base)) return send(res, 403, { error: "forbidden" });
   fs.readFile(file, (err, buf) => {
     if (err) return send(res, 404, "Not found", "text/plain");
-    send(res, 200, buf, TYPES[path.extname(file)] || "application/octet-stream");
+    send(res, 200, buf, TYPES[path.extname(file)] || "application/octet-stream", cache);
   });
 }
 
@@ -605,7 +605,7 @@ ${head}
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shop.css">
 </head><body>
-<header class="top"><div class="wrap top-row"><a class="logo" href="/">VIBE<span>X</span></a>
+<header class="top"><div class="wrap top-row"><a class="logo" href="/#feat">VIBE<span>X</span></a>
 <nav class="nav"><a href="/#rack">New drops</a><a class="nav-ig" href="https://www.instagram.com/vibex.india/" target="_blank" rel="noopener">Instagram ↗</a></nav></div></header>
 <main class="wrap pdp" id="pdp" data-id="${escHtml(id)}"></main>
 <div class="toast" id="toast" role="status" hidden></div>
@@ -627,7 +627,7 @@ ${head}
 </head><body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="nav-wrap"><nav class="nav" aria-label="Main">
-<a class="logo" href="/" aria-label="Vibe X home">Vibe<span>X</span></a>
+<a class="logo" href="/#feat" aria-label="Vibe X, go to Featured">Vibe<span>X</span></a>
 <div class="nav-links"><a href="/#rack">New drops</a><a href="/#faq">Questions</a><a href="/#visit">Visit</a></div>
 <a class="nav-ig" id="ig-top" target="_blank" rel="noopener"><i class="ph ph-instagram-logo" aria-hidden="true"></i><span>Instagram</span></a>
 <button class="menu-btn" type="button" aria-expanded="false" aria-controls="menu" aria-label="Open menu"><span></span><span></span></button>
@@ -654,7 +654,7 @@ ${head}
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shop.css">
 </head><body>
-<header class="top"><div class="wrap top-row"><a class="logo" href="/">VIBE<span>X</span></a>
+<header class="top"><div class="wrap top-row"><a class="logo" href="/#feat">VIBE<span>X</span></a>
 <nav class="nav" aria-label="Main"><a href="/#rack">New drops</a><a href="/#visit">Visit</a><a class="nav-ig" href="https://www.instagram.com/vibex.india/" target="_blank" rel="noopener">Instagram ↗</a></nav></div></header>
 <main class="wrap">${body}</main>
 <footer class="foot"><div class="wrap"><div class="foot-mark">VIBE<span>X</span></div>
@@ -1968,7 +1968,7 @@ http
         return send(res, 200, invoicePage(d.doc, SHOP, { thermal: url.searchParams.get("size") === "80", owner: url.searchParams.has("o"), title: d.title, labels: d.labels }), "text/html; charset=utf-8");
       }
       if (p.startsWith("/seed-photos/")) return serveFile(res, SEED_PHOTOS, p.slice("/seed-photos/".length));
-      if (p.startsWith("/uploads/")) return serveFile(res, UPLOADS, p.slice("/uploads/".length));
+      if (p.startsWith("/uploads/")) return serveFile(res, UPLOADS, p.slice("/uploads/".length), "public, max-age=3600"); // an hour: a replaced photo keeps its name
       if (p === "/config.js") return sendConfig(res);
       if (p === "/newtab.js") return serveFile(res, path.join(ROOT, "lib"), "newtab.js");
       if (p === "/track.js") return serveFile(res, path.join(ROOT, "lib"), "track.js");

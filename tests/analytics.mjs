@@ -39,6 +39,28 @@ await check("form timing keeps box names and counts, and never what was typed", 
   assert.equal(clean({ e: "choice", p: "/", x: "address", r: "Lal Chowk" }), null);
   assert.equal(clean({ e: "tap", p: "/", x: "Call 98765 43210" }).x, "Call •••");
 });
+await check("in-app browser crashes aren't counted as site errors, and real ones are", () => {
+  assert.equal(clean({ e: "err", p: "/", x: "Uncaught Error: Error invoking postMessage: Java object is gone" }), null);
+  assert.equal(clean({ e: "err", p: "/", x: "TypeError: undefined is not an object (evaluating 'window.webkit.messageHandlers.x')" }), null);
+  assert.equal(clean({ e: "err", p: "/", x: "TypeError: boom (/shop.js:12)" }).x, "TypeError: boom (/shop.js:12)");
+  const t = 1e12, ev = (e, x = {}) => ({ t, v: "a", s: "a", e, p: "/", ...x });
+  const d = summarise([ev("page", { dev: "Phone", br: "Instagram app", os: "Android", nw: 1 }), ev("err", { x: "Uncaught Error: Java object is gone" })], { from: "2026-01-01", to: "2026-01-01" });
+  assert.equal(d.stuck.length, 0, "days stored before the filter come out clean too");
+  assert.equal(d.totals.frictionRate, 0);
+});
+await check("one sale proves nothing, and an error isn't something pressed", () => {
+  const t = 1e12, ev = (s, e, x = {}) => ({ t, v: s, s, e, p: "/", ...x }), list = [];
+  for (let i = 0; i < 335; i++) list.push(ev(`p${i}`, "page", { dev: "Phone", br: "Instagram app", os: "Android", nw: 1 }));
+  for (let i = 0; i < 19; i++) list.push(ev(`c${i}`, "page", { dev: "Computer", br: "Chrome", os: "macOS", nw: 1, ref: "facebook.com" }));
+  list.push(ev("c0", "paid", { pr: "s1", n: 7199 }));
+  for (const s of ["p1", "p2"]) list.push(ev(s, "err", { x: "TypeError: boom (/shop.js:12)" }));
+  const d = summarise(list, { from: "2026-01-01", to: "2026-01-01", name: () => "Jacket" });
+  assert.ok(!d.fixes.some((f) => /buy less than/.test(f.title)), "no device verdict from one order");
+  assert.ok(!d.findings.some((f) => /brings the buyers|sells well/.test(f.title)), "no winner from one order");
+  const err = d.fixes.find((f) => /site error/.test(f.title));
+  assert.equal(err.title, "2 people hit a site error");
+  assert.ok(!d.fixes.some((f) => /pressed "TypeError/.test(f.title)));
+});
 await check("every section and box adds up by person", () => {
   const t = 1e12, ev = (s, e, x = {}) => ({ t, v: s, s, e, p: "/", ...x });
   const start = (s) => [ev(s, "page", { dev: "Phone", br: "Chrome", os: "Android", nw: 1 })];

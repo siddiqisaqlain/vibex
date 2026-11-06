@@ -53,7 +53,7 @@
 
   // Trust strip: only the numbers the owner confirmed (shop.json → claims.stats).
   const stats = (S.claims && S.claims.stats) || [];
-  $("stats").innerHTML = stats.map((x, i) => `<div><span class="trust-no">${String(i + 1).padStart(2, "0")}</span><p><b>${esc(x.big)}</b><span>${esc(x.small)}</span></p></div>`).join("");
+  $("stats").innerHTML = stats.map((x, i) => `<div><span class="trust-no">${String(i + 1).padStart(2, "0")}</span>${/store|srinagar/i.test(`${x.big} ${x.small}`) ? `<a class="trust-link" href="#visit">` : ""}<p><b>${esc(x.big)}</b><span>${esc(x.small)}</span></p>${/store|srinagar/i.test(`${x.big} ${x.small}`) ? "</a>" : ""}</div>`).join("");
   $("stats").hidden = !stats.length;
   $("stats").style.setProperty("--n", Math.max(1, stats.length));
 
@@ -312,6 +312,8 @@
       products.some((p) => offPct(p) >= 40) ? `<button class="cat-tab" data-jump="Deals">40%+ off</button>` : "",
     ];
     $("cat-tabs").innerHTML = `<div class="cat-tabs-in">${tabs.join("")}</div>`;
+    // No category link may lead to an empty rack: the header, phone menu and footer are fixed HTML.
+    for (const c of CATS) document.querySelectorAll(`a[data-jump="${c}"]`).forEach((a) => { a.style.display = products.some((p) => p.category === c) ? "" : "none"; });
   }
 
   // ---- Featured, above the rack: pieces ticked in the portal, then the priciest in stock.
@@ -391,7 +393,7 @@
       <span><b>${esc(p.name)}</b>${p.price ? rupees(p.price) : ""}</span></a>`;
     $("looks").innerHTML = tile(list[0], true) + `<div class="looks-small">${list.slice(1).map((p) => tile(p)).join("")}</div>`;
     // store photo: four pieces from the rack
-    $("store-pic").innerHTML = list.slice(0, 4).map((p) => `<img src="${esc(p.image)}" alt="" loading="lazy">`).join("") + `<span>Khanyaar, Srinagar</span>`;
+    $("store-pic").innerHTML = list.slice(0, 4).map((p) => `<a href="${pdp(p)}"><img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy"></a>`).join("") + `<span>Khanyaar, Srinagar</span>`;
   }
 
   // ---- the rack ----
@@ -508,7 +510,9 @@
       renderHeroFeed();
       renderLooks();
       renderFeatured();
-      if (first) renderTicker();
+      if (first) { renderTicker(); document.documentElement.classList.add("vx-ready"); }
+      // Arrived from another page's logo: Featured only exists once the products have loaded.
+      if (first && location.hash === "#feat" && !$("feat").hidden) $("feat").scrollIntoView();
       if (fresh.size) {
         const p = next.find((x) => fresh.has(x.id));
         toast(`<b>New drop</b><span>${esc(p.name)}${p.price ? ` · ${rupees(p.price)}` : ""}</span><button type="button" class="toast-go" data-goto="${esc(p.id)}">See it</button>`);
@@ -589,5 +593,5 @@
   addEventListener("focus", refresh);
 
   refresh();
-  setInterval(refresh, 2000);
+  setInterval(() => { if (!document.hidden) refresh(); }, 5000); // new stock still appears in seconds, without a phone fetching the list non-stop
 })();

@@ -101,12 +101,15 @@
   });
   logo.addEventListener("pointerup", (e) => { moved = Math.abs(e.clientX - downX) > 8; });
 
-  // On the home page the logo plays instead of reloading (a reload would replay the intro);
-  // scrolled down, it also takes you back to the top. On other pages it's the normal link home.
+  // On the home page a tap goes to Featured instead of reloading (a reload would replay the intro),
+  // and a finger run along the rack only plays it. On other pages it's the link to home's Featured.
   logo.addEventListener("click", (e) => {
     if (location.pathname !== "/") { if (moved) e.preventDefault(); return; }
     e.preventDefault();
-    if (scrollY > 40) scrollTo({ top: 0, behavior: "smooth" });
+    if (moved) return;
+    const feat = document.getElementById("feat");
+    if (feat && !feat.hidden) feat.scrollIntoView({ behavior: "smooth" });
+    else if (scrollY > 40) scrollTo({ top: 0, behavior: "smooth" });
   });
 
   // Scrolling sways the whole rack, like the rail itself got nudged.

@@ -116,18 +116,38 @@
       ${related.length ? `<section class="related"><h2>More ${esc(p.category.toLowerCase())}</h2><div class="related-row">${related.map(mini).join("")}</div></section>` : ""}`;
     if (p.status === "available") countPromise();
     // The full promise sits below the fold, so its first line goes where the thumb is.
+    // On a phone the price can sit below the first screen, so it rides on the button too (shop.css).
+    if (price && !from) root.querySelector(".pdp-info .order-now")?.insertAdjacentHTML("beforeend", `<span class="order-price"> · ${rupees(price)}</span>`);
     if (root.querySelector(".vx-promise")) root.querySelector(".pdp-info .actions")?.insertAdjacentHTML("afterbegin", `<button type="button" class="vx-sure" data-promise>Real, or your money back${P.changeOfMindDays ? ` · ${esc(P.changeOfMindDays)}-day returns` : ""}</button>`);
   }
 
+  let lastJson = "";
   async function load() {
     try {
       const res = await fetch("/api/products", { cache: "no-store" });
-      products = await res.json();
+      const json = await res.text();
+      if (json === lastJson) return; // redrawing would swallow a tap landing at that moment
+      lastJson = json;
+      products = JSON.parse(json);
       render();
     } catch { /* keep what's on screen */ }
   }
 
+  // People kept tapping the photo: open it full screen, where a phone can pinch in on it.
+  function zoom(img) {
+    const box = document.createElement("dialog");
+    box.className = "pdp-zoom";
+    box.innerHTML = `<img alt=""><button type="button" aria-label="Close photo">×</button>`;
+    box.querySelector("img").src = img.src; box.querySelector("img").alt = img.alt;
+    box.addEventListener("click", () => box.close());
+    box.addEventListener("close", () => box.remove());
+    document.body.append(box);
+    box.showModal();
+  }
+
   root.addEventListener("click", (e) => {
+    const photo = e.target.closest(".pdp-media img");
+    if (photo) return zoom(photo);
     if (e.target.closest(".vx-promise a")) window.VXTrack?.("nudge_tap", { x: "promise" });
     if (e.target.closest("[data-promise]")) { window.VXTrack?.("nudge_tap", { x: "promise" }); root.querySelector(".vx-promise")?.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
     const b = e.target.closest("[data-pick]");
@@ -155,5 +175,5 @@
     return chosen ? { ...p, price: chosen.price, sizes: chosen.size, chosenSize: chosen.size } : p;
   });
   load();
-  setInterval(load, 5000);
+  setInterval(() => { if (!document.hidden) load(); }, 5000);
 })();
