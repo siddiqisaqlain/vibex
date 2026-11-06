@@ -356,19 +356,7 @@ function newOrderCode(orders) {
   }
 }
 
-// Discount codes from shop.json → offers, e.g. { code: "FIRST10", percent: 10, firstOrderOnly: true }.
-// The server works out the price; the checkout only shows it.
-const OFFERS = (SHOP.offers || []).filter((o) => o && o.code && o.percent > 0 && o.percent < 100);
-function applyOffer(raw, phone, orders) {
-  const want = String(raw || "").trim().toUpperCase().replace(/\s+/g, "");
-  if (!want) return null;
-  const offer = OFFERS.find((o) => o.code.toUpperCase() === want);
-  if (!offer) return { error: `“${want.slice(0, 20)}” isn't a valid code.` };
-  if (offer.firstOrderOnly && orders.some((o) => o.phone === phone && !["cancelled", "lapsed"].includes(o.status))) {
-    return { error: `${offer.code} is for your first order only, and this number has ordered before.` };
-  }
-  return { offer };
-}
+const { courierFor } = require("./lib/courier");
 
 async function createOrder(req, res) {
   let b;
@@ -397,21 +385,21 @@ async function createOrder(req, res) {
   const picked = options.length === 1 ? options[0] : options.find((o) => o.size === String(b.size || ""));
   if (options.length > 1 && !picked) return send(res, 400, { error: "Please choose a size first." });
   if (picked?.left === 0) return send(res, 409, { error: `Sorry, ${picked.size} has just sold out. Please choose another size.` });
+  if (holds.blockedFor(p.id, holdSize(p, picked?.size), String(b.holdToken || ""))) return send(res, 409, { error: "Someone else is ordering the last one right now. If they don't finish, it comes back within 10 minutes." });
   const price = picked?.price ?? p.price;
   const orders = loadOrders();
-  const promo = applyOffer(b.promo, phone, orders);
-  if (promo && promo.error) return send(res, 400, { error: promo.error });
-  const discount = promo ? Math.round((price * promo.offer.percent) / 100) : 0;
+  // The customer pays the selling price, plus the courier charge they saw before paying.
+  const courier = delivery === "ship" ? courierFor(SHOP.policy?.courier, p, pin) : null, shipping = courier?.fee || 0;
   const order = {
     id: crypto.randomBytes(8).toString("hex"), code: newOrderCode(orders),
-    productId: p.id, productName: p.name, lot: lotOf(p), amount: price - discount, ...(picked ? { size: picked.size } : {}),
-    ...(promo ? { promo: promo.offer.code, discount, fullPrice: price } : {}),
+    productId: p.id, productName: p.name, lot: lotOf(p), amount: price + shipping, ...(picked ? { size: picked.size } : {}),
+    ...(shipping ? { shipping, kg: courier.kg } : {}),
     name, phone, delivery, address, city, pin, ...(b.hideName ? { hideName: true } : {}),
     status: "awaiting_payment", createdAt: new Date().toISOString(),
   };
   orders.push(order);
   saveOrders(orders);
-  send(res, 200, { id: order.id, code: order.code, amount: order.amount, lot: order.lot, promo: order.promo || null, discount });
+  send(res, 200, { id: order.id, code: order.code, amount: order.amount, lot: order.lot, shipping });
 }
 
 async function orderPaid(req, res, id) {
@@ -439,7 +427,7 @@ async function orderPaid(req, res, id) {
     id: crypto.randomBytes(6).toString("hex"), at: new Date().toISOString(), kind: "order",
     summary: { kind: "order", ref: o.code },
     image: proof || (p && p.image) || null,
-    text: `💰 *New order ${o.code}: check the payment*\n*${o.productName}*${o.size ? ` · ${o.size}` : ""} · ${inr(o.amount)}${o.promo ? ` (${o.promo}: ${inr(o.fullPrice)} − ${inr(o.discount)})` : ""} · ${o.lot}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 ${utr ? `Payment ref: ${utr}` : proof ? "Payment screenshot above" : `Customer tapped "I've paid". Look for note ${o.code}`}\n\nCheck your bank or UPI app for ${inr(o.amount)}, then reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
+    text: `💰 *New order ${o.code}: check the payment*\n*${o.productName}*${o.size ? ` · ${o.size}` : ""} · ${inr(o.amount)}${o.promo ? ` (${o.promo}: ${inr(o.fullPrice)} − ${inr(o.discount)})` : ""}${o.shipping ? ` (includes ${inr(o.shipping)} courier for ${o.kg} kg)` : ""} · ${o.lot}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 ${utr ? `Payment ref: ${utr}` : proof ? "Payment screenshot above" : `Customer tapped "I've paid". Look for note ${o.code}`}\n\nCheck your bank or UPI app for ${inr(o.amount)}, then reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
   });
   send(res, 200, { code: o.code, status: o.status });
 }
@@ -572,8 +560,9 @@ function orderCommand(text) {
   if (o.status === "confirmed") return `${o.code} is already confirmed.`;
   if (o.status === "cancelled") return `${o.code} was cancelled. Ask the customer to order again.`;
   // Same path as the billing portal: stock comes off and the bill is written in one go.
-  const sale = billing.sell([{ productId: o.productId, qty: 1, price: o.amount, size: o.size }], {
+  const sale = billing.sell([{ productId: o.productId, qty: 1, price: o.amount - (o.shipping || 0), size: o.size }], {
     source: "website", order: o.code, holdFor: o.code, payment: "upi",
+    charges: o.shipping ? [{ label: `Courier (${o.kg} kg)`, amount: o.shipping }] : [],
     customer: { name: o.name, phone: o.phone, address: o.delivery === "ship" ? `${o.address}, ${o.city} ${o.pin}` : "" },
   });
   if (sale.error && o.status === "lapsed") return `⚠️ Can't confirm ${o.code}: “${o.productName}” has gone since the order lapsed.\nIf ${o.name} paid, refund ${inr(o.amount)} to ${prettyPhone(o.phone)}, then send *cancel ${o.code}*.`;
@@ -582,7 +571,7 @@ function orderCommand(text) {
   o.confirmedAt = new Date().toISOString();
   o.invoice = sale.invoice.id;
   saveOrders(orders);
-  const next = o.delivery === "ship" ? "Pack it for shipping" : "Keep it aside for pickup";
+  const next = o.delivery === "ship" ? (SHOP.policy?.photoBeforeDispatch ? "📸 Send them a photo of this exact piece on WhatsApp, as the website promises. Then pack it for shipping" : "Pack it for shipping") : "Keep it aside for pickup";
   const after = sale.products.find((x) => x.id === o.productId);
   return `✅ ${o.code} confirmed. “${o.productName}” marked ${after.status === "sold" ? "SOLD" : `sold (${after.quantity} left)`}.\n🧾 Bill ${sale.invoice.number}: ${billUrl(sale.invoice)}\n${next}. The customer's screen already shows it's confirmed.\nMessage them: ${hello(`Hi ${o.name}, Vibe X here. Payment received for ${o.code} (${o.productName}). ${o.delivery === "ship" ? "We'll share tracking once it ships." : "It's ready for pickup at the store."}`)}`;
 }
@@ -620,7 +609,7 @@ ${head}
 <nav class="nav"><a href="/#rack">New drops</a><a class="nav-ig" href="https://www.instagram.com/vibex.india/" target="_blank" rel="noopener">Instagram ↗</a></nav></div></header>
 <main class="wrap pdp" id="pdp" data-id="${escHtml(id)}"></main>
 <div class="toast" id="toast" role="status" hidden></div>
-<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/pdp.js"></script><script src="/salebar.js"></script><script src="/newtab.js"></script><script src="/track.js"></script>
+<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/pdp.js"></script><script src="/salebar.js"></script><script src="/newtab.js"></script><script src="/track.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
 </body></html>`;
 }
 
@@ -649,7 +638,7 @@ ${head}
 <nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a></nav></div>
 <p class="foot-note">© 2026 Vibe X · The Surplus Room, Srinagar, Kashmir</p></div></footer>
 <div class="toast" id="toast" role="status" hidden></div>
-<script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}<script src="/ui.js"></script><script src="/newtab.js"></script><script src="/track.js"></script>
+<script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}<script src="/ui.js"></script><script src="/newtab.js"></script><script src="/track.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
 </body></html>`;
 }
 
@@ -671,7 +660,7 @@ ${head}
 <footer class="foot"><div class="wrap"><div class="foot-mark">VIBE<span>X</span></div>
 <div class="foot-row mono"><span>© Vibe X · The Surplus Room</span><span>World brands, one destination</span></div>
 <nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a></nav></div></footer>
-<script src="/newtab.js"></script><script src="/track.js"></script>
+<script src="/newtab.js"></script><script src="/track.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
 </body></html>`;
 }
 
@@ -729,6 +718,26 @@ function previewRoute(req, res, name, rest) {
 }
 
 // Visitors, for the owner's /analytics page. Kept on the disk, and written out before a restart.
+// People who arrived too late for a piece. Their number is kept only for this, and goes after 30 days.
+const WAITING = path.join(STORE, "waitlist.json");
+const saveWaiting = (list) => fs.writeFileSync(WAITING, JSON.stringify(list, null, 1));
+const loadWaiting = () => { try { const cut = Date.now() - 30 * 864e5; return JSON.parse(fs.readFileSync(WAITING, "utf8")).filter((w) => Date.parse(w.at) > cut); } catch { return []; } };
+function kitData() {
+  const sold = new Map(loadActivity().filter((a) => a.type === "sold").map((a) => [a.id, Date.parse(a.at)]));
+  const items = load().filter(isPublic).filter((p) => !p.needsName && p.price);
+  const pieces = items.map((p) => { const at = sold.get(p.id), made = Date.parse(p.createdAt); return { id: p.id, code: p.code, name: p.name, brand: p.brand, price: p.price, mrp: p.mrp, image: p.image, status: p.status, left: billing.stockOf(p), madeAt: made, soldAt: at || 0, soldInMs: at && at > made ? at - made : 0 }; }).sort((a, b) => (b.soldAt || b.madeAt) - (a.soldAt || a.madeAt));
+  const status = new Map(items.map((p) => [p.id, p.status]));
+  return { pieces, waiting: loadWaiting().map((w) => ({ ...w, back: status.get(w.productId) === "available" })).sort((a, b) => Number(b.back) - Number(a.back)) };
+}
+const holds = require("./lib/holds")();
+// A piece with one size has nothing to choose, so the page sends none: the same rule as an order, or a hold wouldn't protect it.
+function holdSize(p, size) { const options = p ? optionsOf(p) : []; return options.length === 1 ? options[0].size || "" : String(size || ""); }
+// Only the true last piece gets a hold: with more in stock there's nothing to protect, and no reason to say so.
+function isLastPiece(p, size) {
+  const options = optionsOf(p), picked = options.find((o) => o.size === size);
+  const left = picked?.left ?? billing.stockOf(p);
+  return left === 1;
+}
 const analytics = createAnalytics({ STORE, productName: (id) => load().find((p) => p.id === id)?.name || id, productNames: () => Object.fromEntries(load().map((p) => [p.id, p.name])) });
 process.on("SIGTERM", () => { analytics.close(); process.exit(0); });
 
@@ -874,7 +883,7 @@ function photoForImported(text, image) {
   save(items);
   const win = celebrate(p);
   const left = billing.stockOf(p);
-  return { reply: `🎉 *“${p.name}” is on your website!*\n🔢 Code *${p.code}* · ${left > 0 ? `${left} in stock` : "shows as sold out: send *add " + p.code + " 1* when you have stock"}\n📈 ${win.postedToday} posted today · 🛍️ ${win.live} live` };
+  return { reply: `🎉 *“${p.name}” is on your website!*\n📲 Post it to your Status: ${siteUrl() || ""}/kit\n🔢 Code *${p.code}* · ${left > 0 ? `${left} in stock` : "shows as sold out: send *add " + p.code + " 1* when you have stock"}\n📈 ${win.postedToday} posted today · 🛍️ ${win.live} live` };
 }
 
 async function makeDraft(text, imageData, parsed = parseMessage(text)) {
@@ -1148,7 +1157,7 @@ function batchReply(text) {
       for (const p of live) win = celebrate(p);
       const codes = live.map((p) => `🔢 *${p.code}* ${p.name}`).join("\n");
       return {
-        reply: `🎉 *${live.length === 2 ? "Both are" : `All ${live.length} are`} live on your website!*\n\n${codes}\n\nWhen one sells, just send *sold* and its code, like *sold ${live[0].code}*.\n\n📈 ${win.postedToday} posted today · 🛍️ ${win.live} live${win.milestone ? `\n${win.milestone}` : ""}`,
+        reply: `🎉 *${live.length === 2 ? "Both are" : `All ${live.length} are`} live on your website!*\n\n${codes}\n\nPost them to your Status: ${siteUrl() || ""}/kit\n\nWhen one sells, just send *sold* and its code, like *sold ${live[0].code}*.\n\n📈 ${win.postedToday} posted today · 🛍️ ${win.live} live${win.milestone ? `\n${win.milestone}` : ""}`,
         celebrate: { ...win, name: `${live.length} new items`, image: live[0].image },
       };
     }
@@ -1963,6 +1972,65 @@ http
       if (p === "/config.js") return sendConfig(res);
       if (p === "/newtab.js") return serveFile(res, path.join(ROOT, "lib"), "newtab.js");
       if (p === "/track.js") return serveFile(res, path.join(ROOT, "lib"), "track.js");
+      if (p === "/guide.js") return serveFile(res, path.join(ROOT, "lib"), "guide.js");
+      if (p === "/rush.js") return serveFile(res, path.join(ROOT, "lib"), "rush.js");
+      // The Drop Kit: Status cards for the owner, a short link for the card, and a line for anyone who arrives too late.
+      if (p === "/kit") return serveFile(res, path.join(ROOT, "owner"), "kit.html");
+      const dm = /^\/d\/(\d{1,8})$/.exec(p);
+      if (dm && req.method === "GET") {
+        const item = load().filter(isPublic).find((x) => String(x.code) === dm[1]);
+        res.writeHead(302, { Location: item ? `/p/${encodeURIComponent(item.id)}?utm_source=whatsapp&utm_campaign=drop-${dm[1]}` : "/" });
+        return res.end();
+      }
+      if (req.method === "GET" && p === "/api/kit") {
+        if (!isOwner(req, url)) return send(res, 401, { error: "Owner key required." });
+        return send(res, 200, kitData());
+      }
+      if (req.method === "POST" && p === "/api/kit/wait-done") {
+        if (!isOwner(req, url)) return send(res, 401, { error: "Owner key required." });
+        let b; try { b = JSON.parse(await readBody(req, 1024)); } catch { return send(res, 400, { error: "Bad request." }); }
+        saveWaiting(loadWaiting().filter((w) => w.id !== b.id));
+        return send(res, 200, { ok: true });
+      }
+      if (req.method === "POST" && p === "/api/next-in-line") {
+        if (tooMany(String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0])) return send(res, 429, { error: "Too many attempts. Please wait a few minutes." });
+        let b; try { b = JSON.parse(await readBody(req, 1024)); } catch { return send(res, 400, { error: "Something went wrong. Please try again." }); }
+        const item = load().filter(isPublic).find((x) => x.id === String(b.productId || "")), phone = normalisePhone(b.phone);
+        if (!item) return send(res, 404, { error: "This piece is no longer listed." });
+        if (!phone) return send(res, 400, { error: "Please enter a 10 digit mobile number." });
+        const list = loadWaiting();
+        if (!list.some((w) => w.productId === item.id && w.phone === phone)) {
+          list.push({ id: crypto.randomBytes(6).toString("hex"), productId: item.id, productName: item.name, phone, at: new Date().toISOString() });
+          saveWaiting(list);
+          sendToOwner({ text: `🙋 Someone wants “${item.name}”, which has gone. Their number is in your Drop Kit if it comes back.`, summary: { type: "waitlist" } });
+        }
+        return send(res, 200, { ok: true });
+      }
+      // How many people are on a piece right now, from real visits only, and the real hold on the last one.
+      if (req.method === "GET" && p === "/api/courier") {
+        const piece = load().filter(isPublic).find((x) => x.id === String(url.searchParams.get("id") || "")), pin = String(url.searchParams.get("pin") || "");
+        if (!piece || !/^[1-9]\d{5}$/.test(pin)) return send(res, 400, { error: "Bad request." });
+        return send(res, 200, courierFor(SHOP.policy?.courier, piece, pin));
+      }
+      if (req.method === "GET" && p === "/api/pulse") {
+        const id = String(url.searchParams.get("id") || ""), me = String(url.searchParams.get("s") || "");
+        const held = holds.anyOn(id).filter((h) => h.token !== me);
+        const piece = load().filter(isPublic).find((x) => x.id === id);
+        return send(res, 200, { ...analytics.pulse(id, me), heldByOther: held.length > 0, status: piece?.status || "" });
+      }
+      if (req.method === "POST" && p === "/api/hold") {
+        let b; try { b = JSON.parse(await readBody(req, 2048)); } catch { return send(res, 400, { error: "Bad request." }); }
+        const item = load().filter(isPublic).find((x) => x.id === String(b.productId || "")), size = holdSize(item, b.size), token = String(b.token || "");
+        if (!item || item.status !== "available" || !/^[a-f0-9]{16}$/.test(token) || !isLastPiece(item, size)) return send(res, 200, { held: false });
+        return send(res, 200, { ...holds.take(item.id, size, token, String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0]), now: Date.now() });
+      }
+      if (req.method === "POST" && p === "/api/hold/release") {
+        let b; try { b = JSON.parse(await readBody(req, 2048)); } catch { return send(res, 400, { error: "Bad request." }); }
+        const item = load().find((x) => x.id === String(b.productId || ""));
+        holds.release(String(b.productId || ""), holdSize(item, b.size), String(b.token || ""));
+        return send(res, 200, { ok: true });
+      }
+      if (req.method === "GET" && p === "/api/guide") return send(res, 200, await analytics.guideModel());
       const pv = /^\/preview\/(classic|modern)(\/.*)?$/.exec(p);
       if (pv) return previewRoute(req, res, pv[1], pv[2] || "");
       if (p === "/" ) return serveFile(res, PUBLIC, "index.html");

@@ -247,12 +247,13 @@
   </div>
 </header>
 <nav class="tabs" id="tabs" aria-label="Sections">
-  <button data-v="now">Shop floor</button><button data-v="fix">Fix first</button><button data-v="loop">The leak</button><button data-v="form">Order form</button><button data-v="traffic">Traffic</button>
+  <button data-v="now">Shop floor</button><button data-v="fix">Fix first</button><button data-v="pred">Predict</button><button data-v="loop">The leak</button><button data-v="form">Order form</button><button data-v="traffic">Traffic</button>
   <button data-v="behave">Scroll map</button><button data-v="products">Products</button><button data-v="visits">Visits</button>
 </nav>
 <main>
   <section class="view" id="v-now"></section>
   <section class="view" id="v-fix"></section>
+  <section class="view" id="v-pred"></section>
   <section class="view" id="v-loop"></section>
   <section class="view" id="v-form"></section>
   <section class="view" id="v-traffic"></section>
@@ -347,7 +348,7 @@
     page: (e) => `opened ${e.product || (e.p === "/" ? "the home page" : e.p)}`, pclick: (e) => `tapped ${e.product || "a product"}`, filter: (e) => `filtered by ${e.x}`, wa: () => "went to WhatsApp", ig: () => "went to Instagram", map: () => "opened directions", call: () => "pressed call",
     video: () => "played the video", yt: () => "went to YouTube", copy: (e) => `copied ${e.x || "payment details"}`, checkout: (e) => `pressed Order now: ${e.product || ""}${e.ms ? `, after ${dur(e.ms)} on the page` : ""}`, details: (e) => `finished their details${e.ms ? ` in ${dur(e.ms)}` : ""}`, pay_tab: (e) => `switched payment to ${e.x}`,
     paid: (e) => `paid${e.n ? ` ${inr(e.n)}` : ""}: ${e.product || ""}${e.ms ? `, took ${dur(e.ms)}` : ""}`, abandon: (e) => `left checkout at the ${e.x === "pay" ? "payment" : "details"} step${e.f ? ` (${e.f})` : ""}`, rage: (e) => `pressed again and again: ${e.x}`, dead: (e) => `pressed something that did nothing: ${e.x}`, invalid: (e) => `was stopped by the form: ${e.x}`, formerr: (e) => `saw an error: ${e.x}`, err: (e) => `hit a site error: ${e.x}`,
-    sec: (e) => `spent ${dur(e.n)} on ${e.x}`, field: (e) => `spent ${dur(e.n)} in ${e.x}${e.del ? `, corrected ${e.del}×` : ""}${e.fl === 0 ? ", left it empty" : ""}`, tap: (e) => `pressed ${e.x}`, choice: (e) => `chose ${e.r === "ship" ? "delivery" : "pick up"}`,
+    nudge: (e) => (e.ctl ? `would have seen help: ${e.x}` : `was shown help: ${e.x}`), nudge_tap: (e) => `pressed the help: ${e.x}`, sec: (e) => `spent ${dur(e.n)} on ${e.x}`, field: (e) => `spent ${dur(e.n)} in ${e.x}${e.del ? `, corrected ${e.del}×` : ""}${e.fl === 0 ? ", left it empty" : ""}`, tap: (e) => `pressed ${e.x}`, choice: (e) => `chose ${e.r === "ship" ? "delivery" : "pick up"}`,
     enq_open: (e) => `opened enquiry: ${e.product || ""}`, enq: (e) => `sent an enquiry: ${e.product || ""}`, fb: (e) => `gave feedback: ${e.r}${e.note ? ` "${e.note}"` : ""}`, section: (e) => `reached ${e.x}`, leave: () => "left",
   };
   const FRICTION = ["rage", "dead", "invalid", "formerr", "err", "abandon"];
@@ -658,7 +659,23 @@
     setRooms(l.rooms || {}, Object.entries(l.edges || {}).map(([k, n]) => { const [a, b] = k.split(">"); return { a, b, n }; }));
     $("planSay").textContent = l.active ? (l.active === 1 ? "person in the shop right now." : "people in the shop right now.") : "The shop is quiet right now. Try Whole period, or replay today.";
     keepOpen($("listBox"), `${l.feed.length ? `<ul class="ticker">${l.feed.slice(0, 4).map((e) => `<li class="${tone(e.e)}"><time>${clock(e.t)}</time><span>${esc((WORD[e.e] || (() => e.e))(e))}</span></li>`).join("")}</ul>` : ""}
-      ${more(table("people", [{ h: "Who", k: "id" }, { h: "Viewing", html: (r) => `${esc(r.label)}${r.step ? ` <span class="tag">${esc(r.step)}</span>` : ""}${r.friction ? ` <span class="tag bad">stuck ${r.friction}×</span>` : ""}` }, { h: "Exactly where", f: whereNow }, { h: "From", k: "source" }, { h: "Device", f: (r) => `${r.device || ""}, ${r.browser || ""}` }, { h: "Here for", f: (r) => dur(r.since), n: 1 }, { h: "Pages", k: "pages", n: 1 }, { h: "Scrolled", f: (r) => `${r.scroll}%`, n: 1 }, { h: "", f: (r) => (r.returning ? "returning" : "new") }], l.people, "Nobody here at the moment."), l.active > l.people.length ? `See ${l.people.length} of ${num(l.active)} people, those stuck first` : "See everyone as a list")}`);
+      ${more(table("people", [{ h: "Who", k: "id" }, { h: "Viewing", html: (r) => `${esc(r.label)}${r.step ? ` <span class="tag">${esc(r.step)}</span>` : ""}${r.friction ? ` <span class="tag bad">stuck ${r.friction}×</span>` : ""}` }, { h: "Chance of buying", f: (r) => (r.chance === null ? "" : `${r.chance}%`), n: 1 }, { h: "Exactly where", f: whereNow }, { h: "From", k: "source" }, { h: "Device", f: (r) => `${r.device || ""}, ${r.browser || ""}` }, { h: "Here for", f: (r) => dur(r.since), n: 1 }, { h: "Pages", k: "pages", n: 1 }, { h: "Scrolled", f: (r) => `${r.scroll}%`, n: 1 }, { h: "", f: (r) => (r.returning ? "returning" : "new") }], l.people, "Nobody here at the moment."), l.active > l.people.length ? `See ${l.people.length} of ${num(l.active)} people, those stuck first` : "See everyone as a list")}`);
+  }
+
+  // ---- predict, and did the help work? ----
+  async function renderPred(d) {
+    const g = d.guide; let m = {}; try { m = await (await fetch("/api/guide")).json(); } catch { /* shown as starting guesses */ }
+    const W = { co: "Pressed Order now", dt: "Finished their details", long: "30+ seconds on a product", sizes: "Looked at sizes", back: "Came back again", two: "Viewed 2+ products", desc: "Read the description", rack: "20+ seconds in the rack", filt: "Used a filter", stuck: "Hit a problem", phone: "On a phone", insta: "From Instagram", search: "From search" };
+    const pull = Object.entries(m.w || {}).map(([k, v]) => ({ label: W[k] || k, n: Math.abs(v), up: v >= 0 })).sort((a, b) => b.n - a.n);
+    const verdict = g.off.n < 30 ? "Too early to say if the help works" : g.proven ? (g.on.rate > g.off.rate ? "The help is winning orders" : "The help is costing orders: switch it off") : "No proven difference yet";
+    const tile = (l, a) => fact(l, `${a.rate}%`, `${num(a.paid)} of ${num(a.n)}, could be ${a.range.low} to ${a.range.high}%`);
+    const help = table("helps", [{ h: "Help", k: "label" }, { h: "Shown to", k: "shown", n: 1 }, { h: "Pressed it", k: "tapped", n: 1 }, { h: "They bought", f: (r) => `${r.shownRate}%`, n: 1 }, { h: "Not shown, bought", f: (r) => `${r.heldRate}%`, n: 1 }, { h: "Verdict", f: (r) => (r.proven ? "Real difference" : "Could be chance") }], g.helps, "No help has been shown yet.");
+    const cal = table("guesses", [{ h: "We guessed", k: "label" }, { h: "People", k: "n", n: 1 }, { h: "Guess, on average", f: (r) => `${r.guessed}%`, n: 1 }, { h: "Really bought", f: (r) => `${r.actual}%`, n: 1 }, { h: "Could be", f: (r) => `${r.range.low} to ${r.range.high}%`, n: 1 }], g.bands.filter((b) => b.n));
+    keepOpen($("v-pred"), `${card("", `<p class="leakHead">${esc(verdict)}</p><p class="leakFix">15% of visitors never see any help. That comparison shows if it really works, rather than those people buying anyway.</p><div class="facts">${tile("With help", g.on)}${tile("Without help", g.off)}</div>`)}
+      ${card("Each piece of help", help)}
+      ${card("What the prediction has learned", `<p class="sub2">These go together with buying, which doesn't prove one causes the other. ${m.ready ? `Learned from ${num(m.n)} visits and ${num(m.buyers)} buyers.` : `Still on careful starting guesses: it needs 300 visits and 15 buyers to learn from your shop (${num(m.n || 0)} and ${num(m.buyers || 0)} so far).`}</p>${pull.length ? pull.map((r) => `<div class="bar"><span class="lab">${esc(r.label)}</span><span class="val">${r.up ? "raises it" : "lowers it"}</span><span class="track"><span class="fill" style="width:${(r.n / pull[0].n) * 100}%;${r.up ? "" : "background:var(--red)"}"></span></span></div>`).join("") : ""}`)}
+      ${card("Were the guesses right?", cal)}
+      ${card("Did you receive the selling price?", `<div class="facts">${fact("Selling price of orders", inr(g.price.listed))}${fact("Received", inr(g.price.received))}${fact("Given away in discounts", inr(g.price.given))}</div><p class="sub2" style="margin-top:8px">The help can't change a price. Anything given away here came from discount codes.</p>`)}`);
   }
 
   // ---- fix first ----
@@ -906,7 +923,7 @@
   // ---- page control ----
   const state = { view: "now", from: today(), to: today(), data: null, visitFilter: "all", formKind: "checkout", seg: "", took: 0 };
   const segQ = () => (state.seg ? `&seg=${encodeURIComponent(state.seg)}` : "");
-  const RENDER = { fix: renderFix, loop: renderLoop, form: renderForm, traffic: renderTraffic, behave: renderBehave, products: renderProducts, visits: renderVisits };
+  const RENDER = { pred: renderPred, fix: renderFix, loop: renderLoop, form: renderForm, traffic: renderTraffic, behave: renderBehave, products: renderProducts, visits: renderVisits };
   function show(v) {
     state.view = v;
     document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.v === v));

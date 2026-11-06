@@ -40,6 +40,43 @@
       </div>`;
   }
 
+  // The shop's promise, beside the button where the doubt is. Every line is read from the policy in shop.json, says the
+  // same as the returns page, and keeps its conditions. It changes no price. 15% of visitors don't see it, so its effect can be measured.
+  const P = window.SHOP?.policy || {};
+  const showPromise = () => window.VXVisit?.arm !== "off";
+  let promiseCounted = false;
+  function countPromise() {
+    if (promiseCounted || !window.VXTrack) return;
+    promiseCounted = true;
+    window.VXTrack("nudge", { x: "promise", ...(showPromise() ? {} : { ctl: 1 }) });
+  }
+  function arrives() { // working days skip Sundays; an estimate, and worded as one
+    const [lo, hi] = (String(P.deliveryDays || "").match(/\d+/g) || []).map(Number);
+    if (!P.dispatchWorkingDays || !lo) return "";
+    const d = new Date();
+    for (let n = P.dispatchWorkingDays; n > 0;) { d.setDate(d.getDate() + 1); if (d.getDay()) n--; }
+    const day = (add) => new Date(d.getTime() + add * 864e5).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    return `Order today and it usually reaches you between ${day(lo)} and ${day(hi || lo)}.`;
+  }
+  function promise(p) {
+    if (p.status !== "available" || !showPromise()) return "";
+    const fragrance = p.category === "Fragrances", days = P.changeOfMindDays;
+    const lines = [
+      ["Real, or your money back", "If it ever turns out not to be genuine, you get a full refund, including shipping, whenever you find out."],
+      P.photoBeforeDispatch && ["See it before it leaves", "We send you a photo of your exact piece on WhatsApp before dispatch."],
+      days && (fragrance ? [`${days} days to return it`, "As long as the seal is unbroken. You pay the return shipping."] : [`${days} days to change your mind`, "Unused, unwashed, tags on. You pay the return shipping."]),
+      P.damageReportHours && ["Wrong or damaged", `Tell us within ${P.damageReportHours} hours with photos. We replace it or refund you, including shipping.`],
+      ["Cancel before dispatch", "Full refund."],
+    ].filter(Boolean);
+    const when = arrives();
+    return `<section class="vx-promise" aria-label="The Vibe X promise" data-vx-skip>
+      <h2>The Vibe X promise</h2>
+      <ul>${lines.map(([a, b]) => `<li><b>${esc(a)}</b><span>${esc(b)}</span></li>`).join("")}</ul>
+      ${when ? `<p>${esc(when)}</p>` : ""}
+      <a href="/returns" target="_blank" rel="noopener">Read the full returns policy</a>
+    </section>`;
+  }
+
   function render() {
     const p = products.find((x) => x.id === id);
     if (!p) {
@@ -62,6 +99,7 @@
           <div class="pdp-price">
             <b>${price ? `${from ? "From " : ""}${rupees(price)}` : "Ask for price"}</b>
             ${off ? `<s>${rupees(p.mrp)}</s><span class="off">${off}% OFF</span>` : ""}
+            ${off && showPromise() ? `<span class="pdp-save">You save ${rupees(p.mrp - price)}</span>` : ""}
           </div>
           <p class="pdp-desc">${esc(p.description)}</p>
           ${sizePicker(p)}
@@ -69,12 +107,16 @@
             ${p.sizes && (optionsOf(p).length < 2 || p.status !== "available") ? `<div><dt>Size</dt><dd>${esc(p.sizes)}</dd></div>` : ""}
             <div><dt>Condition</dt><dd>Original</dd></div>
             <div><dt>In stock</dt><dd>${p.status === "sold" ? "Sold out" : p.status === "hold" ? "On hold for a buyer" : p.quantity > 1 ? `${p.quantity} pieces` : "Last one"}</dd></div>
-            <div><dt>Get it</dt><dd>Pick up in Srinagar or ship anywhere in India</dd></div>
+            <div><dt>Get it</dt><dd>Pick up in Srinagar or ship anywhere in India${P.courier?.perKg ? `. Courier is ${rupees(P.courier.perKg)} per kg outside Kashmir` : ""}</dd></div>
           </dl>
           ${O.button(p, true)}
+          ${promise(p)}
         </div>
       </div>
       ${related.length ? `<section class="related"><h2>More ${esc(p.category.toLowerCase())}</h2><div class="related-row">${related.map(mini).join("")}</div></section>` : ""}`;
+    if (p.status === "available") countPromise();
+    // The full promise sits below the fold, so its first line goes where the thumb is.
+    if (root.querySelector(".vx-promise")) root.querySelector(".pdp-info .actions")?.insertAdjacentHTML("afterbegin", `<button type="button" class="vx-sure" data-promise>Real, or your money back${P.changeOfMindDays ? ` · ${esc(P.changeOfMindDays)}-day returns` : ""}</button>`);
   }
 
   async function load() {
@@ -86,6 +128,8 @@
   }
 
   root.addEventListener("click", (e) => {
+    if (e.target.closest(".vx-promise a")) window.VXTrack?.("nudge_tap", { x: "promise" });
+    if (e.target.closest("[data-promise]")) { window.VXTrack?.("nudge_tap", { x: "promise" }); root.querySelector(".vx-promise")?.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
     const b = e.target.closest("[data-pick]");
     if (!b) return;
     pick = b.dataset.pick;

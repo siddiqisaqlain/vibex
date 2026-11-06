@@ -46,7 +46,8 @@ window.VXCheckout = (() => {
   function stepDetails(err = "") {
     const { esc } = O();
     const p = state.p, f = state.form;
-    const shipNote = PAY.shippingFee == null ? "Courier charge depends on your location. We'll tell you the exact amount on WhatsApp before dispatch; if you don't want to pay it, cancel for a full refund." : PAY.shippingFee === 0 ? "Free shipping." : `Shipping: ${O().rupees(PAY.shippingFee)}.`;
+    const C = S.policy?.courier;
+    const shipNote = C?.perKg ? `Courier is ${O().rupees(C.perKg)} per kg outside Kashmir. Enter your PIN code to see it before you pay.` : PAY.shippingFee == null ? "Courier charge depends on your location. We'll tell you the exact amount on WhatsApp before dispatch; if you don't want to pay it, cancel for a full refund." : PAY.shippingFee === 0 ? "Free shipping." : `Shipping: ${O().rupees(PAY.shippingFee)}.`;
     shell(`${steps(1)}${itemRow(p)}
       <form class="co-form" novalidate>
         <h2>Order now</h2>
@@ -62,6 +63,7 @@ window.VXCheckout = (() => {
             <label>City<input name="city" autocomplete="address-level2" maxlength="60" value="${esc(f.city || "")}"></label>
             <label>PIN code<input name="pin" inputmode="numeric" autocomplete="postal-code" maxlength="6" value="${esc(f.pin || "")}"></label>
           </div>
+          <p class="co-small co-fee" role="status" hidden></p>
         </div>
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
         <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
@@ -71,8 +73,24 @@ window.VXCheckout = (() => {
       </form>`);
     const form = dlg.querySelector("form");
     form.addEventListener("change", (e) => {
-      if (e.target.name === "delivery") form.querySelector(".co-ship").hidden = e.target.value !== "ship";
+      if (e.target.name === "delivery") { form.querySelector(".co-ship").hidden = e.target.value !== "ship"; showFee(); }
     });
+    // The courier charge is shown before payment, and it comes from the server, which also sets the order's total.
+    let asked = 0;
+    async function showFee() {
+      const { rupees } = O(), pin = form.elements.pin.value.replace(/\D/g, ""), mine = ++asked, box = form.querySelector(".co-fee");
+      let fee = 0, text = "";
+      if (form.elements.delivery.value === "ship" && /^[1-9]\d{5}$/.test(pin)) {
+        const r = await fetch(`/api/courier?id=${encodeURIComponent(p.id)}&pin=${pin}`).then((x) => x.json()).catch(() => null);
+        if (mine !== asked) return;
+        if (r?.fee) { fee = r.fee; text = `Courier to ${pin}: ${rupees(fee)} for ${r.kg} kg. You pay ${rupees(p.price + fee)} in total.`; }
+        else if (r?.inside) text = "Inside Kashmir, we'll tell you the courier charge on WhatsApp before dispatch. If you don't want to pay it, cancel for a full refund.";
+      }
+      box.textContent = text; box.hidden = !text;
+      form.querySelector(".co-cta").textContent = `Continue to payment · ${rupees(p.price + fee)}`;
+    }
+    form.elements.pin.addEventListener("input", showFee);
+    showFee();
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       state.form = Object.fromEntries(new FormData(form));
@@ -80,7 +98,7 @@ window.VXCheckout = (() => {
       btn.disabled = true;
       btn.textContent = "One moment…";
       try {
-        const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...state.form, productId: p.id, size: p.chosenSize }) });
+        const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...state.form, holdToken: window.VXVisit?.s, productId: p.id, size: p.chosenSize }) });
         const out = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(out.error || "Couldn't start the order. Please try again.");
         state.order = out;
@@ -123,10 +141,12 @@ window.VXCheckout = (() => {
     shell(`${steps(2)}
       ${PAY.demo ? `<p class="co-demo">Demo payment details. Don't send real money.</p>` : ""}
       <div class="co-amount"><span>Pay exactly</span><b>${rupees(o.amount)}</b><button type="button" class="co-copy" data-copy="${o.amount}" aria-label="Copy amount">${COPY}<em>Copy</em></button></div>
+      ${o.shipping ? `<p class="co-small">${rupees(o.amount - o.shipping)} for the piece + ${rupees(o.shipping)} courier.</p>` : ""}
       <p class="co-small">Add <b class="mono">${esc(o.code)}</b> in the payment note so we can match it.</p>
       <div class="co-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === tab}">${l}</button>`).join("")}</div>
       <div class="co-pay">${body}</div>
       <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
+      ${window.VXVisit?.arm === "off" ? "" : `<p class="co-small co-promise"><b>Real, or your money back.</b> Cancel any time before dispatch for a full refund.</p>`}
       <button type="button" class="order co-cta" data-paid>I've paid</button>
       <button type="button" class="co-back" data-back>← Change details</button>`);
   }
@@ -140,7 +160,7 @@ window.VXCheckout = (() => {
       const res = await fetch(`/api/orders/${o.id}/paid`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const out = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(out.error || "Couldn't reach the shop. Please try again.");
-      window.VXTrack?.("paid", { pr: state.p.id, n: state.p.price });
+      window.VXTrack?.("paid", { pr: state.p.id, n: o.amount - (o.shipping || 0), fp: state.p.price }); // what the piece really sold for, and its selling price; courier isn't part of either
       stepDone(out.status);
       if (out.status !== "cancelled") celebrate();
     } catch (ex) {

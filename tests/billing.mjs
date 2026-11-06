@@ -90,6 +90,19 @@ try {
   list = (await get("/api/billing/invoices")).invoices;
   assert.equal(list.find((x) => x.order === o.code).status, "cancelled"); ok("WhatsApp cancel of a confirmed order cancels the bill");
 
+  // 7c. Courier: the server sets it, the bill keeps it apart from the selling price, and no code takes anything off
+  const ship = { productId: "b2", name: "Zoya", phone: "9000000003", delivery: "ship", address: "1 Road", city: "Delhi" };
+  o = await post("/api/orders", { ...ship, pin: "110001", shipping: 1, amount: 1, promo: "FIRST10" });
+  assert.equal(o.shipping, 130); assert.equal(o.amount, 2799 + 130); ok("courier outside Kashmir is added by the server, whatever the browser sends");
+  await post(`/api/orders/${o.id}/paid`, { utr: "323456789012" });
+  reply = await wa(`confirm ${o.code}`);
+  assert.match(reply, /photo of this exact piece/); ok("confirming a delivery reminds the owner to send the photo");
+  const bill = (await get("/api/billing/invoices")).invoices.find((x) => x.order === o.code);
+  assert.equal(bill.lines[0].amount, 2799); assert.equal(bill.charges[0].amount, 130); assert.equal(bill.total, 2929); ok("the bill shows the selling price and the courier as separate lines");
+  await wa(`cancel ${o.code}`);
+  o = await post("/api/orders", { ...ship, pin: "190001" });
+  assert.equal(o.amount, 2799); assert.equal(o.shipping, 0); ok("inside Kashmir no charge is guessed");
+
   // 8. Ten tills at once on 1 piece: exactly one bill
   await post("/api/billing/stock", { productId: "a1", quantity: 1 });
   const race = await Promise.all(Array.from({ length: 10 }, () => post("/api/billing/invoices", { lines: [{ productId: "a1", qty: 1 }] })));

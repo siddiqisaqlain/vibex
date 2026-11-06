@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400..800&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<title>Vibe X Drop Kit</title>
+<style>
+  :root{color-scheme:light;--paper:#f4f2ee;--card:#fbfaf8;--ink:#121212;--mute:#6b6963;--line:rgba(18,18,18,.13);--red:#e2382c;--green:#1f7a52;--mono:"Geist Mono",ui-monospace,Menlo,monospace}
+  @media (prefers-color-scheme:dark){:root{color-scheme:dark;--paper:#141312;--card:#1c1b19;--ink:#f2f0ea;--mute:#9b988f;--line:rgba(255,255,255,.14);--red:#f0604f;--green:#4fbe86}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.4 "Schibsted Grotesk",Helvetica,Arial,sans-serif}
+  header{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:12px 20px;border-bottom:1px solid var(--line)}
+  h1{font-size:17px;margin:0;font-weight:800;letter-spacing:-.02em}
+  header a{color:var(--mute);font:12px var(--mono)}
+  main{max-width:1000px;margin:0 auto;padding:16px 16px 60px}
+  .lead{font-size:clamp(22px,4vw,30px);font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:6px 0 4px}
+  .sub{color:var(--mute);margin:0 0 16px;font-size:14px}
+  h2{font-size:15px;margin:22px 0 10px}
+  .row{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+  .piece{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px;min-width:0}
+  canvas{display:block;width:100%;height:auto;border-radius:4px;background:#ddd}
+  .piece b{display:block;margin-top:8px;font-size:14px;line-height:1.25}
+  .piece small{display:block;color:var(--mute);font:11px var(--mono);margin:2px 0 8px}
+  .acts{display:flex;gap:6px;flex-wrap:wrap}
+  button,a.btn{flex:1 1 auto;min-height:44px;border:1px solid var(--line);background:none;color:var(--ink);border-radius:4px;font:600 13px "Schibsted Grotesk",sans-serif;cursor:pointer;padding:8px 10px;text-align:center;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+  button.go{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .wait{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+  .wait span{min-width:0}.wait small{display:block;color:var(--mute);font:11px var(--mono)}
+  .wait .acts{flex:0 0 auto}
+  .empty{color:var(--mute);padding:14px 0}
+  #lock{position:fixed;inset:0;background:var(--paper);display:grid;place-items:center;padding:16px;z-index:9}
+  #lock form{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:22px;width:min(380px,100%)}
+  #lock input{width:100%;padding:10px;border:1px solid var(--line);border-radius:4px;margin:10px 0;background:var(--card)}
+  .hide{display:none!important}
+</style>
+</head>
+<body>
+<div id="lock" class="hide"><form id="lockForm"><b>Drop Kit</b><p class="sub" style="margin:4px 0 0">Enter the owner key, the same one as the billing portal.</p><input id="keyIn" type="password" aria-label="Owner key" required><button class="go" style="width:100%">Open</button></form></div>
+<header><h1>Vibe X Drop Kit</h1><a href="/analytics">Analytics</a><a href="/billing">Billing</a></header>
+<main>
+  <p class="lead">Your shop doesn't need visitors to start selling.</p>
+  <p class="sub">Press Share, choose WhatsApp, then My Status. The caption is copied for you: paste it so the link can be tapped.</p>
+  <div id="waiting"></div>
+  <h2>New drops</h2><div class="row" id="drops"></div>
+  <h2>Gone: post these too</h2><div class="row" id="gone"></div>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const money = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
+  const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } } };
+  const u = new URL(location.href);
+  let KEY = u.searchParams.get("key") || store.get("vx-owner-key") || "";
+  if (u.searchParams.get("key")) { store.set("vx-owner-key", KEY); u.searchParams.delete("key"); history.replaceState(null, "", u.pathname); }
+  const api = async (p, opts = {}) => { const r = await fetch(p, { ...opts, cache: "no-store", headers: { "Content-Type": "application/json", "x-owner-key": KEY } }); if (r.status === 401) { $("lock").classList.remove("hide"); throw new Error("key"); } return r.json(); };
+  $("lockForm").onsubmit = (e) => { e.preventDefault(); KEY = $("keyIn").value.trim(); store.set("vx-owner-key", KEY); $("lock").classList.add("hide"); boot(); };
+  const short = () => `${location.host.replace(/^www\./, "")}`;
+  const span = (ms) => { const h = ms / 3600e3; if (h < 1) return `${Math.max(1, Math.round(ms / 60e3))} minutes`; if (h < 48) return `${Math.round(h)} hour${Math.round(h) === 1 ? "" : "s"}`; return `${Math.round(h / 24)} days`; };
+
+  // ---- the cards, 1080 x 1920, the shape of a Status ----
+  const W = 1080, H = 1920, BRAND = { paper: "#f4f2ee", ink: "#121212", red: "#e2382c", mute: "#6b6963" }, FONT = '"Schibsted Grotesk",Helvetica,Arial,sans-serif', MONO = '"Geist Mono",Menlo,monospace';
+  const wrap = (c, text, x, y, width, line, max) => { const words = text.split(/\s+/); let row = "", n = 0; for (let i = 0; i < words.length; i++) { const t = row ? `${row} ${words[i]}` : words[i]; if (c.measureText(t).width > width && row) { c.fillText(++n === max ? `${row}…` : row, x, y); if (n === max) return y; y += line; row = words[i]; } else row = t; } c.fillText(row, x, y); return y; };
+  const photo = (src) => new Promise((res) => { if (!src) return res(null); const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+  function cover(c, img, x, y, w, h) { const s = Math.max(w / img.width, h / img.height), sw = w / s, sh = h / s; c.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, x, y, w, h); }
+  function logo(c, x, y, col) { c.font = `800 74px ${FONT}`; c.fillStyle = col; c.fillText("VIBE", x, y); const w = c.measureText("VIBE").width; c.fillStyle = BRAND.red; c.fillText("X", x + w, y); }
+  async function drop(cv, p) {
+    const c = cv.getContext("2d"), img = await photo(p.image);
+    c.fillStyle = BRAND.paper; c.fillRect(0, 0, W, H); c.textBaseline = "alphabetic"; logo(c, 60, 130, BRAND.ink);
+    c.fillStyle = "#e6e2da"; c.fillRect(60, 180, 960, 1040);
+    if (img) cover(c, img, 60, 180, 960, 1040); else { c.fillStyle = BRAND.mute; c.font = `700 90px ${FONT}`; c.textAlign = "center"; c.fillText(p.brand || "Vibe X", W / 2, 720); c.textAlign = "left"; }
+    c.fillStyle = BRAND.ink; c.font = `800 74px ${FONT}`; let y = wrap(c, p.name, 60, 1320, 960, 84, 2) + 110;
+    c.font = `800 104px ${FONT}`; c.fillStyle = BRAND.ink; c.fillText(money(p.price), 60, y);
+    if (p.mrp > p.price) { const x = 90 + c.measureText(money(p.price)).width, t = `MRP ${money(p.mrp)}`; c.font = `500 44px ${MONO}`; c.fillStyle = BRAND.mute; c.fillText(t, x, y); const w = c.measureText(t).width; c.fillRect(x, y - 16, w, 4); }
+    c.fillStyle = BRAND.red; c.font = `700 46px ${FONT}`; c.fillText(p.left === 1 ? "One piece only. First order gets it." : "Just landed in Srinagar.", 60, y + 90);
+    c.fillStyle = BRAND.ink; c.fillRect(0, H - 170, W, 170); c.fillStyle = "#fff"; c.font = `600 54px ${MONO}`; c.textAlign = "center"; c.fillText(`${short()}/d/${p.code}`, W / 2, H - 70); c.textAlign = "left";
+  }
+  async function gone(cv, p) {
+    const c = cv.getContext("2d"), img = await photo(p.image);
+    c.fillStyle = BRAND.ink; c.fillRect(0, 0, W, H); logo(c, 60, 130, "#fff");
+    c.fillStyle = "#2a2a28"; c.fillRect(60, 180, 960, 1040);
+    if (img) { c.save(); c.filter = "grayscale(1) brightness(.55)"; cover(c, img, 60, 180, 960, 1040); c.restore(); }
+    c.save(); c.translate(W / 2, 700); c.rotate(-0.16); c.strokeStyle = BRAND.red; c.lineWidth = 16; c.strokeRect(-330, -130, 660, 240); c.fillStyle = BRAND.red; c.font = `900 180px ${FONT}`; c.textAlign = "center"; c.fillText("GONE", 0, 55); c.restore();
+    c.fillStyle = "#fff"; c.font = `800 70px ${FONT}`; let y = wrap(c, p.name, 60, 1320, 960, 82, 2) + 100;
+    if (p.soldInMs) { c.fillStyle = BRAND.red; c.font = `800 72px ${FONT}`; c.fillText(`Sold in ${span(p.soldInMs)}.`, 60, y); y += 90; }
+    c.fillStyle = "#c9c6bd"; c.font = `500 44px ${FONT}`; c.fillText("Every piece is a one-off. Next drop soon.", 60, y);
+    c.fillStyle = "#fff"; c.fillRect(0, H - 170, W, 170); c.fillStyle = BRAND.ink; c.font = `600 54px ${MONO}`; c.textAlign = "center"; c.fillText(short(), W / 2, H - 70); c.textAlign = "left";
+  }
+  const captionOf = (p, sold) => (sold ? `${p.name}: gone${p.soldInMs ? ` in ${span(p.soldInMs)}` : ""}. Every piece is a one-off. See what's left:\n${location.origin}` : `${p.name}, ${money(p.price)}\n${p.left === 1 ? "One piece only. First order gets it." : "Just landed."}\nReal, or your money back.\n${location.origin}/d/${p.code}`);
+  async function share(cv, p, sold) {
+    const text = captionOf(p, sold);
+    try { await navigator.clipboard.writeText(text); } catch { /* still shares the picture */ }
+    const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.9)), file = new File([blob], `vibex-${p.code}-${sold ? "gone" : "drop"}.jpg`, { type: "image/jpeg" });
+    if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch { return; } }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = file.name; a.click(); // a computer: save it, then send it to your phone
+  }
+  function tile(p, sold) {
+    const el = document.createElement("div"), cv = document.createElement("canvas"); cv.width = W; cv.height = H; el.className = "piece";
+    el.append(cv); el.insertAdjacentHTML("beforeend", `<b>${esc(p.name)}</b><small>Lot ${esc(p.code)} · ${sold ? (p.soldInMs ? `sold in ${esc(span(p.soldInMs))}` : "sold") : `${esc(money(p.price))} · ${p.left === 1 ? "last one" : `${p.left} left`}`}</small><div class="acts"><button class="go" type="button" data-s>Share to Status</button><button type="button" data-c>Copy caption</button></div>`);
+    el.querySelector("[data-s]").onclick = () => share(cv, p, sold);
+    el.querySelector("[data-c]").onclick = async (e) => { await navigator.clipboard.writeText(captionOf(p, sold)).catch(() => {}); e.target.textContent = "Copied"; };
+    (sold ? gone : drop)(cv, p);
+    return el;
+  }
+  function waiting(list) {
+    const box = $("waiting");
+    if (!list.length) { box.innerHTML = ""; return; }
+    box.innerHTML = `<h2>Next in line: ${list.length}</h2>`;
+    for (const w of list) {
+      const text = `Hi, this is Vibe X. You asked about ${w.productName}. ${w.back ? "It's back and available now:" : "It's gone, but here's what's on the rack now:"} ${location.origin}/${w.back ? `p/${w.productId}` : ""}`;
+      const row = document.createElement("div"); row.className = "wait";
+      row.innerHTML = `<span><b>${esc(w.productName)}</b><small>${esc(w.phone)} · ${w.back ? "AVAILABLE AGAIN: message them now" : "still taken"}</small></span><div class="acts"><a class="btn" href="https://wa.me/91${esc(w.phone)}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Message</a><button type="button">Done</button></div>`;
+      row.querySelector("button").onclick = async () => { await api("/api/kit/wait-done", { method: "POST", body: JSON.stringify({ id: w.id }) }); boot(); };
+      box.append(row);
+    }
+  }
+  async function boot() {
+    let d; try { d = await api("/api/kit"); } catch { return; }
+    $("drops").replaceChildren(...d.pieces.filter((p) => p.status === "available").slice(0, 12).map((p) => tile(p, false)));
+    $("gone").replaceChildren(...d.pieces.filter((p) => p.status === "sold").slice(0, 6).map((p) => tile(p, true)));
+    if (!$("gone").children.length) $("gone").innerHTML = `<p class="empty">Your first sale will appear here, ready to post.</p>`;
+    waiting(d.waiting);
+  }
+  document.fonts?.ready.then(boot) ?? boot();
+})();
+</script>
+</body>
+</html>

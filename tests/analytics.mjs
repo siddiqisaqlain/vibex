@@ -92,6 +92,120 @@ await check("a buyer's name from the sales banner is never stored", () => {
   const d = summarise([{ t: 1e12, v: "a", s: "a", e: "page", p: "/", dev: "Phone", nw: 1 }, saved], { from: "2026-01-01", to: "2026-01-01" });
   assert.ok(!JSON.stringify(d).includes("Aamir"), "older saved taps are cleaned when read");
 });
+await check("the guide learns from visits, starts careful, and keeps nothing personal", async () => {
+  const { STARTER, newFit, addFit, readFit, newRecord, feed } = require("../lib/rollup.js");
+  const F = newFit(), make = (i, buys) => { const s = `v${i}`, r = newRecord({ t: 1e12, s, v: s }); const ev = (e, x = {}) => feed(r, { t: 1e12, v: s, s, e, p: "/", ...x }); ev("page", { dev: "Phone", nw: 1 }); if (buys) { ev("checkout", { pr: "s1" }); ev("paid", { pr: "s1", n: 3000 }); } return r; };
+  for (let i = 0; i < 10; i++) addFit(F, make(i, true));
+  assert.equal(readFit(F).ready, false, "too few to learn from");
+  for (let i = 10; i < 400; i++) addFit(F, make(i, i % 12 === 0));
+  const m = readFit(F);
+  assert.equal(m.ready, true); assert.ok(m.w.co > 1, "pressing Order now should raise the chance"); assert.ok(m.base < 0);
+  assert.deepEqual(Object.keys(m).sort(), ["base", "buyers", "n", "ready", "w"]);
+  const pub = await (await fetch(`${base}/api/guide`)).json();
+  assert.ok(pub.w.co > 0); assert.equal(pub.ready, false); assert.ok(STARTER.w.co);
+});
+await check("the report compares with and without help, and what was really received", () => {
+  const list = [], add = (s, arm, buy) => { const ev = (e, x = {}) => list.push({ t: 1e12, v: s, s, e, p: "/", ...x }); ev("page", { dev: "Phone", nw: 1, arm }); ev("pred", { pb: 20 }); ev("nudge", { x: "assure", ...(arm === "off" ? { ctl: 1 } : {}) }); if (buy) ev("paid", { pr: "s1", n: 2700, fp: 3000 }); };
+  for (let i = 0; i < 20; i++) add(`a${i}`, "on", i < 8);
+  for (let i = 0; i < 20; i++) add(`b${i}`, "off", i < 2);
+  const g = summarise(list, { from: "2026-01-01", to: "2026-01-01" }).guide;
+  assert.equal(g.on.rate, 40); assert.equal(g.off.rate, 10); assert.equal(g.proven, true);
+  assert.equal(g.helps[0].shown, 20); assert.equal(g.helps[0].held, 20); assert.equal(g.helps[0].shownRate, 40);
+  assert.equal(g.bands[1].n, 40); assert.equal(g.bands[1].actual, 25);
+  assert.deepEqual(g.price, { received: 27000, listed: 30000, given: 3000 });
+});
+await check("the guide doesn't share saved names with the rest of the shop", () => {
+  const root = path.resolve(import.meta.dirname, ".."), mine = [...fs.readFileSync(path.join(root, "lib/guide.js"), "utf8").matchAll(/"(vx-[a-z-]+)"/g)].map((m) => m[1]);
+  assert.ok(mine.length >= 2);
+  for (const f of fs.readdirSync(path.join(root, "public")).filter((x) => x.endsWith(".js"))) { const t = fs.readFileSync(path.join(root, "public", f), "utf8"); for (const k of mine) assert.ok(!t.includes(`"${k}"`), `${f} also uses ${k}`); }
+});
+await check("a hold is real: one person, ten minutes, and it can't be hogged", () => {
+  const createHolds = require("../lib/holds.js");
+  let t = 1000; const h = createHolds({ now: () => t, ms: 600000 });
+  const a = h.take("s1", "M", "a".repeat(16), "1.1.1.1");
+  assert.equal(a.held, true); assert.equal(a.until, 601000);
+  const b = h.take("s1", "M", "b".repeat(16), "2.2.2.2");
+  assert.equal(b.held, false); assert.equal(b.taken, true);
+  assert.ok(h.blockedFor("s1", "M", "b".repeat(16))); assert.equal(h.blockedFor("s1", "M", "a".repeat(16)), null);
+  t += 300000; assert.equal(h.take("s1", "M", "a".repeat(16), "1.1.1.1").until, 601000, "pressing again can't stretch it");
+  h.take("s2", "", "a".repeat(16), "1.1.1.1"); assert.equal(h.blockedFor("s1", "M", "b".repeat(16)), null, "one piece at a time");
+  h.release("s2", "", "c".repeat(16)); assert.ok(h.blockedFor("s2", "", "b".repeat(16)), "only the holder can release it");
+  h.release("s2", "", "a".repeat(16)); assert.equal(h.blockedFor("s2", "", "b".repeat(16)), null);
+  h.take("s3", "", "d".repeat(16), "9.9.9.9"); t += 700000; assert.equal(h.blockedFor("s3", "", "b".repeat(16)), null, "it runs out");
+  for (let i = 0; i < 3; i++) assert.equal(h.take(`x${i}`, "", String(i).repeat(16), "7.7.7.7").held, true);
+  assert.equal(h.take("x9", "", "9".repeat(16), "7.7.7.7").held, false, "one address can't lock up the shop");
+});
+await check("while the last piece is held, the server refuses everyone else's order", async () => {
+  const list = await (await fetch(`${base}/api/products`)).json(), item = list.find((x) => x.status === "available" && x.price && (x.options || []).length === 1);
+  if (!item) return; // the demo stock in this run has none with one size
+  const A = "a".repeat(16), B = "b".repeat(16), hold = (token) => fetch(`${base}/api/hold`, { method: "POST", body: JSON.stringify({ productId: item.id, token }) }).then((r) => r.json());
+  const order = (holdToken) => fetch(`${base}/api/orders`, { method: "POST", body: JSON.stringify({ productId: item.id, name: "Test", phone: "9000000000", delivery: "pickup", holdToken }) });
+  const got = await hold(A);
+  if (!got.held) return; // more than one left, so there's nothing to hold
+  assert.equal((await hold(B)).taken, true);
+  assert.equal((await order(B)).status, 409, "someone else is refused");
+  assert.equal((await (await fetch(`${base}/api/pulse?id=${item.id}&s=${B}`)).json()).heldByOther, true);
+  assert.equal((await (await fetch(`${base}/api/pulse?id=${item.id}&s=${A}`)).json()).heldByOther, false);
+  const mine = await order(A), body = await mine.json();
+  assert.equal(mine.status, 200, "the holder can order"); assert.equal(body.amount, item.price, "at the selling price");
+  await fetch(`${base}/api/hold/release`, { method: "POST", body: JSON.stringify({ productId: item.id, token: A }) });
+  assert.equal((await order(B)).status, 200, "released, so it's open again");
+});
+await check("the numbers on the page are only ever real", async () => {
+  const none = await (await fetch(`${base}/api/pulse?id=nobody&s=${"e".repeat(16)}`)).json();
+  assert.equal(none.watching, 0); assert.equal(none.today, 0); assert.equal(none.heldByOther, false);
+  const code = fs.readFileSync(path.resolve(import.meta.dirname, "../lib/rush.js"), "utf8").replace(/^\s*\/\/.*$/gm, "");
+  for (const word of ["Math.random", "/api/orders", "promo", "discount", "amount"]) assert.ok(!code.includes(word), `rush.js has ${word}`);
+  assert.ok(!/beforeunload|history\.pushState|preventDefault/.test(code), "nothing may stop someone leaving");
+  assert.ok(!/\.price\b/.test(code), "rush.js can't read a price");
+});
+await check("the Drop Kit: a short link, an owner's list, and a line for latecomers", async () => {
+  const list = await (await fetch(`${base}/api/products`)).json(), item = list.find((x) => x.code);
+  const r = await fetch(`${base}/d/${item.code}`, { redirect: "manual" });
+  assert.equal(r.status, 302); assert.match(r.headers.get("location"), /utm_source=whatsapp&utm_campaign=drop-/);
+  assert.equal((await fetch(`${base}/d/99999999`, { redirect: "manual" })).headers.get("location"), "/");
+  assert.equal((await fetch(`${base}/api/kit`)).status, 401, "the kit is the owner's");
+  const kit = await (await fetch(`${base}/api/kit`, { headers: { "x-owner-key": "k" } })).json();
+  assert.ok(kit.pieces.some((p) => p.id === item.id));
+  const line = (phone) => fetch(`${base}/api/next-in-line`, { method: "POST", body: JSON.stringify({ productId: item.id, phone }) });
+  assert.equal((await line("123")).status, 400);
+  assert.equal((await line("9876543210")).status, 200); await line("9876543210");
+  let w = (await (await fetch(`${base}/api/kit`, { headers: { "x-owner-key": "k" } })).json()).waiting;
+  assert.equal(w.length, 1, "asked twice, listed once");
+  await fetch(`${base}/api/kit/wait-done`, { method: "POST", headers: { "x-owner-key": "k" }, body: JSON.stringify({ id: w[0].id }) });
+  w = (await (await fetch(`${base}/api/kit`, { headers: { "x-owner-key": "k" } })).json()).waiting;
+  assert.equal(w.length, 0, "their number goes once it's dealt with");
+  assert.equal((await fetch(`${base}/api/kit/wait-done`, { method: "POST", body: "{}" })).status, 401);
+});
+await check("the promise only repeats the shop's policy, and the price stays out of it", () => {
+  const pdp = fs.readFileSync(new URL("../public/pdp.js", import.meta.url), "utf8"), block = pdp.slice(pdp.indexOf("function promise(p)"), pdp.indexOf("function render()"));
+  assert.ok(block.includes("P.changeOfMindDays") && block.includes("P.damageReportHours"), "the numbers come from shop.json");
+  assert.doesNotMatch(block, /\b(7|48) (days|hours)\b/, "no number typed in by hand");
+  assert.doesNotMatch(block, /discount|% off|price/i, "it says nothing about price");
+  const legal = fs.readFileSync(new URL("../lib/legal.js", import.meta.url), "utf8");
+  assert.match(legal, /whenever you find out/); assert.match(legal, /seal is unbroken/); assert.match(legal, /you pay the return shipping/);
+  assert.equal(JSON.parse(fs.readFileSync(new URL("../shop.json", import.meta.url), "utf8")).policy.photoBeforeDispatch, true, "the owner agreed to this promise");
+});
+await check("courier: worked out on the server, kept apart from the selling price, and no codes", async () => {
+  const { courierFor } = require("../lib/courier.js"), rate = { perKg: 130, kashmirPins: ["190"], kg: { default: 1, Footwear: 2, Puffer: 1.5 } };
+  assert.equal(courierFor(rate, { category: "Footwear" }, "110001").fee, 260);
+  assert.equal(courierFor(rate, { category: "Clothing", subcategory: "Puffer" }, "110001").fee, 195, "subcategory first");
+  assert.equal(courierFor(rate, { category: "Clothing" }, "190001").fee, null, "inside Kashmir has no charge set");
+  const piece = (await (await fetch(`${base}/api/products`)).json()).find((x) => x.status === "available" && x.price && (x.options || []).length <= 1);
+  assert.equal((await (await fetch(`${base}/api/courier?id=${piece.id}&pin=110001`)).json()).fee, 130 * (piece.category === "Footwear" ? 2 : 1));
+  const shop = JSON.parse(fs.readFileSync(new URL("../shop.json", import.meta.url), "utf8"));
+  assert.ok(!shop.offers && !JSON.stringify(shop.claims.ticker).includes("FIRST10"));
+  assert.equal((await fetch(`${base}/api/courier?id=x&pin=1`)).status, 400);
+});
+await check("the count, clock and ending note stay off until the owner switches them on", () => {
+  assert.equal(JSON.parse(fs.readFileSync(new URL("../shop.json", import.meta.url), "utf8")).rush.live, false);
+  const code = fs.readFileSync(new URL("../lib/rush.js", import.meta.url), "utf8");
+  for (const part of ["if (!live || !on || !text", "if (live) once(\"hold\")", "if (live) { clock", "if (live && on && dlg)"]) assert.ok(code.includes(part), part);
+});
+await check("the guide has no way to touch a price", () => {
+  const code = fs.readFileSync(path.resolve(import.meta.dirname, "../lib/guide.js"), "utf8").replace(/^\s*\/\/.*$/gm, "");
+  for (const word of ["/api/orders", "promo", "discount", "amount", "price", "countdown"]) assert.ok(!code.toLowerCase().includes(word), `guide.js mentions ${word}`);
+});
 await check("what to fix first says how sure it is and what it's likely worth", () => {
   const t = 1e12, ev = (s, e, x = {}) => ({ t, v: s, s, e, p: "/p/s1", ...x }), list = [];
   for (let i = 0; i < 40; i++) {

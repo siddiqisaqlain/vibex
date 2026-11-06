@@ -33,7 +33,20 @@
     "refundWorkingDays": 5,
     "dispatchWorkingDays": 2,
     "deliveryDays": "3 to 7",
-    "shippingFee": null
+    "shippingFee": null,
+    "_photoNote": "Turn on only if the shop will really send a photo of every piece on WhatsApp before dispatch. It adds that line to the promise on product pages.",
+    "photoBeforeDispatch": true,
+    "courier": {
+      "_note": "Owner's rate (2026-11-06): Rs 130 per kg outside Kashmir. PINs starting 190-193 count as Kashmir, so Jammu and Ladakh pay the rate. kg is the packed weight charged for each piece: subcategory first, then category, then default. These weights are estimates; correct them here. insideKashmir: the fee inside Kashmir, or null to confirm it on WhatsApp before dispatch.",
+      "perKg": 130,
+      "kashmirPins": ["190", "191", "192", "193"],
+      "insideKashmir": null,
+      "kg": { "default": 1, "Footwear": 2 }
+    }
+  },
+  "rush": {
+    "_note": "live: true shows the live count on product pages, the countdown on a held last piece and the 'It's yours' note. Off (owner's choice, 2026-11-06) until there are regular daily sales. The hold itself and Next in line work either way.",
+    "live": false
   },
   "pay": {
     "_note": "Real details from the owner (2026-11-04). Bank fields empty = the Bank transfer option is hidden. Courier charge varies by location (shippingFee null = confirmed on WhatsApp before dispatch).",
@@ -77,7 +90,7 @@
       "label": "1.5 lakh+",
       "small": "orders fulfilled"
     },
-    "_ordersNote": "Shown in the opening animation. Given by the agency on 2026-11-04; not yet confirmed in writing by the owner. Delete 'orders' to hide it.",
+    "_ordersNote": "Shown in the opening animation. Confirmed true by the owner on 2026-11-06. Delete 'orders' to hide it.",
     "delivery": {
       "label": "Speedy delivery",
       "detail": "as fast as 3 days"
@@ -86,21 +99,11 @@
     "ticker": [
       "Express delivery across 15K+ pincodes in India",
       "Trusted by 2 lakh+ customers across India",
-      "Get 10% off with code FIRST10",
       "100% original world brands",
       "New drops posted every day"
     ],
-    "_tickerNote": "Banner lines given by the agency on 2026-11-04 (customer count and delivery reach not yet confirmed in writing by the owner)."
+    "_tickerNote": "Banner lines given by the agency on 2026-11-04. Confirmed true by the owner on 2026-11-06."
   },
-  "offers": [
-    {
-      "_note": "Discount codes the checkout accepts. The banner advertises FIRST10, so keep it here while that line is up.",
-      "code": "FIRST10",
-      "percent": 10,
-      "firstOrderOnly": true,
-      "label": "10% off your first order"
-    }
-  ],
   "billing": {
     "_note": "Bills from the billing portal (/billing), WhatsApp 'sold' and confirmed website orders. Vibe X is NOT GST-registered (owner confirmed 2026-11-05), so business.gstin stays empty, no GST is charged and bills say so. GST on suppliers' bills is added to cost price. If he registers: fill business.gstin and tax invoices switch on, using the rates below (have a CA check them). gstLimit: Rs 40 lakh goods turnover, the figure most sources give for J&K; a CA should confirm. It does not cover inter-state sales.",
     "gst": {
