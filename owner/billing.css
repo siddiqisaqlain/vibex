@@ -318,3 +318,21 @@ table.dues td{padding:8px 4px}table.dues .click{cursor:pointer}table.dues .tbtn{
 }
 @media print{#dock,#toasts,#cartBar{display:none!important}}
 .showNameRow{display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer}.showNameRow.hide{display:none}.showNameRow input{width:auto;margin:0}
+/* Each item's photos and its website button */
+.rowBtns{display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap}
+.tbtn.webOn{background:var(--primary);color:#fff;border-color:var(--primary)}
+.noPhoto{position:relative;padding:0;border:0;cursor:pointer}
+.itemPic.ownPic{cursor:pointer}
+.ownPic:hover,.noPhoto:hover{outline:2px solid var(--primary);outline-offset:1px}
+.photoBadge{position:absolute;right:-1px;bottom:-1px;z-index:1;min-width:17px;height:17px;padding:0 3px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:6px 0 6px 0;background:rgba(15,26,46,.82) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8h4l2-3h6l2 3h4v11H3z'/%3E%3Ccircle cx='12' cy='13' r='3.5'/%3E%3C/svg%3E") center/12px no-repeat;color:#fff;font:700 11px/1 inherit}
+.photoBadge:not(:empty){background-image:none}
+.photoBadge.add{background:var(--primary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.4' stroke-linecap='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E") center/11px no-repeat}
+.photoGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0}
+.photoTile{position:relative}.photoMain{position:absolute;left:6px;top:6px}
+.photoTile img{width:100%;aspect-ratio:1;object-fit:cover;display:block;border-radius:8px;background:#eee}
+.photoBtns{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:6px}
+.photoBtns .tbtn{min-height:36px}
+.photoAdd{width:100%;min-height:44px;margin-top:6px}
+.photoBad{color:var(--red);font-weight:700}
+#it-photos{margin-bottom:10px}
+.big.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}

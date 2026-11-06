@@ -352,16 +352,19 @@
   }
   let picked = -1; // the result the arrow keys are on
   // Items list photo: only items with a photo can be tapped. No photo, or one that won't load, shows the default.
-  const itemPic = (p) => p.image
-    ? `<button class="thumb none itemPic" data-photo="${esc(p.id)}" aria-label="See photo of ${esc(p.name)}"><img src="${esc(p.image)}" alt="" loading="lazy" onerror="this.remove()"></button>`
-    : `<div class="thumb none" role="img" aria-label="No photo yet"></div>`;
+  // The image box is where an item's photos live: the owner taps it to add or change them, staff just look.
+  const itemPic = (p) => {
+    const pic = p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy" onerror="this.remove()">` : "";
+    if (ROLE === "staff") return p.image ? `<button class="thumb none itemPic" data-photo="${esc(p.id)}" aria-label="See photo of ${esc(p.name)}">${pic}</button>` : `<div class="thumb none" role="img" aria-label="No photo yet"></div>`;
+    const n = p.image ? 1 + (p.images?.length || 0) : 0;
+    return `<button class="thumb none ${n ? "itemPic ownPic" : "noPhoto"}" data-photos="${esc(p.id)}" title="${n ? "Add or change photos" : "Add a photo"}" aria-label="${n ? `${n === 1 ? "1 photo" : `${n} photos`} of ${esc(p.name)}. Add or change photos` : `Add a photo of ${esc(p.name)}`}">${pic}<span class="photoBadge ${n ? "" : "add"}">${n > 1 ? n : ""}</span></button>`;
+  };
   function photoPanel(p) {
     if (!p) return;
-    const box = window.VX.drawer(p.name, `<img id="photoBig" src="${esc(p.image)}" alt="${esc(p.name)}" onerror="this.outerHTML='<p class=sub>This photo could not be loaded.</p>'">
+    window.VX.drawer(p.name, `<img id="photoBig" src="${esc(p.image)}" alt="${esc(p.name)}" onerror="this.outerHTML='<p class=sub>This photo could not be loaded.</p>'">
       <div class="sub">#${esc(p.code)}${p.sizes ? " · " + esc(p.sizes) : ""} ${stockPill(p)}</div>
       <div class="price" style="margin-top:6px">${p.price ? inr(p.price) : "No price yet"}</div>
-      ${ROLE === "staff" ? "" : `<button class="big" id="photoEdit">Edit item</button>`}`);
-    box.querySelector("#photoEdit")?.addEventListener("click", () => { window.VX.closeDrawer(); window.VX.itemForm(p); });
+`);
   }
   function renderResults() {
     sold = new Map();
@@ -730,7 +733,7 @@
       <td class="n"><input type="number" class="rate" min="1" value="${esc(p.price || "")}" data-price="${esc(p.id)}" aria-label="Selling price of ${esc(p.name)}"></td>
       <td class="n costCol">${p.cost ? inr(p.cost) : "-"}</td>
       <td class="n">${p.mrp ? inr(p.mrp) : "-"}</td>
-      <td class="n">${staff ? "" : `<button class="tbtn" data-edit="${esc(p.id)}">Edit</button>`}</td>
+      <td class="n">${staff ? "" : `<div class="rowBtns"><button class="tbtn ${p.hidden ? "webOn" : ""}" data-web="${esc(p.id)}">${p.hidden ? "Put on website" : "Take off website"}</button><button class="tbtn" data-edit="${esc(p.id)}">Edit</button></div>`}</td>
     </tr>`).join("") : `<tr><td colspan="8" class="empty">No items match. Try All, or clear the search.</td></tr>`;
     $("stockMore").innerHTML = all.length > stockShown ? `<span class="sub">Showing ${stockShown} of ${all.length}</span> <button class="tbtn" id="stockNext">Show 60 more</button>` : "";
     if ($("stockNext")) $("stockNext").onclick = () => { stockShown += 60; renderStock(); };
@@ -741,6 +744,12 @@
     $("stockRows").querySelectorAll("[data-pick]").forEach((c) => (c.onchange = () => { if (c.checked) picks.add(c.dataset.pick); else picks.delete(c.dataset.pick); paintPicks(); }));
     $("stockRows").querySelectorAll("[data-edit]").forEach((b) => (b.onclick = () => window.VX.itemForm(byId().get(b.dataset.edit))));
     $("stockRows").querySelectorAll("[data-photo]").forEach((b) => (b.onclick = () => photoPanel(byId().get(b.dataset.photo))));
+    $("stockRows").querySelectorAll("[data-photos]").forEach((b) => (b.onclick = () => window.VX.itemPhotos(byId().get(b.dataset.photos))));
+    $("stockRows").querySelectorAll("[data-web]").forEach((b) => (b.onclick = () => {
+      const p = byId().get(b.dataset.web);
+      if (p.hidden && !p.image) return window.VX.itemPhotos(p, "Add a photo first, then put it on the website.");
+      window.VX.setOnWebsite(p, !!p.hidden);
+    }));
     if (staff) $("stockRows").querySelectorAll("[data-step],[data-qty],[data-price]").forEach((el) => (el.disabled = true));
     const push = async (id, body, undo) => {
       try {
@@ -793,7 +802,7 @@
     const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   };
-  window.VX = Object.assign(window.VX || {}, { api, esc, inr, toast, download, go, store, addToCart, billPanel, tabs: {},
+  window.VX = Object.assign(window.VX || {}, { api, esc, inr, toast, download, stockOf, go, store, addToCart, billPanel, tabs: {},
     reload: loadAll, reloadTab: () => window.VX.tabs[current]?.(currentSub), data: () => ({ products, invoices, parties, role: ROLE, me: ME }),
     makeBill: () => { if (current === "new") makeBill(); },
     setStockFilter: async (c) => { await go("stock"); setChip(c); } });

@@ -9,6 +9,7 @@
     const box = $("itemBox");
     const f = (k, label, type = "text") => `<label class="sub">${label}<input id="it-${k}" type="${type}" value="${esc(p?.[k] ?? "")}"></label>`;
     box.innerHTML = `<details class="form" open><summary>${p ? `Edit #${esc(p.code)}` : "New item"}</summary><div>
+      <div id="it-photos"></div>
       <div class="row2">${f("name", "Name")}<label class="sub">Section<select id="it-category">${CATS.map((c) => `<option ${(p?.category || "Clothing") === c ? "selected" : ""}>${c}</option>`).join("")}</select></label></div>
       <div class="row3">${f("mrp", "Actual price (MRP)", "number")}${f("price", "Selling price ₹", "number")}${f("cost", "Purchase price ₹", "number")}</div>
       <p class="sub" id="it-offer" style="margin:4px 0 0"></p>
@@ -16,10 +17,27 @@
       <p class="sub" style="margin:4px 0 0">Perfume sizes: type <b>100ml</b> for one size, or <b>50ml 2999 100ml 4999</b> for a price on each. Those prices replace the selling price above.</p>
       <div id="it-sizeRows"></div>
       <div class="row3">${f("hsn", "HSN code")}${f("gstRate", "GST % (blank = default)", "number")}${p ? "<div></div>" : f("quantity", "Opening stock", "number")}</div>
-      ${p ? `<label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="it-onWebsite" ${p.hidden ? "" : "checked"} ${p.image ? "" : "disabled"}> Show on website${p.image ? "" : " (needs a photo: send it on WhatsApp with the code)"}</label>
+      ${p ? `<label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="it-onWebsite" ${p.hidden ? "" : "checked"} ${p.image ? "" : "disabled"}> Show on website<span id="it-webNote">${p.image ? "" : " (add a photo first)"}</span></label>
       <label class="sub" style="display:block;margin-top:4px"><input type="checkbox" id="it-featured" ${p.featured ? "checked" : ""}> Feature on home page (beside the video, up to 6)</label>` : ""}
       <button class="big" id="itSave">Save</button><div class="err" id="itErr"></div></div></details>`;
     if (newName) $("it-name").value = newName;
+    // Photos save the moment they're added, so typing in the form is never lost. A new item has
+    // nowhere to save them yet: they wait here and go up right after Save.
+    let waiting = [];
+    if (p) photoEditor($("it-photos"), p, (next) => {
+      const box = $("it-onWebsite");
+      if (!box) return;
+      box.disabled = !next.image; box.checked = !next.hidden;
+      $("it-webNote").textContent = next.image ? "" : " (add a photo first)";
+    });
+    else {
+      $("it-photos").innerHTML = `<input type="file" id="phFile" accept="image/*,.heic,.heif" multiple hidden><button class="tbtn photoAdd" id="phAdd">Add photos</button><p class="sub" id="phBusy"></p>`;
+      $("phAdd").onclick = () => $("phFile").click();
+      $("phFile").onchange = (e) => {
+        waiting = [...e.target.files].slice(0, MAX_PHOTOS);
+        $("phBusy").textContent = waiting.length ? `${waiting.length === 1 ? "1 photo" : `${waiting.length} photos`} ready. They go up when you press Save.` : "";
+      };
+    }
     // A stock box for each size, redrawn as the Sizes field changes. Blank boxes keep one shared count.
     const typed = { ...(p?.sizeStock || {}) };
     const sizeNames = (t) => {
@@ -54,12 +72,134 @@
       const boxes = [...document.querySelectorAll("[data-ss]")];
       if (boxes.length) b.sizeStock = boxes.some((i) => i.value !== "") ? Object.fromEntries(boxes.map((i) => [i.dataset.ss, i.value])) : {};
       try {
-        await api(p ? `/api/billing/items/${p.id}` : "/api/billing/items", { method: "POST", body: JSON.stringify(b) });
-        window.VX.closeDrawer(); toast(p ? "Saved." : "Added. It stays off the website until it has a photo."); await window.VX.reload();
+        const r = await api(p ? `/api/billing/items/${p.id}` : "/api/billing/items", { method: "POST", body: JSON.stringify(b) });
+        window.VX.closeDrawer(); toast(p ? "Saved." : "Added."); await window.VX.reload();
+        if (!p) itemPhotos(r.product, "", waiting);
       } catch (e) { $("itErr").textContent = e.message; }
     };
   }
   window.VX.itemForm = itemForm;
+
+  // ---- Photos and the website, for one item ----
+  const MAX_PHOTOS = 6;
+  // A phone photo can be 10 MB. 1600px is plenty for the shop and keeps the disk and the page light.
+  const toJpeg = (blob) => new Promise((done, fail) => {
+    const url = URL.createObjectURL(blob), img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+      c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+      const g = c.getContext("2d");
+      g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); // see-through PNGs would turn black
+      g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      done(c.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); fail(new Error("unreadable")); };
+    img.src = url;
+  });
+  // iPhone photos are HEIC. Safari reads them, Chrome can't, so Chrome borrows a decoder (1.3 MB, only fetched here).
+  let heicLib;
+  const loadHeic = () => heicLib ||= new Promise((done, fail) => {
+    const tag = document.createElement("script");
+    tag.src = "/billing-heic.js"; tag.onload = done;
+    tag.onerror = () => { heicLib = null; fail(new Error("no decoder")); };
+    document.head.append(tag);
+  });
+  const isHeic = (f) => /hei[cf]/i.test(f.type) || /\.hei[cf]$/i.test(f.name);
+  async function shrink(file) {
+    try { return await toJpeg(file); } catch { /* not a type this browser can open */ }
+    try {
+      if (isHeic(file)) {
+        await loadHeic();
+        const out = await window.heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 });
+        return await toJpeg(Array.isArray(out) ? out[0] : out);
+      }
+    } catch { /* same message below */ }
+    throw new Error(`${file.name} couldn't be read. Use a JPG, PNG, WebP or iPhone photo.`);
+  }
+  const photoCall = (p, body) => api(`/api/billing/items/${p.id}/photos`, { method: "POST", body: JSON.stringify(body) });
+
+  // The photos of one item, used in the Photos panel and in the Edit form. Every change saves at once.
+  function photoEditor(host, item, onChange, first) {
+    let cur = item, msg = "", bad = false, swapping = null;
+    const list = () => [cur.image, ...(cur.images || [])].filter(Boolean);
+    const q = (s) => host.querySelector(s);
+    const after = async (next, text) => { cur = next; msg = text || ""; bad = false; draw(); onChange?.(cur); await window.VX.reload(); };
+    async function upload(files, replace) {
+      const room = replace ? 1 : MAX_PHOTOS - list().length;
+      const take = files.slice(0, room), left = files.length - take.length;
+      let added = 0, failed = "";
+      q("#phAdd").disabled = true; host.querySelectorAll(".photoBtns button").forEach((b) => (b.disabled = true));
+      for (const f of take) {
+        q("#phBusy").textContent = take.length > 1 ? `Adding photo ${added + 1} of ${take.length}…` : "Adding photo…";
+        try { cur = (await photoCall(cur, { add: await shrink(f), ...(replace ? { replace } : {}) })).product; added++; }
+        catch (e) { failed = e.message; }
+      }
+      const note = [failed, left > 0 ? `${left} left out: an item can have ${MAX_PHOTOS} photos at most.` : ""].filter(Boolean).join(" ");
+      msg = note || (added ? (replace ? "Photo changed." : added > 1 ? `${added} photos added.` : "Photo added.") : ""); bad = !!note;
+      draw(); onChange?.(cur);
+      if (note) toast(note, { bad: true });
+      await window.VX.reload();
+    }
+    function draw() {
+      const all = list(), full = all.length >= MAX_PHOTOS;
+      host.innerHTML = `${all.length ? `<div class="photoGrid">${all.map((u, i) => `<div class="photoTile"><img src="${esc(u)}" alt="Photo ${i + 1} of ${esc(cur.name)}">
+          ${i ? "" : `<span class="pill photoMain">Main photo</span>`}
+          <div class="photoBtns"><button class="tbtn" data-swap="${esc(u)}">Change</button>${i ? `<button class="tbtn" data-main="${esc(u)}">Make main</button>` : ""}<button class="tbtn danger" data-del="${esc(u)}">Remove</button></div></div>`).join("")}</div>` : `<p class="sub">No photos yet.</p>`}
+        <input type="file" id="phFile" accept="image/*,.heic,.heif" multiple hidden>
+        <input type="file" id="phOne" accept="image/*,.heic,.heif" hidden>
+        <button class="tbtn photoAdd" id="phAdd" ${full ? "disabled" : ""}>${full ? `${MAX_PHOTOS} photos is the most an item can have` : all.length ? "Add more photos" : "Add photos"}</button>
+        <p class="sub ${bad ? "photoBad" : ""}" id="phBusy" role="status">${esc(msg)}</p>`;
+      q("#phAdd").onclick = () => q("#phFile").click();
+      q("#phFile").onchange = (e) => upload([...e.target.files]);
+      q("#phOne").onchange = (e) => { if (e.target.files[0]) upload([e.target.files[0]], swapping); };
+      host.querySelectorAll("[data-swap]").forEach((b) => (b.onclick = () => { swapping = b.dataset.swap; q("#phOne").click(); }));
+      host.querySelectorAll("[data-main]").forEach((b) => (b.onclick = async () => {
+        try { await after((await photoCall(cur, { main: b.dataset.main })).product, "Main photo changed."); } catch (e) { toast(e.message, { bad: true }); }
+      }));
+      host.querySelectorAll("[data-del]").forEach((b) => window.VX.twoTap(b, all.length === 1 && !cur.hidden ? "Remove and take off website" : "Tap again", async () => {
+        const r = await photoCall(cur, { remove: b.dataset.del });
+        await after(r.product, r.tookOff ? "Photo removed. The item is off the website until it has a photo." : "Photo removed.");
+      }));
+    }
+    draw();
+    if (first?.length) upload(first);
+  }
+
+  // Puts an item on the website or takes it off. Returns the saved item, or null with the reason shown.
+  async function setOnWebsite(p, on, again) {
+    try {
+      const r = await api(`/api/billing/items/${p.id}`, { method: "POST", body: JSON.stringify({ onWebsite: on }) });
+      const left = window.VX.stockOf(r.product);
+      toast(on ? (left > 0 ? "On the website now." : "On the website, shown as sold out until you add stock.") : "Off the website. It's still in your stock for billing.", { action: "Undo", run: async () => { await setOnWebsite(r.product, !on, again); } });
+      await window.VX.reload();
+      again?.(r.product);
+      return r.product;
+    } catch (e) { toast(e.message, { bad: true }); return null; }
+  }
+
+  function itemPhotos(p, note = "", first) {
+    const box = window.VX.drawer(p.name, `<p class="sub" id="phState"></p>
+      ${note ? `<p class="sub" id="phNote"><b>${esc(note)}</b></p>` : ""}
+      <div id="phHost"></div>
+      <button class="big" id="phWeb"></button>`);
+    const q = (s) => box.querySelector(s);
+    let cur = p;
+    const paint = (next) => {
+      cur = next;
+      q("#phState").textContent = `#${cur.code} · ${cur.hidden ? "Not on website" : "On the website"}`;
+      q("#phWeb").textContent = cur.hidden ? "Put on website" : "Take off website";
+      if (cur.image) q("#phNote")?.remove();
+    };
+    paint(p);
+    photoEditor(q("#phHost"), p, paint, first);
+    q("#phWeb").onclick = () => {
+      if (cur.hidden && !cur.image) return itemPhotos(cur, "Add a photo first, then put it on the website.");
+      return setOnWebsite(cur, !!cur.hidden, itemPhotos);
+    };
+  }
+  window.VX.itemPhotos = itemPhotos;
+  window.VX.setOnWebsite = setOnWebsite;
 
   // ---- Linking website items to imported stock ----
   const words = (s) => new Set(String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((w) => w.length > 2));

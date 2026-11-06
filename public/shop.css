@@ -848,3 +848,9 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
   .trust b { font-size: 14px; white-space: nowrap; }
   .trust span:not(.trust-no) { font-size: 12px; white-space: nowrap; }
 }
+/* Product page: small photos under the big one */
+.pdp-thumbs { display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; scrollbar-width: none; }
+.pdp-thumbs::-webkit-scrollbar { display: none; }
+.pdp-thumbs button { flex: none; width: 64px; height: 64px; padding: 0; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--paper-2); cursor: pointer; }
+.pdp-thumbs button.on { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
+.pdp-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }

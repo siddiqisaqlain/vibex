@@ -833,6 +833,7 @@ async function ownerMessage(body) {
     if (parsed.action === "remove") {
       // This is his inventory too, so the item stays for billing and its bills stay whole.
       target.hidden = true;
+      target.wasLive = true;
       save(items);
       return { reply: `👁️ “${target.name}” is off the website. It's still in your stock for billing.\nTo show it again, tick *Show on website* in Items.` };
     }
@@ -880,6 +881,7 @@ function photoForImported(text, image) {
   if (!saved) return { reply: "I couldn't read that photo. Please send it again." };
   p.image = saved;
   delete p.hidden;
+  if (!p.wasLive) p.createdAt = new Date().toISOString(); // new from today, not from the day it was imported
   save(items);
   const win = celebrate(p);
   const left = billing.stockOf(p);
@@ -1716,7 +1718,20 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
   if (get && route === "products") return send(res, 200, who.role === "staff" ? load().map(noCost) : load());
   if (post && route === "items") { const b = await body(); return b ? reply(billing.saveItem(b, null, newCode)) : send(res, 400, { error: "Bad request." }); }
   let im = /^items\/([\w-]{1,40})$/.exec(route);
-  if (post && im) { const b = await body(); return b ? reply(billing.saveItem(b, im[1], newCode)) : send(res, 400, { error: "Bad request." }); }
+  if (post && im) {
+    const b = await body();
+    if (!b) return send(res, 400, { error: "Bad request." });
+    const wasHidden = load().find((x) => x.id === im[1])?.hidden;
+    const r = billing.saveItem(b, im[1], newCode);
+    if (!r.error && wasHidden && !r.product.hidden) celebrate(r.product); // counts as a post, like one from WhatsApp
+    return reply(r);
+  }
+  // Add, remove or choose the main photo. The portal shrinks photos before sending them.
+  im = /^items\/([\w-]{1,40})\/photos$/.exec(route);
+  if (post && im) {
+    let b; try { b = JSON.parse(await readBody(req, 8 * 1024 * 1024)); } catch { return send(res, 400, { error: "That photo is too large." }); }
+    return reply(billing.photos(im[1], b, (data) => saveImage(data, `${im[1]}-${Date.now().toString(36)}`)));
+  }
   if (post && route === "link") { const b = await body(); return b ? reply(documents.linkItem(b)) : send(res, 400, { error: "Bad request." }); }
   if (post && route === "barcodes") { const b = await body(); return b ? reply(billing.giveBarcodes(Array.isArray(b.ids) ? b.ids.slice(0, 500) : [])) : send(res, 400, { error: "Bad request." }); }
   if (get && route === "staff") return send(res, 200, staff.list());
@@ -1948,6 +1963,7 @@ http
       // The portal page itself is harmless without the key: every call it makes needs it.
       if (p === "/billing") return serveFile(res, path.join(ROOT, "owner"), "billing.html");
       if (p === "/billing-books.js" || p === "/billing-docs.js" || p === "/billing-more.js" || p === "/billing-ux.js" || p === "/billing.css") return serveFile(res, path.join(ROOT, "owner"), p.slice(1));
+      if (p === "/billing-heic.js") return serveFile(res, path.join(ROOT, "owner"), "heic2any.min.js"); // iPhone photos in Chrome, loaded only when needed
       if (p === "/billing-code128.js") return serveFile(res, path.join(ROOT, "owner"), "code128.js");
       if (p === "/billing/labels") return serveFile(res, path.join(ROOT, "owner"), "labels.html");
       const lm = /^\/l\/([a-f0-9]{32})$/.exec(p);

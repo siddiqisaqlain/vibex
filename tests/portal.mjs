@@ -230,12 +230,10 @@ try {
 
   // Items.
   await d.tap('#side [data-tab=stock]');
-  ok(await d.until(`document.querySelector('[data-photo=b2] img')?.naturalWidth>0`), "Items shows the product photo");
+  ok(await d.until(`document.querySelector('[data-photos=b2] img')?.naturalWidth>0`), "Items shows the product photo");
   ok(await d.js(`(()=>{const t=document.querySelector('#stockRows .thumb.none:not(.itemPic)');return !!t&&!t.textContent.trim()&&/svg/.test(getComputedStyle(t).backgroundImage)})()`), "an item with no photo shows the default image");
-  await d.tap("[data-photo=b2]");
-  ok(await d.until(`document.getElementById('photoBig')?.naturalWidth>0`), "tapping the photo opens it large");
-  await d.tap("#photoEdit");
-  ok(await d.until(`!!document.getElementById('itSave')`), "the photo panel leads to Edit item");
+  await d.tap("[data-photos=b2]");
+  ok(await d.until(`document.querySelector('.photoTile img')?.naturalWidth>0`), "tapping the image box opens its photos");
   await d.key("Escape");
   await d.tap('[data-sc=out]');
   ok((await d.js(`document.querySelectorAll('#stockRows tr').length`)) >= 1 && /Sold out/.test(await d.text("#stockRows")), "Sold out filter");
@@ -281,8 +279,8 @@ try {
     ok(await m.until(`!document.getElementById('done').classList.contains('hide')`), `${label}: makes a bill with taps`);
     await m.tap("#dNext");
     await m.nav(`${base}/billing#/stock`);
-    await m.tap("[data-photo=b2]");
-    ok(await m.until(`document.getElementById('photoBig')?.naturalWidth>0`), `${label}: tapping a product photo opens it`);
+    await m.tap("[data-photos=b2]");
+    ok(await m.until(`document.querySelector('.photoTile img')?.naturalWidth>0`), `${label}: tapping a product photo opens its photos`);
     await m.nav(`${base}/billing#/home`);
     for (const hash of ["home", "new", "bills", "stock", "parties", "payments/in", "orders", "purchases", "expenses", "cash", "reports", "settings", "docs/quotation", "returns/sale_return"]) {
       await m.nav(`${base}/billing#/${hash}`);

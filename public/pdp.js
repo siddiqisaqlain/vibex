@@ -8,6 +8,7 @@
   const id = root.dataset.id;
   let products = [];
   let pick = null, needPick = false; // chosen size; true after "Order now" with none chosen
+  let shot = 0; // which of the item's photos is showing
 
   const offPct = (p) => (p.mrp && p.price && p.mrp > p.price ? Math.round((1 - p.price / p.mrp) * 100) : 0);
 
@@ -16,6 +17,16 @@
     return `<div class="media ${p.image ? "" : "art-bg"}">${pic}<span class="lot">${lot(p)}</span>
       ${p.status === "sold" ? `<div class="sold-stamp"><span>SOLD</span></div>` : ""}
       ${p.status === "hold" ? `<div class="sold-stamp hold-stamp"><span>ON HOLD</span></div>` : ""}</div>`;
+  }
+
+  // The big photo, with a row of small ones when the item has more than one.
+  const photosOf = (p) => [p.image, ...(p.images || [])].filter(Boolean);
+  function gallery(p) {
+    const list = photosOf(p);
+    if (list.length < 2) return media(p);
+    if (shot >= list.length) shot = 0;
+    return `${media({ ...p, image: list[shot] })}
+      <div class="pdp-thumbs" role="group" aria-label="More photos of ${esc(p.name)}">${list.map((u, i) => `<button type="button" data-shot="${i}" class="${i === shot ? "on" : ""}" aria-label="Photo ${i + 1} of ${list.length}" aria-pressed="${i === shot}"><img src="${esc(u)}" alt="" decoding="async"></button>`).join("")}</div>`;
   }
 
   function mini(p) {
@@ -91,7 +102,7 @@
     root.innerHTML = `
       <a class="back mono" href="${BASE}/#rack">← Back to the rack</a>
       <div class="pdp-grid">
-        <div class="pdp-media">${media(p)}</div>
+        <div class="pdp-media">${gallery(p)}</div>
         <div class="pdp-info">
           <p class="label">${esc([p.category, p.subcategory].filter(Boolean).join(" › "))}</p>
           ${p.brand ? `<span class="brand">${esc(p.brand)}</span>` : ""}
@@ -146,7 +157,9 @@
   }
 
   root.addEventListener("click", (e) => {
-    const photo = e.target.closest(".pdp-media img");
+    const thumb = e.target.closest("[data-shot]");
+    if (thumb) { shot = Number(thumb.dataset.shot); return render(); }
+    const photo = e.target.closest(".pdp-media .media img");
     if (photo) return zoom(photo);
     if (e.target.closest(".vx-promise a")) window.VXTrack?.("nudge_tap", { x: "promise" });
     if (e.target.closest("[data-promise]")) { window.VXTrack?.("nudge_tap", { x: "promise" }); root.querySelector(".vx-promise")?.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
@@ -156,6 +169,18 @@
     needPick = false;
     render();
   });
+
+  // Swiping the big photo moves through the item's photos.
+  let swipeX = null;
+  root.addEventListener("touchstart", (e) => { swipeX = e.target.closest(".pdp-media .media") && e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
+  root.addEventListener("touchend", (e) => {
+    if (swipeX === null) return;
+    const moved = e.changedTouches[0].clientX - swipeX, p = products.find((x) => x.id === id), n = p ? photosOf(p).length : 0;
+    swipeX = null;
+    if (n < 2 || Math.abs(moved) < 40) return;
+    shot = (shot + (moved < 0 ? 1 : n - 1)) % n;
+    render();
+  }, { passive: true });
 
   O.install((pid) => products.find((p) => p.id === pid), (pid) => {
     const p = products.find((x) => x.id === pid);
