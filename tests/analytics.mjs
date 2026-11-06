@@ -14,7 +14,7 @@ const PORT = 4797;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-analytics-"));
 const base = `http://127.0.0.1:${PORT}`;
 const PHONE = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36";
-const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", ANTHROPIC_API_KEY: "", WA_TOKEN: "" };
+const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", ANTHROPIC_API_KEY: "", WA_TOKEN: "" };
 const srv = spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."), env, stdio: "ignore" });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 for (let i = 0; i < 50; i++) { try { await fetch(`${base}/api/products`); break; } catch { await wait(100); } }
@@ -170,6 +170,7 @@ await check("while the last piece is held, the server refuses everyone else's or
   assert.equal((await (await fetch(`${base}/api/pulse?id=${item.id}&s=${A}`)).json()).heldByOther, false);
   const mine = await order(A), body = await mine.json();
   assert.equal(mine.status, 200, "the holder can order"); assert.equal(body.amount, item.price, "at the selling price");
+  await fetch(`${base}/api/orders/${body.id}/cancel`, { method: "POST" }); // they went back, so the order holds nothing
   await fetch(`${base}/api/hold/release`, { method: "POST", body: JSON.stringify({ productId: item.id, token: A }) });
   assert.equal((await order(B)).status, 200, "released, so it's open again");
 });

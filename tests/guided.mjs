@@ -29,7 +29,7 @@ await new Promise((r) => graph.listen(0, "127.0.0.1", r));
 
 const srv = spawn(process.execPath, ["server.js"], {
   cwd: path.resolve(import.meta.dirname, ".."),
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", WA_TOKEN: "t", WA_PHONE_ID: "123", WA_APP_SECRET: SECRET,
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", WA_TOKEN: "t", WA_PHONE_ID: "123", WA_APP_SECRET: SECRET,
     OWNER_WHATSAPP: OWNER, WA_ALBUM_MS: "400", DRAFT_STALE_MS: "1500", PUBLIC_URL: "https://shop.example", WA_GRAPH_URL: `http://127.0.0.1:${graph.address().port}`, ANTHROPIC_API_KEY: "" },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -219,7 +219,6 @@ try {
   const o = await (await order({ size: "100 ml", price: 1 })).json();
   assert.equal(o.amount, 4999, "the size sets the price, not the browser");
   sent.length = 0;
-  await fetch(`${base}/api/orders/${o.id}/paid`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
   for (let i = 0; i < 40 && !sent.length; i++) await new Promise((r) => setTimeout(r, 50));
   assert.match(body(sent[0]) || sent[0].image?.caption || JSON.stringify(sent[0]), /Gucci Flora\*? · 100 ml/);
   m = await text(`confirm ${o.code}`);

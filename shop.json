@@ -49,6 +49,7 @@
     "live": false
   },
   "pay": {
+    "window": { "minutes": 4, "opensHour": 11, "closesHour": 23 },
     "_note": "Real details from the owner (2026-11-04). Bank fields empty = the Bank transfer option is hidden. Courier charge varies by location (shippingFee null = confirmed on WhatsApp before dispatch).",
     "demo": false,
     "payee": "Vibe X",

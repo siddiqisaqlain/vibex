@@ -13,7 +13,7 @@ fs.writeFileSync(path.join(dir, "products.json"), JSON.stringify([
   { id: "a1", code: "1001", name: "Polo Jacket", category: "Clothing", price: 1500, mrp: 6700, cost: 800, quantity: 5, status: "available", createdAt: now },
   { id: "b2", code: "1002", name: "Lower", category: "Clothing", price: 700, cost: 300, quantity: 1, status: "available", createdAt: now },
 ]));
-const srv = spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."), env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" }, stdio: ["ignore", "pipe", "pipe"] });
+const srv = spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."), env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" }, stdio: ["ignore", "pipe", "pipe"] });
 let log = ""; srv.stdout.on("data", (d) => (log += d)); srv.stderr.on("data", (d) => (log += d));
 const base = `http://127.0.0.1:${PORT}`;
 for (let i = 0; i < 50; i++) { try { await fetch(base + "/api/products"); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
@@ -100,8 +100,7 @@ try {
   // Online Orders: the portal uses the same confirm as WhatsApp
   await post("/stock", { productId: "a1", quantity: 3 });
   const oj = await (await fetch(`${base}/api/orders`, { method: "POST", headers: H, body: JSON.stringify({ productId: "a1", name: "Web", phone: "9000000007", delivery: "pickup" }) })).json();
-  await fetch(`${base}/api/orders/${oj.id}/paid`, { method: "POST", headers: H, body: JSON.stringify({ utr: "123456789012" }) });
-  assert.equal((await get("/orders"))[0].status, "paid");
+  assert.equal((await get("/orders"))[0].status, "awaiting_payment");
   assert.equal((await post(`/orders/${oj.code}/confirm`)).status, 200);
   assert.equal((await get("/orders"))[0].status, "confirmed"); assert.equal(await stock("a1"), 2);
   assert.equal((await post(`/orders/${oj.code}/confirm`)).status, 409); ok("Online Orders confirms an order: bill made, stock taken, once only");

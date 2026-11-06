@@ -31,7 +31,7 @@ zara man,,377111156845,450.0,750.0,1.0 PCS,750.0,"",2345.0
 Dior 100 ml,,333333333333,1000.0,2000.0,0.0 PCS,0.0,"",3000.0
 `;
 const srv = spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."),
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" }, stdio: ["ignore", "pipe", "pipe"] });
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" }, stdio: ["ignore", "pipe", "pipe"] });
 let log = ""; srv.stdout.on("data", (d) => (log += d)); srv.stderr.on("data", (d) => (log += d));
 const base = `http://127.0.0.1:${PORT}`;
 for (let i = 0; i < 50; i++) { try { await fetch(base + "/api/products"); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
@@ -96,6 +96,7 @@ try {
 
   // Website order for the same item stays strict
   const res = await post("/api/orders", { productId: "live1", name: "A", phone: "9000000009", delivery: "pickup" }); assert.equal(res.status, 200);
+  await post(`/api/orders/${res.id}/cancel`, {}); // an open order holds the piece, and a held piece can't be recounted
   assert.equal((await post("/api/billing/stock", { productId: "live1", quantity: 0 })).status, 200);
   assert.equal((await post("/api/orders", { productId: "live1", name: "B", phone: "9000000010", delivery: "pickup" })).status, 409); ok("website can't order an item at 0");
 

@@ -16,7 +16,7 @@ fs.writeFileSync(path.join(dir, "products.json"), JSON.stringify([
 ]));
 const srv = spawn(process.execPath, ["server.js"], {
   cwd: path.resolve(import.meta.dirname, ".."),
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" },
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" },
   stdio: ["ignore", "pipe", "pipe"],
 });
 let log = ""; srv.stdout.on("data", (d) => (log += d)); srv.stderr.on("data", (d) => (log += d));
@@ -113,7 +113,6 @@ try {
   // Shipping out of J&K shows on the GST check; a Srinagar delivery doesn't
   const ship = async (pin, phone) => {
     const o = await (await fetch(base + "/api/orders", { method: "POST", headers: H, body: JSON.stringify({ productId: "b2", name: "Zed", phone, delivery: "ship", address: "1 Road", city: "Town", pin }) })).json();
-    await fetch(`${base}/api/orders/${o.id}/paid`, { method: "POST", headers: H, body: JSON.stringify({ utr: "323456789012" }) });
     return wa(`confirm ${o.code}`);
   };
   await post("/stock", { productId: "b2", quantity: 2 });

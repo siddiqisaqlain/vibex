@@ -357,13 +357,18 @@ function newOrderCode(orders) {
 }
 
 const { courierFor } = require("./lib/courier");
+const payWindow = require("./lib/paywindow");
+const PAY_WINDOW = payWindow.read(SHOP.pay?.window, process.env.ORDER_HOURS);
+const ORDER_WINDOW_MS = Number(process.env.ORDER_WINDOW_MS) || PAY_WINDOW.minutes * 60e3;
+const clientIp = (req) => String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0].trim();
 
 async function createOrder(req, res) {
   let b;
   try { b = JSON.parse(await readBody(req, 20 * 1024)); } catch { return send(res, 400, { error: "Something went wrong. Please try again." }); }
   if (b.website) return send(res, 200, { ok: true });
   if (!ORDERING_OPEN) return send(res, 403, { error: "Online ordering opens soon. Tap Enquire and we'll reply on WhatsApp." });
-  if (tooMany(req.socket.remoteAddress || "?")) return send(res, 429, { error: "Too many attempts. Please wait a few minutes." });
+  if (!payWindow.isOpen(PAY_WINDOW)) return send(res, 409, { error: payWindow.closedText(PAY_WINDOW) });
+  if (tooMany(clientIp(req))) return send(res, 429, { error: "Too many attempts. Please wait a few minutes." });
   const p = load().filter(isPublic).find((x) => x.id === String(b.productId || ""));
   if (!p) return send(res, 404, { error: "This piece is no longer listed." });
   if (p.status === "sold") return send(res, 409, { error: "Sorry, this piece has just sold." });
@@ -395,40 +400,49 @@ async function createOrder(req, res) {
     productId: p.id, productName: p.name, lot: lotOf(p), amount: price + shipping, ...(picked ? { size: picked.size } : {}),
     ...(shipping ? { shipping, kg: courier.kg } : {}),
     name, phone, delivery, address, city, pin, ...(b.hideName ? { hideName: true } : {}),
-    status: "awaiting_payment", createdAt: new Date().toISOString(),
+    status: "awaiting_payment", createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + ORDER_WINDOW_MS).toISOString(),
   };
   orders.push(order);
   saveOrders(orders);
-  send(res, 200, { id: order.id, code: order.code, amount: order.amount, lot: order.lot, shipping });
+  // Nobody else can pay for a last piece during the window.
+  const items = load();
+  const held = items.find((x) => x.id === order.productId);
+  if (held && !(held.quantity > 1) && held.status === "available") { held.status = "hold"; held.holdFor = order.code; save(items); }
+  orderAlert(order, held);
+  send(res, 200, { id: order.id, code: order.code, amount: order.amount, lot: order.lot, shipping, left: ORDER_WINDOW_MS });
 }
 
-async function orderPaid(req, res, id) {
-  let b;
-  try { b = JSON.parse(await readBody(req)); } catch { return send(res, 400, { error: "Something went wrong. Please try again." }); }
-  const orders = loadOrders();
-  const o = orders.find((x) => x.id === id);
-  if (!o) return send(res, 404, { error: "Order not found." });
-  if (o.status !== "awaiting_payment") return send(res, 200, { code: o.code, status: o.status });
-  const utr = String(b.utr || "").replace(/\s+/g, "").slice(0, 30);
-  const proof = saveImage(b.proof, `proof-${o.id}`);
-  if (utr && !/^[A-Za-z0-9]{6,30}$/.test(utr)) return send(res, 400, { error: "That reference doesn't look right. It's usually a 12 digit number (UPI ref or UTR)." });
+// "Pay now" pages from before the payment window are still open in some phones: nothing they send counts.
+const refused = (res) => send(res, 409, { error: "Please refresh this page and order again." });
 
-  Object.assign(o, { status: "paid", utr: utr || null, proof, paidAt: new Date().toISOString() });
-  saveOrders(orders);
-
-  // Put the piece on hold so nobody else pays for it while the owner checks.
-  const items = load();
-  const p = items.find((x) => x.id === o.productId);
-  if (p && !(p.quantity > 1) && p.status === "available") { p.status = "hold"; p.holdFor = o.code; save(items); }
-
+function orderAlert(o, p) {
   const where = o.delivery === "ship" ? `🚚 Ship to: ${o.address}, ${o.city} ${o.pin}` : "🏬 Pickup at the store";
   const hello = encodeURIComponent(`Hi ${o.name}, Vibe X here about your order ${o.code} (${o.productName}).`);
   sendToOwner({
     id: crypto.randomBytes(6).toString("hex"), at: new Date().toISOString(), kind: "order",
     summary: { kind: "order", ref: o.code },
-    image: proof || (p && p.image) || null,
-    text: `💰 *New order ${o.code}: check the payment*\n*${o.productName}*${o.size ? ` · ${o.size}` : ""} · ${inr(o.amount)}${o.promo ? ` (${o.promo}: ${inr(o.fullPrice)} − ${inr(o.discount)})` : ""}${o.shipping ? ` (includes ${inr(o.shipping)} courier for ${o.kg} kg)` : ""} · ${o.lot}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 ${utr ? `Payment ref: ${utr}` : proof ? "Payment screenshot above" : `Customer tapped "I've paid". Look for note ${o.code}`}\n\nCheck your bank or UPI app for ${inr(o.amount)}, then reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
+    image: (p && p.image) || null,
+    text: `💰 *New order ${o.code}: ${Math.round(ORDER_WINDOW_MS / 60e3)} minutes to confirm*\n*${o.productName}*${o.size ? ` · ${o.size}` : ""} · ${inr(o.amount)}${o.promo ? ` (${o.promo}: ${inr(o.fullPrice)} − ${inr(o.discount)})` : ""}${o.shipping ? ` (includes ${inr(o.shipping)} courier for ${o.kg} kg)` : ""} · ${o.lot}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 Look for note ${o.code}\n\nThe customer is on the payment screen now. When ${inr(o.amount)} reaches your bank, reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
   });
+}
+
+// The piece stops being held, whatever ended the order.
+function letGo(o, items) {
+  const p = items.find((x) => x.id === o.productId);
+  if (!p || p.status !== "hold" || p.holdFor !== o.code) return false;
+  p.status = "available"; delete p.holdFor;
+  return true;
+}
+
+// The customer went back to change their details: the order they leave behind mustn't hold the piece.
+function orderCancel(res, id) {
+  const orders = loadOrders(), o = orders.find((x) => x.id === id);
+  if (!o) return send(res, 404, { error: "Order not found." });
+  if (o.status !== "awaiting_payment") return send(res, 200, { code: o.code, status: o.status });
+  o.status = "cancelled"; o.cancelledBy = "customer";
+  saveOrders(orders);
+  const items = load();
+  if (letGo(o, items)) save(items);
   send(res, 200, { code: o.code, status: o.status });
 }
 
@@ -749,7 +763,7 @@ if (SHOP.youtube?.channelId) {
 }
 
 function sendConfig(res) {
-  const pub = { ...SHOP, orderingOpen: ORDERING_OPEN, latestVideo: latestVideo.current() };
+  const pub = { ...SHOP, pay: { ...SHOP.pay, window: PAY_WINDOW, closedText: payWindow.closedText(PAY_WINDOW) }, orderingOpen: ORDERING_OPEN, latestVideo: latestVideo.current() };
   res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
   return res.end(`window.SHOP = ${JSON.stringify(pub).replace(/</g, "\\u003c")};\n`);
 }
@@ -1643,6 +1657,14 @@ function sweepHolds(now = Date.now()) {
   const items = load();
   const alerts = [];
   let changedOrders = false, changedItems = false;
+  // Nobody confirmed in time: the order ends and the piece goes back on sale. A late confirm still works while it's unsold.
+  for (const o of orders) {
+    if (o.status !== "awaiting_payment" || !o.expiresAt || now < Date.parse(o.expiresAt)) continue;
+    Object.assign(o, { status: "lapsed", lapsedAt: new Date(now).toISOString() });
+    changedOrders = true;
+    if (letGo(o, items)) changedItems = true;
+    alerts.push({ o, kind: "order lapsed", text: `⌛ *${o.code} ran out of time*\n“${o.productName}” · ${inr(o.amount)} · ${o.name}\nNobody confirmed it, so it's closed and the piece is back on sale.\n\nIf the money did arrive, send *confirm ${o.code}*.` });
+  }
   for (const o of orders) {
     if (o.status !== "paid" || !o.paidAt) continue;
     const p = items.find((x) => x.id === o.productId);
@@ -1667,7 +1689,7 @@ function sweepHolds(now = Date.now()) {
   if (changedOrders) saveOrders(orders);
   for (const { o, kind, text } of alerts) sendToOwner({ id: crypto.randomBytes(6).toString("hex"), at: new Date(now).toISOString(), kind: "order", summary: { kind, ref: o.code }, text });
 }
-if (LIVE) setInterval(() => { try { sweepHolds(); } catch (e) { console.warn("order holds:", e.message); } }, Number(process.env.ORDER_SWEEP_MS) || 60e3).unref();
+if (LIVE) setInterval(() => { try { sweepHolds(); } catch (e) { console.warn("order holds:", e.message); } }, Number(process.env.ORDER_SWEEP_MS) || 5e3).unref();
 
 // ---- Billing portal API (owner key) ----
 // Staff logins never receive cost prices.
@@ -1678,7 +1700,9 @@ const PULSE_FILES = ["products.json", "invoices.json", "orders.json", "parties.j
 const BACKUP_FILES = ["products", "invoices", "parties", "payments", "purchases", "expenses", "returns", "docs", "books", "orders"];
 
 // When a paid website order lets go of its piece. Only last pieces are held, so most orders never lapse.
+const toConfirm = (o) => (o.status === "awaiting_payment" && o.expiresAt) || (o.status === "paid" && o.paidAt);
 function lapsesAt(o, items = load()) {
+  if (o.status === "awaiting_payment" && o.expiresAt) return Date.parse(o.expiresAt);
   if (o.status !== "paid" || !o.paidAt) return null;
   const p = (Array.isArray(items) ? items : load()).find((x) => x.id === o.productId);
   return p && p.status === "hold" && p.holdFor === o.code ? Date.parse(o.paidAt) + HOLD_MS : null;
@@ -1686,7 +1710,7 @@ function lapsesAt(o, items = load()) {
 
 // Stock and money waiting on the owner, shown at the top of the dashboard.
 function attention() {
-  const items = load(), paid = loadOrders().filter((o) => o.status === "paid" && o.paidAt);
+  const items = load(), paid = loadOrders().filter(toConfirm);
   const stockOf = billing.stockOf;
   const lapses = paid.map((o) => lapsesAt(o, items)).filter(Boolean);
   return {
@@ -1706,8 +1730,11 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
   // A cheap "has anything changed?" so an open portal doesn't download the whole shop every few seconds.
   if (get && route === "pulse") {
     const stamp = (f) => { try { return fs.statSync(path.join(STORE, f)).mtimeMs; } catch { return 0; } };
-    const orders = who.role === "owner" ? loadOrders().filter((o) => o.status === "paid").length : 0;
-    return send(res, 200, { v: [...PULSE_FILES.map(stamp), orders, new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })].join("-"), orders });
+    const open = who.role === "owner" ? loadOrders().filter(toConfirm) : [], orders = open.length;
+    const items = orders ? load() : [];
+    // What the portal's big "confirm this order" pop-up needs, without a second request.
+    const pending = open.filter((o) => o.status === "awaiting_payment").map((o) => ({ code: o.code, productName: o.productName, size: o.size, amount: o.amount, shipping: o.shipping || 0, name: o.name, phone: o.phone, delivery: o.delivery, city: o.city, image: items.find((x) => x.id === o.productId)?.image || "", left: Math.max(0, Date.parse(o.expiresAt) - Date.now()) }));
+    return send(res, 200, { v: [...PULSE_FILES.map(stamp), orders, new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })].join("-"), orders, pending });
   }
   // Everything the shop needs to start again, for keeping a copy off the server's disk.
   if (get && route === "backup") {
@@ -1885,11 +1912,12 @@ http
       if (p === "/webhook" && (req.method === "GET" || req.method === "POST")) return await whatsappWebhook(req, res, url);
       if (req.method === "POST" && p === "/api/enquiry") return await handleEnquiry(req, res);
       if (req.method === "POST" && p === "/api/orders") return await createOrder(req, res);
-      const om = /^\/api\/orders\/([a-f0-9]{16})(\/paid)?$/.exec(p);
-      if (om && req.method === "POST" && om[2]) return await orderPaid(req, res, om[1]);
+      const om = /^\/api\/orders\/([a-f0-9]{16})(\/paid|\/cancel)?$/.exec(p);
+      if (om && req.method === "POST" && om[2] === "/paid") return refused(res);
+      if (om && req.method === "POST" && om[2]) return orderCancel(res, om[1]);
       if (om && req.method === "GET" && !om[2]) {
         const o = loadOrders().find((x) => x.id === om[1]);
-        return o ? send(res, 200, { code: o.code, status: o.status }) : send(res, 404, { error: "not found" });
+        return o ? send(res, 200, { code: o.code, status: o.status, left: o.expiresAt ? Math.max(0, Date.parse(o.expiresAt) - Date.now()) : 0 }) : send(res, 404, { error: "not found" });
       }
       if (req.method === "POST" && p === "/api/billing/login") {
         let b; try { b = JSON.parse(await readBody(req, 1024)); } catch { return send(res, 400, { error: "Bad request." }); }

@@ -854,3 +854,12 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .pdp-thumbs button { flex: none; width: 64px; height: 64px; padding: 0; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--paper-2); cursor: pointer; }
 .pdp-thumbs button.on { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
 .pdp-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* The payment window: the clock is the one thing that must be seen. */
+.co-timer { display: flex; align-items: baseline; justify-content: space-between; margin: 0 0 10px; font: 600 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+.co-timer b { font: 700 26px/1 var(--mono); letter-spacing: 0; }
+.co-timer b.low { color: var(--red); }
+.co-wait { display: flex; gap: 10px; align-items: center; margin: 14px 0 6px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: 6px; font-size: 14px; line-height: 1.35; }
+.co-wait i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--red); animation: vx-wait 1.2s ease-in-out infinite; }
+@keyframes vx-wait { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .co-wait i { animation: none; } }

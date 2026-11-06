@@ -10,7 +10,7 @@ const PORT = 4792;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-billing-"));
 const srv = spawn(process.execPath, ["server.js"], {
   cwd: path.resolve(import.meta.dirname, ".."),
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" },
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" },
   stdio: ["ignore", "pipe", "pipe"],
 });
 let log = ""; srv.stdout.on("data", (d) => (log += d)); srv.stderr.on("data", (d) => (log += d));
@@ -64,7 +64,6 @@ try {
   // 6. Website order: paid -> held, portal can't sell it; WhatsApp confirm -> website bill
   let o = await post("/api/orders", { productId: "b2", name: "Sana", phone: "9123456789", delivery: "pickup" });
   assert.equal(o.status, 200);
-  await post(`/api/orders/${o.id}/paid`, { utr: "123456789012" });
   assert.equal((await product("b2")).status, "hold");
   r = await post("/api/billing/invoices", { lines: [{ productId: "b2", qty: 1 }] });
   assert.equal(r.status, 409); assert.match(r.error, /held for website order/); ok("item paid for online is held from the counter");
@@ -82,7 +81,6 @@ try {
 
   // 7b. WhatsApp cancel of a confirmed order cancels its bill
   o = await post("/api/orders", { productId: "b2", name: "Ali", phone: "9000000001", delivery: "pickup" });
-  await post(`/api/orders/${o.id}/paid`, { utr: "223456789012" });
   await wa(`confirm ${o.code}`);
   assert.equal((await product("b2")).status, "sold");
   await wa(`cancel ${o.code}`);
@@ -94,7 +92,6 @@ try {
   const ship = { productId: "b2", name: "Zoya", phone: "9000000003", delivery: "ship", address: "1 Road", city: "Delhi" };
   o = await post("/api/orders", { ...ship, pin: "110001", shipping: 1, amount: 1, promo: "FIRST10" });
   assert.equal(o.shipping, 130); assert.equal(o.amount, 2799 + 130); ok("courier outside Kashmir is added by the server, whatever the browser sends");
-  await post(`/api/orders/${o.id}/paid`, { utr: "323456789012" });
   reply = await wa(`confirm ${o.code}`);
   assert.match(reply, /photo of this exact piece/); ok("confirming a delivery reminds the owner to send the photo");
   const bill = (await get("/api/billing/invoices")).invoices.find((x) => x.order === o.code);

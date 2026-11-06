@@ -1,4 +1,4 @@
-// Last pieces held by "I've paid": warning, automatic release, late confirm. Runs the real server
+// Older orders held on the customer's word: warning, automatic release, late confirm. Runs the real server
 // with a short hold. `node tests/holds.mjs`
 import fs from "node:fs";
 import os from "node:os";
@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 const PORT = 4796;
 const HOLD = 1600, WARN = 800;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-holds-"));
-const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", ANTHROPIC_API_KEY: "", WA_TOKEN: "",
+const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", ANTHROPIC_API_KEY: "", WA_TOKEN: "",
   ORDER_HOLD_MS: String(HOLD), ORDER_WARN_MS: String(WARN), ORDER_SWEEP_MS: "100" };
 const base = `http://127.0.0.1:${PORT}`;
 let srv, log = "";
@@ -36,7 +36,10 @@ async function order(productId) {
   phone++;
   const r = await post("/api/orders", { productId, name: "Aamir", phone: String(phone), delivery: "pickup", method: "upi", payment: "upi" });
   assert.ok(r.id, JSON.stringify(r));
-  await post(`/api/orders/${r.id}/paid`, {});
+  // Orders placed before the payment window: "paid" on the customer's word, with the 12 hour hold.
+  const f = path.join(dir, "orders.json"), all = JSON.parse(fs.readFileSync(f, "utf8"));
+  const saved = all.find((x) => x.id === r.id); saved.status = "paid"; saved.paidAt = new Date().toISOString(); delete saved.expiresAt;
+  fs.writeFileSync(f, JSON.stringify(all));
   return r;
 }
 const statusOf = async (id) => (await get("/api/products")).find((p) => p.id === id)?.status;

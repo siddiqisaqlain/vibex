@@ -337,3 +337,31 @@ table.dues td{padding:8px 4px}table.dues .click{cursor:pointer}table.dues .tbtn{
 #it-photos{margin-bottom:10px}
 .big.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
 .linkHead{margin:18px 0 4px}
+
+/* New website order: takes over the screen, because a customer is waiting on it. */
+.oa { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(12, 12, 12, .72); }
+.oa.hide { display: none; }
+.oa-card { display: flex; flex-direction: column; gap: 18px; width: min(760px, 100%); max-height: 100%; overflow: auto; padding: 28px; border-radius: 14px; background: #fff; color: #121212; box-shadow: 0 30px 80px rgba(0, 0, 0, .45); }
+.oa-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; font-weight: 600; }
+.oa-top b { font: 700 44px/1 ui-monospace, Menlo, monospace; }
+.oa-top b.low { color: #d92d20; }
+.oa-body { display: flex; gap: 20px; align-items: center; }
+.oa-body img { flex: none; width: 170px; height: 170px; object-fit: cover; border-radius: 10px; }
+.oa-body p { margin: 0; }
+.oa-amount { font-size: 54px; font-weight: 800; line-height: 1; }
+.oa-item { margin-top: 8px !important; font-size: 20px; font-weight: 600; }
+.oa-who { margin-top: 10px !important; font-size: 16px; line-height: 1.45; }
+.oa-ask { margin: 0; padding: 14px 16px; border-radius: 8px; background: #fff4e5; font-size: 17px; }
+.oa-btns { display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px; }
+.oa-btns button { min-height: 68px; border: 0; border-radius: 10px; font-size: 18px; font-weight: 700; cursor: pointer; }
+.oa-yes { background: #12813f; color: #fff; }
+.oa-no { background: #f2f2f2; color: #b42318; }
+.oa-later { align-self: center; padding: 8px 14px; border: 0; background: none; color: #555; font-size: 14px; text-decoration: underline; cursor: pointer; }
+@media (max-width: 640px) {
+  .oa { padding: 8px; }
+  .oa-card { gap: 14px; padding: 18px; }
+  .oa-body img { width: 96px; height: 96px; }
+  .oa-amount { font-size: 38px; }
+  .oa-item { font-size: 16px; }
+  .oa-btns { grid-template-columns: 1fr; }
+}

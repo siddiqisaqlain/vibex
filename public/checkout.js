@@ -8,7 +8,7 @@ window.VXCheckout = (() => {
   const isPhone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
 
-  let dlg = null, state = null, poll = null, fx = null;
+  let dlg = null, state = null, poll = null, clock = null, closing = null, fx = null;
 
   const COPY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
 
@@ -102,6 +102,8 @@ window.VXCheckout = (() => {
         const out = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(out.error || "Couldn't start the order. Please try again.");
         state.order = out;
+        state.endsAt = Date.now() + out.left;
+        state.ranOut = false;
         window.VXTrack?.("details", { pr: p.id, n: p.price });
         window.VXOrder.rememberName(state.form.name);
         stepPay();
@@ -114,7 +116,7 @@ window.VXCheckout = (() => {
   }
 
   // ---------- Step 2: pay ----------
-  function stepPay(tab = state.tab || "upi", err = "") {
+  function stepPay(tab = state.tab || "upi") {
     const { esc, rupees } = O();
     state.tab = tab;
     const o = state.order;
@@ -140,33 +142,72 @@ window.VXCheckout = (() => {
     }
     shell(`${steps(2)}
       ${PAY.demo ? `<p class="co-demo">Demo payment details. Don't send real money.</p>` : ""}
+      <p class="co-timer">Pay within <b data-clock></b></p>
       <div class="co-amount"><span>Pay exactly</span><b>${rupees(o.amount)}</b><button type="button" class="co-copy" data-copy="${o.amount}" aria-label="Copy amount">${COPY}<em>Copy</em></button></div>
       ${o.shipping ? `<p class="co-small">${rupees(o.amount - o.shipping)} for the piece + ${rupees(o.shipping)} courier.</p>` : ""}
       <p class="co-small">Add <b class="mono">${esc(o.code)}</b> in the payment note so we can match it.</p>
       <div class="co-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === tab}">${l}</button>`).join("")}</div>
       <div class="co-pay">${body}</div>
-      <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
       ${window.VXVisit?.arm === "off" ? "" : `<p class="co-small co-promise"><b>Real, or your money back.</b> Cancel any time before dispatch for a full refund.</p>`}
-      <button type="button" class="order co-cta" data-paid>I've paid</button>
+      <p class="co-wait"><i aria-hidden="true"></i>Waiting for Vibe X to see your payment. Keep this page open, it updates by itself.</p>
       <button type="button" class="co-back" data-back>← Change details</button>`);
+    startClock();
+    watch();
   }
 
-  // ---------- "I've paid" ----------
-  async function markPaid(btn) {
+  // ---------- The window: a countdown, and the shop's answer ----------
+  function startClock() {
+    clearInterval(clock);
+    const tick = () => {
+      const ms = Math.max(0, state.endsAt - Date.now()), s = Math.ceil(ms / 1000), el = dlg.querySelector("[data-clock]");
+      if (el) { el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; el.classList.toggle("low", s <= 60); }
+    };
+    tick();
+    clock = setInterval(tick, 1000);
+  }
+  function stopWatching() { clearInterval(poll); clearInterval(clock); clearTimeout(closing); }
+  function watch() {
+    clearInterval(poll);
     const o = state.order;
-    btn.disabled = true;
-    btn.textContent = "One moment…";
-    try {
-      const res = await fetch(`/api/orders/${o.id}/paid`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(out.error || "Couldn't reach the shop. Please try again.");
-      window.VXTrack?.("paid", { pr: state.p.id, n: o.amount - (o.shipping || 0), fp: state.p.price }); // what the piece really sold for, and its selling price; courier isn't part of either
-      stepDone(out.status);
-      if (out.status !== "cancelled") celebrate();
-    } catch (ex) {
-      window.VXTrack?.("formerr", { x: ex.message });
-      stepPay(state.tab, ex.message);
-    }
+    poll = setInterval(async () => {
+      try {
+        const out = await (await fetch(`/api/orders/${o.id}`, { cache: "no-store" })).json();
+        if (out.status === "confirmed" || out.status === "cancelled") stepDone(out.status);
+        else if (out.status === "lapsed" && !state.ranOut) stepExpired();
+      } catch { /* try again */ }
+    }, 2500);
+  }
+
+  // Never "failed": they may have paid, and a late confirm still reaches this screen.
+  function stepExpired() {
+    const { esc } = O(), o = state.order;
+    state.ranOut = true;
+    clearInterval(clock);
+    const text = `Hi Vibe X, I paid for order ${o.code} (${state.p.name}). Here's my payment screenshot.`;
+    shell(`${steps(2)}
+      <div class="co-done">
+        <p class="mono co-code">Order ${esc(o.code)}</p>
+        <h2>We couldn't confirm your payment yet</h2>
+        <p>Already paid? Send your screenshot on WhatsApp with code <b class="mono">${esc(o.code)}</b> and we'll sort it out. If you haven't paid, nothing has been charged.</p>
+        <a class="btn btn-ink" href="https://wa.me/${esc(S.whatsapp)}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Send on WhatsApp</a>
+        <button type="button" class="co-back" data-close>Back to the rack</button>
+      </div>`);
+  }
+
+  // Payment opens with the shop: outside its hours nobody is there to confirm in time.
+  function stepClosed() {
+    const { esc } = O(), p = state.p;
+    const text = `Hi Vibe X, I'd like to order ${p.name}${p.chosenSize ? ` (${p.chosenSize})` : ""}.`;
+    shell(`<div class="co-done">
+        <h2>We're closed for online payment</h2>
+        <p>${esc(PAY.closedText)}</p>
+        <a class="btn btn-ink" href="https://wa.me/${esc(S.whatsapp)}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Order on WhatsApp</a>
+        <button type="button" class="co-back" data-close>Back to the rack</button>
+      </div>`);
+  }
+  function payOpen() {
+    const w = PAY.window, h = new Date(Date.now() + 5.5 * 3600e3).getUTCHours();
+    return !w || (h >= w.opensHour && h < w.closesHour);
   }
 
   // ---------- Celebration: emotes, confetti and glitter across the whole screen ----------
@@ -264,37 +305,29 @@ window.VXCheckout = (() => {
     fx = { canvas, raf: requestAnimationFrame(frame) };
   }
 
-  // ---------- Step 3: done, with live status ----------
+  // ---------- Step 3: the shop has answered ----------
   function stepDone(status) {
-    const { esc, rupees } = O();
-    const o = state.order, f = state.form;
-    const confirmed = status === "confirmed", cancelled = status === "cancelled";
-    const when = f.delivery === "ship" ? `We'll ship to ${f.city} and send tracking on WhatsApp.` : "It'll be kept aside for you at the store in Srinagar.";
-    shell(`${steps(confirmed ? 4 : 3)}
-      <div class="co-done ${confirmed ? "is-ok" : cancelled ? "is-bad" : ""}">
-        ${confirmed || cancelled ? `<span class="co-badge">${confirmed ? "✓" : "!"}</span>` : `<p class="co-emotes" aria-hidden="true"><span>🎉</span><span>🥳</span><span>🛍️</span><span>🎊</span></p>`}
+    const { esc } = O();
+    const o = state.order, confirmed = status === "confirmed";
+    stopWatching();
+    state.order = null; // finished: Order now must start afresh, not reopen this payment
+    if (confirmed) {
+      shell(`<div class="co-done is-ok"><h2 class="co-thanks">Thanks For The Purchase</h2><p class="mono co-code">Order ${esc(o.code)}</p></div>`);
+      // Counted here, not on a button: a sale is a sale once the shop has the money.
+      window.VXTrack?.("paid", { pr: state.p.id, n: o.amount - (o.shipping || 0), fp: state.p.price });
+      celebrate();
+      closing = setTimeout(() => dlg.close(), 10000);
+      return;
+    }
+    shell(`${steps(3)}
+      <div class="co-done is-bad">
+        <span class="co-badge">!</span>
         <p class="mono co-code">Order ${esc(o.code)}</p>
-        <h2 class="${confirmed || cancelled ? "" : "co-thanks"}">${confirmed ? "Order confirmed" : cancelled ? "We couldn't match your payment" : "Thanks For The Purchase"}</h2>
-        <p>${confirmed ? `Vibe X received your ${rupees(o.amount)}. ${when}` : cancelled ? "Vibe X will message you on WhatsApp to sort it out." : `Your piece is held for you while Vibe X checks for your ${rupees(o.amount)}. This page updates by itself, and we'll also WhatsApp you.`}</p>
-        <ul class="co-timeline">
-          <li class="done">Order placed</li>
-          <li class="done">You paid</li>
-          <li class="${confirmed ? "done" : cancelled ? "bad" : "now"}">${cancelled ? "Payment not found" : "Vibe X confirms payment"}</li>
-          <li class="${confirmed ? "now" : ""}">${f.delivery === "ship" ? "Shipped to you" : "Ready for pickup"}</li>
-        </ul>
+        <h2>We couldn't match your payment</h2>
+        <p>Vibe X will message you on WhatsApp to sort it out.</p>
         <button type="button" class="btn btn-ink" data-close>Back to the rack</button>
       </div>`);
-    if (cancelled) stopFx();
-    clearInterval(poll);
-    if (!confirmed && !cancelled) {
-      poll = setInterval(async () => {
-        try {
-          const r = await fetch(`/api/orders/${o.id}`, { cache: "no-store" });
-          const s = (await r.json()).status;
-          if (s === "confirmed" || s === "cancelled") stepDone(s);
-        } catch { /* try again */ }
-      }, 2500);
-    }
+    stopFx();
   }
 
   function copyText(btn) {
@@ -315,18 +348,24 @@ window.VXCheckout = (() => {
       dlg = document.createElement("dialog");
       dlg.className = "ask-dialog co-dialog";
       document.body.appendChild(dlg);
-      dlg.addEventListener("close", () => { clearInterval(poll); stopFx(); window.VXTrack?.("co_close"); });
+      dlg.addEventListener("close", () => { stopWatching(); stopFx(); window.VXTrack?.("co_close"); });
       dlg.addEventListener("click", (e) => {
         if (e.target === dlg || e.target.closest("[data-close]")) return dlg.close();
         const t = e.target.closest("[data-tab]"); if (t) { window.VXTrack?.("pay_tab", { x: t.dataset.tab }); return stepPay(t.dataset.tab); }
         const c = e.target.closest("[data-copy]"); if (c) return copyText(c);
-        const paid = e.target.closest("[data-paid]"); if (paid) return markPaid(paid);
-        if (e.target.closest("[data-back]")) return stepDetails();
+        if (e.target.closest("[data-back]")) {
+          stopWatching();
+          if (state.order) fetch(`/api/orders/${state.order.id}/cancel`, { method: "POST" }).catch(() => {});
+          state.order = null;
+          return stepDetails();
+        }
       });
     }
-    clearInterval(poll);
+    stopWatching();
+    // Closed the box by accident, or went to the UPI app and came back: pick up the same order.
+    if (state?.order && state.p.id === p.id && !state.ranOut && state.endsAt > Date.now()) { stepPay(); dlg.showModal(); return; }
     state = { p, form: state && state.form ? { ...state.form } : {}, order: null, tab: "upi" };
-    stepDetails();
+    if (payOpen()) stepDetails(); else stepClosed();
     dlg.showModal();
     window.VXTrack?.("checkout", { pr: p.id, n: p.price });
   }

@@ -251,6 +251,7 @@
       lastSync = Date.now(); online = true;
       if (waitingOrders !== null && p.orders > waitingOrders) toast("New website order to check.", { action: "Open", run: () => go("orders") });
       waitingOrders = p.orders; paintBadges(p.orders);
+      window.VX.orderAlert?.(p.pending || []);
       if (p.v !== stamp) { const first = !stamp; stamp = p.v; if (!first) { await loadAll(); liveTab(); } }
     } catch (e) { if (e.message !== "key") online = false; }
     paintSync();

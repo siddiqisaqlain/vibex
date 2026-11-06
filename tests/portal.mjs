@@ -22,7 +22,7 @@ fs.writeFileSync(path.join(dir, "products.json"), JSON.stringify([
 fs.writeFileSync(path.join(dir, "orders.json"), JSON.stringify([
   { id: "1234567890abcdef", code: "VX-2001", status: "paid", createdAt: now, paidAt: now, name: "Rayees", phone: "9622123456", productId: "d4", productName: "Last Piece Jacket", amount: 3500, qty: 1 },
 ]));
-const srv = spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."), env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" }, stdio: "ignore" });
+const srv = spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."), env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" }, stdio: "ignore" });
 for (let i = 0; i < 80; i++) { try { await fetch(base + "/api/products"); break; } catch { await sleep(100); } }
 const api = async (p, opt = {}, key = "k") => { const r = await fetch(`${base}/api/billing/${p}`, { ...opt, headers: { "x-owner-key": key, "Content-Type": "application/json", ...(opt.headers || {}) } }); return { status: r.status, body: await r.json().catch(() => null) }; };
 

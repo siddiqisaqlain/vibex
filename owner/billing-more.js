@@ -324,16 +324,17 @@
   let orderView = "check";
   async function orders() {
     const list = await api("/api/billing/orders");
-    const STATUS = { awaiting_payment: ["Awaiting payment", "low"], paid: ["Check payment", "low"], confirmed: ["Confirmed", ""], lapsed: ["Lapsed: back on sale", "out"], cancelled: ["Cancelled", "out"] };
-    const waiting = list.filter((o) => o.status === "paid");
-    const shown = (orderView === "check" ? waiting : list).slice().sort((a, b) => (a.status === "paid") === (b.status === "paid") ? 0 : a.status === "paid" ? -1 : 1);
+    const STATUS = { awaiting_payment: ["Check your bank", "low"], paid: ["Check payment", "low"], confirmed: ["Confirmed", ""], lapsed: ["Ran out of time: back on sale", "out"], cancelled: ["Cancelled", "out"] };
+    const open = (o) => o.status === "paid" || (o.status === "awaiting_payment" && o.expiresAt);
+    const waiting = list.filter(open);
+    const shown = (orderView === "check" ? waiting : list).slice().sort((a, b) => Number(Boolean(open(b))) - Number(Boolean(open(a))));
     const left = (t) => { const ms = t - Date.now(), h = Math.floor(ms / 36e5), m = Math.max(0, Math.floor((ms % 36e5) / 6e4)); return ms <= 0 ? "Piece about to go back on sale" : `Piece held for ${h ? `${h}h ` : ""}${m}m more`; };
     const wa = (o) => { const n = String(o.phone || "").replace(/\D/g, "").slice(-10); return n.length === 10 ? `https://wa.me/91${n}?text=${encodeURIComponent(`Hi ${o.name}, this is Vibe X about your order ${o.code}.`)}` : ""; };
     $("tab-orders").innerHTML = `
       <div class="chips"><button class="chip ${orderView === "check" ? "on" : ""}" data-ov="check">To check ${waiting.length}</button><button class="chip ${orderView === "all" ? "on" : ""}" data-ov="all">All ${list.length}</button></div>
       <div class="scroll"><table><thead><tr><th>Date</th><th>Order</th><th>Party Name</th><th>Item</th><th class="n">Amount</th><th>Status</th><th></th></tr></thead><tbody>
       ${shown.length ? shown.map((o) => { const s = STATUS[o.status] || [o.status, ""]; return `<tr><td>${new Date(o.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</td><td><b>${esc(o.code)}</b></td><td>${esc(o.name)}<div class="sub">${esc(o.phone)}</div></td><td>${esc(o.productName)}</td><td class="n"><b>${inr(o.amount)}</b></td><td><span class="pill ${s[1]}">${s[0]}</span>${o.utr ? `<div class="sub">Ref ${esc(o.utr)}</div>` : ""}${o.lapsesAt ? `<div class="sub">${left(o.lapsesAt)}</div>` : ""}</td>
-        <td class="n">${wa(o) ? `<a class="tbtn" href="${wa(o)}" target="_blank" rel="noopener">WhatsApp</a> ` : ""}${o.status === "paid" || o.status === "lapsed" ? `<button class="tbtn good" data-oa="confirm" data-oc="${esc(o.code)}">Confirm</button> ` : ""}${o.status !== "cancelled" ? `<button class="tbtn danger" data-oa="cancel" data-oc="${esc(o.code)}">Cancel</button>` : ""}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">${orderView === "check" ? "No orders waiting. Nice." : "No website orders yet."}</td></tr>`}
+        <td class="n">${wa(o) ? `<a class="tbtn" href="${wa(o)}" target="_blank" rel="noopener">WhatsApp</a> ` : ""}${open(o) || o.status === "lapsed" ? `<button class="tbtn good" data-oa="confirm" data-oc="${esc(o.code)}">Confirm</button> ` : ""}${o.status !== "cancelled" ? `<button class="tbtn danger" data-oa="cancel" data-oc="${esc(o.code)}">Cancel</button>` : ""}</td></tr>`; }).join("") : `<tr><td colspan="7" class="empty">${orderView === "check" ? "No orders waiting. Nice." : "No website orders yet."}</td></tr>`}
       </tbody></table></div>`;
     document.querySelectorAll("[data-ov]").forEach((b) => (b.onclick = () => { orderView = b.dataset.ov; orders(); }));
     document.querySelectorAll("[data-oa]").forEach((b) => window.VX.twoTap(b, b.dataset.oa === "confirm" ? "Tap again: payment received" : "Tap again to cancel", async () => {
@@ -342,6 +343,70 @@
     }));
   }
   Object.assign(window.VX.tabs, { payments, orders });
+
+  // ---- The big pop-up: a customer is waiting on the payment screen, so it comes before anything else ----
+  // Oldest first. "Later" hides that order only; a new one, and the WhatsApp alert, still get through.
+  let alertList = [], shownCode = "", hidden = new Set(), alertClock = null, busy = false, sound = null;
+  const box = document.createElement("div");
+  box.className = "oa hide"; box.setAttribute("role", "alertdialog"); box.setAttribute("aria-modal", "true"); box.setAttribute("aria-label", "New website order");
+  document.body.append(box);
+  function ring() {
+    try {
+      sound ||= new AudioContext();
+      for (const at of [0, .22]) { const o = sound.createOscillator(), g = sound.createGain(); o.frequency.value = 880; g.gain.value = .15; o.connect(g).connect(sound.destination); o.start(sound.currentTime + at); o.stop(sound.currentTime + at + .14); }
+    } catch { /* a browser that won't play until the page is tapped: the screen still shows it */ }
+  }
+  function paintClock() {
+    const o = alertList.find((x) => x.code === shownCode), el = box.querySelector("[data-oa-clock]");
+    if (!o || !el) return;
+    const s = Math.max(0, Math.ceil((o.endsAt - Date.now()) / 1000));
+    el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    el.classList.toggle("low", s <= 60);
+  }
+  function paintAlert() {
+    const o = alertList.find((x) => !hidden.has(x.code));
+    if (!o) { box.classList.add("hide"); shownCode = ""; clearInterval(alertClock); return; }
+    if (o.code === shownCode) return paintClock();
+    if (!shownCode) ring();
+    shownCode = o.code;
+    const more = alertList.length - 1;
+    box.innerHTML = `<div class="oa-card">
+      <div class="oa-top"><span>New website order · ${esc(o.code)}</span><b data-oa-clock></b></div>
+      <div class="oa-body">
+        ${o.image ? `<img src="${esc(o.image)}" alt="">` : ""}
+        <div><p class="oa-amount">${inr(o.amount)}</p><p class="oa-item">${esc(o.productName)}${o.size ? ` · ${esc(o.size)}` : ""}</p>
+        <p class="oa-who"><b>${esc(o.name)}</b> · ${esc(o.phone)}<br>${o.delivery === "ship" ? `Ship to ${esc(o.city)}${o.shipping ? ` (includes ${inr(o.shipping)} courier)` : ""}` : "Pickup at the store"}</p></div>
+      </div>
+      <p class="oa-ask">Has ${inr(o.amount)} reached your bank? Look for note <b>${esc(o.code)}</b>.</p>
+      <div class="oa-btns"><button class="oa-yes" data-oa-do="confirm">Money received: Confirm</button><button class="oa-no" data-oa-do="cancel">Not received: Cancel</button></div>
+      <button class="oa-later" data-oa-later>Later${more ? ` · ${more} more waiting` : ""}</button>
+    </div>`;
+    const act = (what) => async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        await api(`/api/billing/orders/${o.code}/${what}`, { method: "POST", body: "{}" });
+        toast(what === "confirm" ? `${o.code} confirmed. Stock and bills updated.` : `${o.code} cancelled. The piece is back on sale.`);
+        alertList = alertList.filter((x) => x.code !== o.code);
+        shownCode = ""; paintAlert();
+        await window.VX.reload();
+      } catch (e) { toast(e.message, { bad: true }); }
+      busy = false;
+    };
+    box.querySelector('[data-oa-do="confirm"]').onclick = act("confirm");
+    window.VX.twoTap(box.querySelector('[data-oa-do="cancel"]'), "Tap again: not received", act("cancel"));
+    box.querySelector("[data-oa-later]").onclick = () => { hidden.add(o.code); shownCode = ""; paintAlert(); };
+    box.classList.remove("hide");
+    clearInterval(alertClock);
+    alertClock = setInterval(paintClock, 1000);
+    paintClock();
+  }
+  window.VX.orderAlert = (list) => {
+    if (busy) return;
+    alertList = list.map((o) => ({ ...o, endsAt: Date.now() + o.left }));
+    if (shownCode && !list.some((o) => o.code === shownCode)) shownCode = ""; // confirmed elsewhere, or ran out of time
+    paintAlert();
+  };
 
   // ---- Reading a supplier's bill photo into the purchase form ----
   window.VX.scanBill = async (file) => {
