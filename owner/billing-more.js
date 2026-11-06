@@ -207,14 +207,23 @@
   window.VX.linkPanel = async () => {
     const items = await api("/api/billing/products");
     const web = items.filter((p) => !p.hidden && !p.importKey), stock = items.filter((p) => p.hidden);
-    if (!web.length) return toast("All website items are linked.");
-    if (!stock.length) return toast("Import the stock list first. There's nothing to link to yet.");
+    const linked = items.filter((p) => p.importKey && !/^mbb/.test(p.id));
+    if (!web.length && !linked.length) return toast("Nothing to link yet.");
+    if (!stock.length && !linked.length) return toast("Import the stock list first. There's nothing to link to yet.");
     const options = (p) => {
       const ranked = stock.map((s) => ({ s, n: overlap(p.name, s.name) })).sort((a, b) => b.n - a.n || a.s.name.localeCompare(b.s.name));
       return ranked.map(({ s, n }) => `<option value="${esc(s.id)}">${n ? "★ " : ""}${esc(s.name)} (${s.quantity} pcs, ₹${esc(s.price ?? "-")})</option>`).join("");
     };
-    const box = window.VX.drawer("Link website items", `<p class="sub">Pick the same item from his stock. The website keeps its photo and price, and takes the real stock count and barcode. ★ means a similar name. Check each one before linking: it can't be undone from here.</p>
-      <div class="scroll"><table><tbody>${web.map((p) => `<tr><td><div class="thumb" style="${p.image ? `background-image:url('${esc(p.image)}')` : ""}"></div></td><td><div class="name" style="white-space:normal">${esc(p.name)}</div><div class="sub">${inr(p.price)} · ${p.quantity ?? 1} on website</div></td><td><select data-lk="${esc(p.id)}"><option value="">Choose stock item…</option>${options(p)}</select></td><td class="n"><button class="tbtn" data-lkgo="${esc(p.id)}">Link</button></td></tr>`).join("")}</tbody></table></div>`, { wide: true });
+    const thumb = (p) => `<td><div class="thumb" style="${p.image ? `background-image:url('${esc(p.image)}')` : ""}"></div></td>`;
+    const box = window.VX.drawer("Link website items", `${web.length && stock.length ? `<p class="sub">Pick the same item from his stock. The website keeps its photo and price, and takes the real stock count and barcode. ★ means a similar name, so check each one before linking.</p>
+      <div class="scroll"><table><tbody>${web.map((p) => `<tr>${thumb(p)}<td><div class="name" style="white-space:normal">${esc(p.name)}</div><div class="sub">${inr(p.price)} · ${p.quantity ?? 1} on website</div></td><td><select data-lk="${esc(p.id)}"><option value="">Choose stock item…</option>${options(p)}</select></td><td class="n"><button class="tbtn" data-lkgo="${esc(p.id)}">Link</button></td></tr>`).join("")}</tbody></table></div>` : ""}
+      ${linked.length ? `<h4 class="linkHead">Linked items</h4><p class="sub">Unlink splits one back into two. The stock item keeps today's count and goes off the website. The website item gets its old count back and is marked Count this, so check it.</p>
+      <div class="scroll"><table><tbody>${linked.map((p) => `<tr>${thumb(p)}<td><div class="name" style="white-space:normal">${esc(p.name)}</div><div class="sub">${p.quantity ?? 0} in stock${p.barcode ? ` · ${esc(p.barcode)}` : ""}</div></td><td class="n"><button class="tbtn danger" data-unlink="${esc(p.id)}">Unlink</button></td></tr>`).join("")}</tbody></table></div>` : ""}`, { wide: true });
+    box.querySelectorAll("[data-unlink]").forEach((b) => window.VX.twoTap(b, "Tap again to unlink", async () => {
+      await api("/api/billing/unlink", { method: "POST", body: JSON.stringify({ id: b.dataset.unlink }) });
+      toast("Unlinked. Check the website item's count.");
+      await window.VX.reload(); window.VX.linkPanel();
+    }));
     box.querySelectorAll("[data-lkgo]").forEach((b) => (b.onclick = async () => {
       const stockId = box.querySelector(`[data-lk="${b.dataset.lkgo}"]`).value;
       if (!stockId) return toast("Choose the stock item first.");

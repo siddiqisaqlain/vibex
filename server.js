@@ -126,7 +126,7 @@ function tidyListing(l) {
 const save = (items) => { items.forEach(fitSizeStock); writeJson(DB, items); };
 // What customers may see. Cost prices and the shop's own notes never leave the server, and
 // hidden items (imported, waiting for a photo) aren't on sale yet.
-const PRIVATE_FIELDS = ["cost", "purchasePrice", "supplierId", "hsn", "gstRate", "reorderAt", "barcode", "importKey", "needsCount", "needsName"];
+const PRIVATE_FIELDS = ["cost", "purchasePrice", "supplierId", "hsn", "gstRate", "reorderAt", "barcode", "importKey", "linkUndo", "needsCount", "needsName"];
 const isPublic = (p) => !p.hidden;
 const forCustomers = (p) => {
   const c = { ...p, options: optionsOf(p), description: p.description || autoDescription(p) };
@@ -154,7 +154,7 @@ const invoicePage = require("./lib/invoice-page");
 const stockImport = require("./lib/import-mybillbook");
 const books = require("./lib/books")({ STORE, SHOP, billing, load, save, logActivity });
 billing.hooks.partyFor = books.customerFor;
-const documents = require("./lib/documents")({ STORE, billing, books, load, save, logActivity });
+const documents = require("./lib/documents")({ STORE, billing, books, load, save, logActivity, newCode });
 const reports = require("./lib/reports")({ SHOP, billing, books, documents, load });
 const staff = require("./lib/staff")({ STORE });
 // Bill settings saved from the portal sit on top of shop.json.
@@ -1671,7 +1671,7 @@ if (LIVE) setInterval(() => { try { sweepHolds(); } catch (e) { console.warn("or
 
 // ---- Billing portal API (owner key) ----
 // Staff logins never receive cost prices.
-const noCost = (p) => { const c = { ...p }; delete c.cost; delete c.supplierId; return c; };
+const noCost = (p) => { const c = { ...p }; delete c.cost; delete c.supplierId; delete c.linkUndo; return c; };
 const billForStaff = (x) => ({ ...x, lines: x.lines.map(({ cost, ...l }) => l) });
 const BILL_FIELDS = ["headerLine", "terms", "email", "youtube", "theme"];
 const PULSE_FILES = ["products.json", "invoices.json", "orders.json", "parties.json", "payments.json", "purchases.json", "expenses.json", "returns.json"];
@@ -1733,6 +1733,7 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
     return reply(billing.photos(im[1], b, (data) => saveImage(data, `${im[1]}-${Date.now().toString(36)}`)));
   }
   if (post && route === "link") { const b = await body(); return b ? reply(documents.linkItem(b)) : send(res, 400, { error: "Bad request." }); }
+  if (post && route === "unlink") { const b = await body(); return b ? reply(documents.unlinkItem(b)) : send(res, 400, { error: "Bad request." }); }
   if (post && route === "barcodes") { const b = await body(); return b ? reply(billing.giveBarcodes(Array.isArray(b.ids) ? b.ids.slice(0, 500) : [])) : send(res, 400, { error: "Bad request." }); }
   if (get && route === "staff") return send(res, 200, staff.list());
   if (post && route === "staff") { const b = await body(); return b ? reply(staff.add(b)) : send(res, 400, { error: "Bad request." }); }
