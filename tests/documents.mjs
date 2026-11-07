@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { shopperCookie } from "./_shopper.mjs";
 
 const PORT = 4795;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-docs-"));
@@ -13,11 +14,12 @@ fs.writeFileSync(path.join(dir, "products.json"), JSON.stringify([
   { id: "a1", code: "1001", name: "Polo Jacket", category: "Clothing", price: 1500, mrp: 6700, cost: 800, quantity: 5, status: "available", createdAt: now },
   { id: "b2", code: "1002", name: "Lower", category: "Clothing", price: 700, cost: 300, quantity: 1, status: "available", createdAt: now },
 ]));
-const srv = spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."), env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" }, stdio: ["ignore", "pipe", "pipe"] });
+const srv = spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."), env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", WA_TOKEN: "", WA_LOGIN_DEV: "1", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" }, stdio: ["ignore", "pipe", "pipe"] });
 let log = ""; srv.stdout.on("data", (d) => (log += d)); srv.stderr.on("data", (d) => (log += d));
 const base = `http://127.0.0.1:${PORT}`;
 for (let i = 0; i < 50; i++) { try { await fetch(base + "/api/products"); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
 const H = { "Content-Type": "application/json", "x-owner-key": "k" }, A = "/api/billing";
+H.cookie = await shopperCookie(base); // website orders need a signed-in customer
 const get = (p) => fetch(base + A + p, { headers: H }).then((r) => r.json());
 const post = async (p, b = {}) => { const r = await fetch(base + A + p, { method: "POST", headers: H, body: JSON.stringify(b) }); return { status: r.status, ...(await r.json()) }; };
 const stock = async (id) => (await get("/products")).find((p) => p.id === id).quantity;

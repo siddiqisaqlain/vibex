@@ -5,12 +5,13 @@ import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { shopperCookie } from "./_shopper.mjs";
 
 const PORT = 4792;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-billing-"));
 const srv = spawn(process.execPath, ["server.js"], {
   cwd: path.resolve(import.meta.dirname, ".."),
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" },
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", WA_TOKEN: "", WA_LOGIN_DEV: "1", ANTHROPIC_API_KEY: "", PUBLIC_URL: "" },
   stdio: ["ignore", "pipe", "pipe"],
 });
 let log = ""; srv.stdout.on("data", (d) => (log += d)); srv.stderr.on("data", (d) => (log += d));
@@ -18,6 +19,7 @@ const base = `http://127.0.0.1:${PORT}`;
 for (let i = 0; i < 50; i++) { try { await fetch(base + "/api/products"); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
 
 const H = { "Content-Type": "application/json", "x-owner-key": "k" };
+H.cookie = await shopperCookie(base); // website orders need a signed-in customer
 const get = (p) => fetch(base + p, { headers: H }).then((r) => r.json());
 const post = async (p, b) => { const r = await fetch(base + p, { method: "POST", headers: H, body: JSON.stringify(b) }); return { status: r.status, ...(await r.json()) }; };
 const wa = async (text) => (await post("/api/message", { text })).reply;

@@ -131,5 +131,10 @@
     "logo": "/logo.jpg",
     "_billNote": "headerLine, email, youtube and terms are copied from his myBillBook bill 7650. logo: put the image in public/ and set the path, e.g. /logo.png. terms prints on counter bills only; website-order bills point to the website returns policy instead.",
     "lowStockAt": 1
+  },
+  "coins": {
+    "_note": "Decided 2026-11-08: 1 coin per Rs 100 paid for goods (not courier), 1 coin = Rs 1, given when the owner confirms, taken back if cancelled. Spending is OFF until the owner sends 'coins on' on WhatsApp; then coins can pay up to maxPct of a bag.",
+    "perRupees": 100,
+    "maxPct": 10
   }
 }

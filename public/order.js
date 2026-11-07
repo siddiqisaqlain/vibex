@@ -49,15 +49,17 @@ window.VXOrder = (() => {
       : p.price && !big && (p.options || []).length > 1
       ? `<a class="order order-now" href="${window.VX_BASE || ""}/p/${encodeURIComponent(p.id)}">${BAG}Choose size</a>`
       : p.price
-      ? `<button type="button" class="order order-now" data-order="${esc(p.id)}">${BAG}Order now</button>`
+      ? `<button type="button" class="order order-now" data-order="${esc(p.id)}">${BAG}Add to bag</button>`
       : `<span class="order is-sold">Price on request</span>`;
     let extra = "";
+    // Wishlist heart, on product pages (lib: bag.js keeps the list).
+    const heart = big && window.VXBag ? `<button type="button" class="vx-wish" data-wish="${esc(p.id)}" aria-pressed="false" aria-label="Save to wishlist"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 7.9 3.6 4.5 7 4.5c2 0 3.6 1.1 5 3 1.4-1.9 3-3 5-3 3.4 0 5.6 3.4 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2z"/></svg></button>` : "";
     if (big) {
       extra = S.whatsapp
         ? `<a class="ask" href="${esc(`https://wa.me/${S.whatsapp}?text=${encodeURIComponent(message(p))}`)}" target="_blank" rel="noopener">or chat with us on WhatsApp</a>`
         : `<a class="ask" href="${esc(igChat)}" target="_blank" rel="noopener" data-ig="${esc(p.id)}">or ask us on Instagram</a>`;
     }
-    return `<div class="actions">${order}${enquire}</div>${extra}`;
+    return `<div class="actions">${order}${enquire}${heart}</div>${extra}`;
   }
 
   let dialog = null;
@@ -153,7 +155,7 @@ window.VXOrder = (() => {
       const ord = e.target.closest("button[data-order]");
       if (ord) {
         const p = forOrder(ord.dataset.order);
-        if (p) window.VXCheckout.open(p);
+        if (p) (window.VXBag ? window.VXBag.add(p) : window.VXCheckout.open(p));
         return;
       }
       const ask = e.target.closest("button[data-ask]");

@@ -6,6 +6,7 @@ import path from "node:path";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { shopperCookie } from "./_shopper.mjs";
 
 const require = createRequire(import.meta.url);
 const { summarise, clean } = require("../lib/analytics.js");
@@ -14,7 +15,7 @@ const PORT = 4797;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-analytics-"));
 const base = `http://127.0.0.1:${PORT}`;
 const PHONE = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36";
-const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", ANTHROPIC_API_KEY: "", WA_TOKEN: "" };
+const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", ANTHROPIC_API_KEY: "", WA_TOKEN: "", WA_LOGIN_DEV: "1" };
 const srv = spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."), env, stdio: "ignore" });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 for (let i = 0; i < 50; i++) { try { await fetch(`${base}/api/products`); break; } catch { await wait(100); } }
@@ -161,7 +162,8 @@ await check("while the last piece is held, the server refuses everyone else's or
   const list = await (await fetch(`${base}/api/products`)).json(), item = list.find((x) => x.status === "available" && x.price && (x.options || []).length === 1);
   if (!item) return; // the demo stock in this run has none with one size
   const A = "a".repeat(16), B = "b".repeat(16), hold = (token) => fetch(`${base}/api/hold`, { method: "POST", body: JSON.stringify({ productId: item.id, token }) }).then((r) => r.json());
-  const order = (holdToken) => fetch(`${base}/api/orders`, { method: "POST", body: JSON.stringify({ productId: item.id, name: "Test", phone: "9000000000", delivery: "pickup", holdToken }) });
+  const cookie = await shopperCookie(base);
+  const order = (holdToken) => fetch(`${base}/api/orders`, { method: "POST", headers: { cookie }, body: JSON.stringify({ productId: item.id, name: "Test", phone: "9000000000", delivery: "pickup", holdToken }) });
   const got = await hold(A);
   if (!got.held) return; // more than one left, so there's nothing to hold
   assert.equal((await hold(B)).taken, true);
@@ -301,7 +303,7 @@ const ev = [
 ];
 const r = summarise(ev, { name: (i) => `Item ${i}`, from: "2026-11-05", to: "2026-11-05" });
 await check("the funnel counts each visit once", () => {
-  assert.deepEqual(r.funnel.map((f) => f.n), [6, 3, 2, 1, 1]);
+  assert.deepEqual(r.funnel.map((f) => f.n), [6, 3, 2, 2, 1, 1]); // visit, product, bag, checkout, details, paid
   assert.equal(r.totals.orders, 1);
   assert.equal(r.totals.value, 1000);
   assert.equal(r.totals.conversion, 16.7);

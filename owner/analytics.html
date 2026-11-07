@@ -346,7 +346,7 @@
   // ---- words for what people did ----
   const WORD = {
     page: (e) => `opened ${e.product || (e.p === "/" ? "the home page" : e.p)}`, pclick: (e) => `tapped ${e.product || "a product"}`, filter: (e) => `filtered by ${e.x}`, wa: () => "went to WhatsApp", ig: () => "went to Instagram", map: () => "opened directions", call: () => "pressed call",
-    video: () => "played the video", yt: () => "went to YouTube", copy: (e) => `copied ${e.x || "payment details"}`, checkout: (e) => `pressed Order now: ${e.product || ""}${e.ms ? `, after ${dur(e.ms)} on the page` : ""}`, details: (e) => `finished their details${e.ms ? ` in ${dur(e.ms)}` : ""}`, pay_tab: (e) => `switched payment to ${e.x}`,
+    video: () => "played the video", yt: () => "went to YouTube", copy: (e) => `copied ${e.x || "payment details"}`, bag_add: (e) => `added to bag: ${e.product || ""}`, signin: (e) => `signed in with ${e.x === "google" ? "Google" : "WhatsApp"}`, wish: (e) => `${e.x === "off" ? "unsaved" : "saved"} ${e.product || "a piece"}`, checkout: (e) => `started checkout: ${e.product || ""}${e.ms ? `, after ${dur(e.ms)} on the page` : ""}`, details: (e) => `finished their details${e.ms ? ` in ${dur(e.ms)}` : ""}`, pay_tab: (e) => `switched payment to ${e.x}`,
     paid: (e) => `paid${e.n ? ` ${inr(e.n)}` : ""}: ${e.product || ""}${e.ms ? `, took ${dur(e.ms)}` : ""}`, abandon: (e) => `left checkout at the ${e.x === "pay" ? "payment" : "details"} step${e.f ? ` (${e.f})` : ""}`, rage: (e) => `pressed again and again: ${e.x}`, dead: (e) => `pressed something that did nothing: ${e.x}`, invalid: (e) => `was stopped by the form: ${e.x}`, formerr: (e) => `saw an error: ${e.x}`, err: (e) => `hit a site error: ${e.x}`,
     nudge: (e) => (e.ctl ? `would have seen help: ${e.x}` : `was shown help: ${e.x}`), nudge_tap: (e) => `pressed the help: ${e.x}`, sec: (e) => `spent ${dur(e.n)} on ${e.x}`, field: (e) => `spent ${dur(e.n)} in ${e.x}${e.del ? `, corrected ${e.del}×` : ""}${e.fl === 0 ? ", left it empty" : ""}`, tap: (e) => `pressed ${e.x}`, choice: (e) => `chose ${e.r === "ship" ? "delivery" : "pick up"}`,
     enq_open: (e) => `opened enquiry: ${e.product || ""}`, enq: (e) => `sent an enquiry: ${e.product || ""}`, fb: (e) => `gave feedback: ${e.r}${e.note ? ` "${e.note}"` : ""}`, section: (e) => `reached ${e.x}`, leave: () => "left",
@@ -665,7 +665,7 @@
   // ---- predict, and did the help work? ----
   async function renderPred(d) {
     const g = d.guide; let m = {}; try { m = await (await fetch("/api/guide")).json(); } catch { /* shown as starting guesses */ }
-    const W = { co: "Pressed Order now", dt: "Finished their details", long: "30+ seconds on a product", sizes: "Looked at sizes", back: "Came back again", two: "Viewed 2+ products", desc: "Read the description", rack: "20+ seconds in the rack", filt: "Used a filter", stuck: "Hit a problem", phone: "On a phone", insta: "From Instagram", search: "From search" };
+    const W = { co: "Added to bag or checked out", dt: "Finished their details", long: "30+ seconds on a product", sizes: "Looked at sizes", back: "Came back again", two: "Viewed 2+ products", desc: "Read the description", rack: "20+ seconds in the rack", filt: "Used a filter", stuck: "Hit a problem", phone: "On a phone", insta: "From Instagram", search: "From search" };
     const pull = Object.entries(m.w || {}).map(([k, v]) => ({ label: W[k] || k, n: Math.abs(v), up: v >= 0 })).sort((a, b) => b.n - a.n);
     const verdict = g.off.n < 30 ? "Too early to say if the help works" : g.proven ? (g.on.rate > g.off.rate ? "The help is winning orders" : "The help is costing orders: switch it off") : "No proven difference yet";
     const tile = (l, a) => fact(l, `${a.rate}%`, `${num(a.paid)} of ${num(a.n)}, could be ${a.range.low} to ${a.range.high}%`);
@@ -756,7 +756,7 @@
   // ---- the order form, box by box ----
   function renderForm(d) {
     const kind = state.formKind, f = d.forms?.[kind] || { opened: 0, boxes: [] }, t = d.stepTimes || {}, base = Math.max(f.opened, 1);
-    const sw = `<div class="chips" style="margin-bottom:12px">${[["checkout", "Order now form"], ["enquiry", "Enquiry form"]].map(([k, l]) => `<button type="button" data-fk="${k}" class="${kind === k ? "on" : ""}">${l}</button>`).join("")}</div>`;
+    const sw = `<div class="chips" style="margin-bottom:12px">${[["checkout", "Checkout form"], ["enquiry", "Enquiry form"]].map(([k, l]) => `<button type="button" data-fk="${k}" class="${kind === k ? "on" : ""}">${l}</button>`).join("")}</div>`;
     const steps = [["Deciding on the product", t.deciding], ["Filling in the form", t.details], ["Paying", t.paying]].filter(([, ms]) => ms);
     const chain = steps.length ? `<div class="chain">${steps.map(([l, ms]) => `<div style="flex:${ms} 1 0" data-tip="${esc(l)}: typically ${esc(dur(ms))}"><b>${esc(dur(ms))}</b>${esc(l)}</div>`).join("")}</div>
       ${t.gaveUpDetails || t.gaveUpPaying ? `<p class="sub2">People who gave up: ${[t.gaveUpDetails && `${dur(t.gaveUpDetails)} on the form`, t.gaveUpPaying && `${dur(t.gaveUpPaying)} on payment`].filter(Boolean).join(", ")}, typically.</p>` : ""}` : `<p class="empty">No orders started in these dates yet.</p>`;

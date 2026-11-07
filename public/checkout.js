@@ -37,6 +37,21 @@ window.VXCheckout = (() => {
       <div><span class="brand">${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><span class="mono">${rupees(p.price)}${p.chosenSize ? ` · ${esc(p.chosenSize)}` : ""} · ${lot(p)}</span></div></div>`;
   }
 
+  // Every piece being bought, small, at the top of each step.
+  function bagRows() {
+    const { esc, rupees, hash } = O();
+    const lines = state.lines;
+    if (lines.length === 1) {
+      const l = lines[0];
+      return itemRow({ id: l.productId, name: l.productName, image: l.image, price: l.price * (l.qty || 1), chosenSize: l.size, code: (l.lot || "").replace(/^LOT /, ""), brand: "", category: "" });
+    }
+    return `<ul class="co-lines">${lines.map((l) => {
+      const pic = l.image ? `<img src="${esc(l.image)}" alt="">` : window.productArt?.({ id: l.productId, name: l.productName }, hash(l.productId)) || "";
+      return `<li><span class="co-lthumb">${pic}</span><span class="co-lname">${esc(l.productName)}${l.size ? ` <i>${esc(l.size)}</i>` : ""}</span><b class="mono">${rupees(l.price * (l.qty || 1))}</b></li>`;
+    }).join("")}</ul>`;
+  }
+  const title = () => state.lines.length === 1 ? state.lines[0].productName : `${state.lines[0].productName} + ${state.lines.length - 1} more`;
+
   function shell(inner) {
     dlg.innerHTML = `<div class="co"><button type="button" class="ask-x" data-close aria-label="Close">×</button>${inner}</div>`;
     if (fx) dlg.appendChild(fx.canvas); // a status update mustn't cut the celebration short
@@ -45,12 +60,15 @@ window.VXCheckout = (() => {
   // ---------- Step 1: details ----------
   function stepDetails(err = "") {
     const { esc } = O();
-    const p = state.p, f = state.form;
+    const f = state.form, goods = state.goods;
     const C = S.policy?.courier;
     const shipNote = C?.perKg ? `Courier is ${O().rupees(C.perKg)} per kg outside Kashmir. Enter your PIN code to see it before you pay.` : PAY.shippingFee == null ? "Courier charge depends on your location. We'll tell you the exact amount on WhatsApp before dispatch; if you don't want to pay it, cancel for a full refund." : PAY.shippingFee === 0 ? "Free shipping." : `Shipping: ${O().rupees(PAY.shippingFee)}.`;
-    shell(`${steps(1)}${itemRow(p)}
+    const coinBox = state.coinsUsable > 0
+      ? `<label class="co-hide co-coins"><input type="checkbox" name="useCoins" value="1" ${f.useCoins !== "" ? "checked" : ""}><span>Use <b>${state.coinsUsable}</b> coins: ${O().rupees(state.coinsUsable)} off</span></label>`
+      : state.coinsBalance > 0 ? `<p class="co-small co-coins">🪙 You have ${state.coinsBalance} coins. You can spend them when Vibe X opens coin offers.</p>` : "";
+    shell(`${steps(1)}${bagRows()}
       <form class="co-form" novalidate>
-        <h2>Order now</h2>
+        <h2>Your details</h2>
         <label>Your name<input name="name" autocomplete="name" maxlength="60" value="${esc(f.name || "")}" required></label>
         <label>WhatsApp number<div class="ask-phone"><span>+91</span><input name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="98765 43210" maxlength="14" value="${esc(f.phone || "")}" required></div></label>
         <fieldset class="co-choice"><legend>How do you want it?</legend>
@@ -68,43 +86,50 @@ window.VXCheckout = (() => {
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
         <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
         <label class="co-hide"><input type="checkbox" name="hideName" value="1" ${f.hideName ? "checked" : ""}><span>Don't show my name on the site</span></label>
-        <button class="order co-cta" type="submit">Continue to payment · ${O().rupees(p.price)}</button>
+        ${coinBox}
+        <button class="order co-cta" type="submit">Continue to payment · ${O().rupees(goods)}</button>
         <p class="consent">We use your name and number only for this order and its delivery. Unless you tick the box, the site may show your first name and city with what you bought. Your first name is also kept on this device, so we can say hello next time. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
       </form>`);
     const form = dlg.querySelector("form");
     form.addEventListener("change", (e) => {
       if (e.target.name === "delivery") { form.querySelector(".co-ship").hidden = e.target.value !== "ship"; showFee(); }
+      if (e.target.name === "useCoins") showFee();
     });
     // The courier charge is shown before payment, and it comes from the server, which also sets the order's total.
     let asked = 0;
+    const coinsOff = () => (form.elements.useCoins?.checked ? state.coinsUsable : 0);
     async function showFee() {
       const { rupees } = O(), pin = form.elements.pin.value.replace(/\D/g, ""), mine = ++asked, box = form.querySelector(".co-fee");
       let fee = 0, text = "";
       if (form.elements.delivery.value === "ship" && /^[1-9]\d{5}$/.test(pin)) {
-        const r = await fetch(`/api/courier?id=${encodeURIComponent(p.id)}&pin=${pin}`).then((x) => x.json()).catch(() => null);
+        const r = await fetch("/api/account/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lines: state.bag, delivery: "ship", pin, holdToken: window.VXVisit?.s }) }).then((x) => x.json()).catch(() => null);
         if (mine !== asked) return;
-        if (r?.fee) { fee = r.fee; text = `Courier to ${pin}: ${rupees(fee)} for ${r.kg} kg. You pay ${rupees(p.price + fee)} in total.`; }
+        if (r?.shipping) { fee = r.shipping; text = `Courier to ${pin}: ${rupees(fee)} for ${r.kg} kg. You pay ${rupees(goods - coinsOff() + fee)} in total.`; }
         else if (r?.inside) text = "Inside Kashmir, we'll tell you the courier charge on WhatsApp before dispatch. If you don't want to pay it, cancel for a full refund.";
       }
       box.textContent = text; box.hidden = !text;
-      form.querySelector(".co-cta").textContent = `Continue to payment · ${rupees(p.price + fee)}`;
+      form.querySelector(".co-cta").textContent = `Continue to payment · ${rupees(goods - coinsOff() + fee)}`;
     }
     form.elements.pin.addEventListener("input", showFee);
     showFee();
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       state.form = Object.fromEntries(new FormData(form));
+      if (form.elements.useCoins) state.form.useCoins = form.elements.useCoins.checked ? "1" : "";
       const btn = form.querySelector(".co-cta");
       btn.disabled = true;
       btn.textContent = "One moment…";
       try {
-        const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...state.form, holdToken: window.VXVisit?.s, productId: p.id, size: p.chosenSize }) });
+        const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...state.form, useCoins: Boolean(state.form.useCoins), holdToken: window.VXVisit?.s, lines: state.bag }) });
         const out = await res.json().catch(() => ({}));
+        // Signed out in another tab, or the session ran out: sign in again and carry on.
+        if (res.status === 401 && out.signIn && window.VXBag) { dlg.close(); if (await window.VXBag.signIn("Sign in to order")) { window.VXBag.checkout(); } return; }
+        if (res.status === 409 && out.problems && window.VXBag) { dlg.close(); window.VXBag.openSheet(); return; }
         if (!res.ok) throw new Error(out.error || "Couldn't start the order. Please try again.");
         state.order = out;
         state.endsAt = Date.now() + out.left;
         state.ranOut = false;
-        window.VXTrack?.("details", { pr: p.id, n: p.price });
+        window.VXTrack?.("details", { pr: state.lines[0].productId, n: goods, k: state.lines.length });
         window.VXOrder.rememberName(state.form.name);
         stepPay();
       } catch (ex) {
@@ -144,7 +169,7 @@ window.VXCheckout = (() => {
       ${PAY.demo ? `<p class="co-demo">Demo payment details. Don't send real money.</p>` : ""}
       <p class="co-timer">Pay within <b data-clock></b></p>
       <div class="co-amount"><span>Pay exactly</span><b>${rupees(o.amount)}</b><button type="button" class="co-copy" data-copy="${o.amount}" aria-label="Copy amount">${COPY}<em>Copy</em></button></div>
-      ${o.shipping ? `<p class="co-small">${rupees(o.amount - o.shipping)} for the piece + ${rupees(o.shipping)} courier.</p>` : ""}
+      ${o.shipping || o.coinsUsed ? `<p class="co-small">${rupees(o.goods)} for ${state.lines.length > 1 ? `${state.lines.length} pieces` : "the piece"}${o.coinsUsed ? ` − ${rupees(o.coinsUsed)} coins` : ""}${o.shipping ? ` + ${rupees(o.shipping)} courier` : ""}.</p>` : ""}
       <p class="co-small">Add <b class="mono">${esc(o.code)}</b> in the payment note so we can match it.</p>
       <div class="co-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === tab}">${l}</button>`).join("")}</div>
       <div class="co-pay">${body}</div>
@@ -183,7 +208,7 @@ window.VXCheckout = (() => {
     const { esc } = O(), o = state.order;
     state.ranOut = true;
     clearInterval(clock);
-    const text = `Hi Vibe X, I paid for order ${o.code} (${state.p.name}). Here's my payment screenshot.`;
+    const text = `Hi Vibe X, I paid for order ${o.code} (${title()}). Here's my payment screenshot.`;
     shell(`${steps(2)}
       <div class="co-done">
         <p class="mono co-code">Order ${esc(o.code)}</p>
@@ -196,8 +221,8 @@ window.VXCheckout = (() => {
 
   // Payment opens with the shop: outside its hours nobody is there to confirm in time.
   function stepClosed() {
-    const { esc } = O(), p = state.p;
-    const text = `Hi Vibe X, I'd like to order ${p.name}${p.chosenSize ? ` (${p.chosenSize})` : ""}.`;
+    const { esc } = O();
+    const text = `Hi Vibe X, I'd like to order: ${state.lines.map((l) => `${l.productName}${l.size ? ` (${l.size})` : ""}`).join(", ")}.`;
     shell(`<div class="co-done">
         <h2>We're closed for online payment</h2>
         <p>${esc(PAY.closedText)}</p>
@@ -314,7 +339,8 @@ window.VXCheckout = (() => {
     if (confirmed) {
       shell(`<div class="co-done is-ok"><h2 class="co-thanks">Thanks For The Purchase</h2><p class="mono co-code">Order ${esc(o.code)}</p></div>`);
       // Counted here, not on a button: a sale is a sale once the shop has the money.
-      window.VXTrack?.("paid", { pr: state.p.id, n: o.amount - (o.shipping || 0), fp: state.p.price });
+      window.VXTrack?.("paid", { pr: state.lines[0].productId, n: o.goods - (o.coinsUsed || 0), fp: o.goods, k: state.lines.length });
+      window.VXBag?.ordered(state.lines);
       celebrate();
       closing = setTimeout(() => dlg.close(), 10000);
       return;
@@ -343,7 +369,7 @@ window.VXCheckout = (() => {
     }
   }
 
-  function open(p) {
+  function openBag(q, me) {
     if (!dlg) {
       dlg = document.createElement("dialog");
       dlg.className = "ask-dialog co-dialog";
@@ -362,13 +388,20 @@ window.VXCheckout = (() => {
       });
     }
     stopWatching();
+    const bag = q.lines.map((l) => ({ id: l.productId, size: l.size || "", qty: l.qty || 1 }));
+    const same = state?.order && JSON.stringify(state.bag) === JSON.stringify(bag);
     // Closed the box by accident, or went to the UPI app and came back: pick up the same order.
-    if (state?.order && state.p.id === p.id && !state.ranOut && state.endsAt > Date.now()) { stepPay(); dlg.showModal(); return; }
-    state = { p, form: state && state.form ? { ...state.form } : {}, order: null, tab: "upi" };
+    if (same && !state.ranOut && state.endsAt > Date.now()) { stepPay(); dlg.showModal(); return; }
+    const a = me?.address || {};
+    const saved = { name: a.name || me?.name || "", phone: a.phone || me?.phone || "", delivery: a.delivery || "ship", address: a.address || "", city: a.city || "", pin: a.pin || "" };
+    state = { bag, lines: q.lines, goods: q.goods, coinsUsable: q.coinsUsable || 0, coinsBalance: q.coinsBalance || 0, form: state && state.form ? { ...state.form } : saved, order: null, tab: "upi" };
     if (payOpen()) stepDetails(); else stepClosed();
     dlg.showModal();
-    window.VXTrack?.("checkout", { pr: p.id, n: p.price });
+    window.VXTrack?.("checkout", { pr: q.lines[0].productId, n: q.goods, k: q.lines.length });
   }
-
-  return { open };
+  // Without the bag script (old pages): one piece, straight to checkout.
+  function open(p) {
+    openBag({ lines: [{ productId: p.id, productName: p.name, size: p.chosenSize || "", price: p.price, qty: 1, image: p.image, lot: O().lot(p) }], goods: p.price }, window.VXBag?.me());
+  }
+  return { open, openBag };
 })();

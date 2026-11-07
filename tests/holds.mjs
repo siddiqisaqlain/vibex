@@ -5,18 +5,20 @@ import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { shopperCookie } from "./_shopper.mjs";
 
 const PORT = 4796;
 const HOLD = 1600, WARN = 800;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-holds-"));
-const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", ANTHROPIC_API_KEY: "", WA_TOKEN: "",
+const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", ANTHROPIC_API_KEY: "", WA_TOKEN: "", WA_LOGIN_DEV: "1",
   ORDER_HOLD_MS: String(HOLD), ORDER_WARN_MS: String(WARN), ORDER_SWEEP_MS: "100" };
 const base = `http://127.0.0.1:${PORT}`;
 let srv, log = "";
 async function start() {
   srv = spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."), env, stdio: ["ignore", "pipe", "pipe"] });
   srv.stdout.on("data", (d) => (log += d)); srv.stderr.on("data", (d) => (log += d));
-  for (let i = 0; i < 50; i++) { try { await fetch(`${base}/api/products`); return; } catch { await wait(100); } }
+  for (let i = 0; i < 50; i++) { try { await fetch(`${base}/api/products`); break; } catch { await wait(100); } }
+  H.cookie ||= await shopperCookie(base);
 }
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const H = { "Content-Type": "application/json", "x-owner-key": "k" };

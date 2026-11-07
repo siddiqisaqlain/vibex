@@ -19,6 +19,7 @@ const { sizePairs, withoutSizePairs, optionsOf, applySizePairs, autoDescription,
 const { readJson, writeJson, dailyBackup } = require("./lib/jsonstore");
 const { videoFeed } = require("./lib/youtube");
 const createAnalytics = require("./lib/analytics");
+const createAccounts = require("./lib/accounts");
 const SHOP_NAME = "Vibe X";
 
 const PORT = Number(process.env.PORT) || 4300;
@@ -306,7 +307,7 @@ async function whatsappWebhook(req, res, url) {
   if (!wa.enabled()) return console.warn("WhatsApp webhook called but WA_* / OWNER_WHATSAPP settings are missing");
   let payload;
   try { payload = JSON.parse(raw); } catch { return; }
-  wa.handleWebhook(payload, { ownerMessage, shopName: SHOP_NAME, shopKey: "vibex", shopUrl: siteUrl() || "our website", choiceFile: path.join(STORE, "wa-shop.json") },
+  wa.handleWebhook(payload, { ownerMessage, customerMessage: (from, text) => accounts.waMessage(from, text), shopName: SHOP_NAME, shopKey: "vibex", shopUrl: siteUrl() || "our website", choiceFile: path.join(STORE, "wa-shop.json") },
     raw, req.headers["x-hub-signature-256"]);
 }
 
@@ -362,18 +363,53 @@ const PAY_WINDOW = payWindow.read(SHOP.pay?.window, process.env.ORDER_HOURS);
 const ORDER_WINDOW_MS = Number(process.env.ORDER_WINDOW_MS) || PAY_WINDOW.minutes * 60e3;
 const clientIp = (req) => String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0].trim();
 
+// Every line of an order. Orders from before the bag had one product, kept in top-level fields.
+const orderLines = (o) => o.lines || [{ productId: o.productId, productName: o.productName, lot: o.lot, size: o.size, qty: 1, price: o.amount - (o.shipping || 0) }];
+const linesText = (o) => orderLines(o).map((l) => `• ${l.productName}${l.size ? ` · ${l.size}` : ""}${l.qty > 1 ? ` × ${l.qty}` : ""} · ${inr(l.price * l.qty)} · ${l.lot}`).join("\n");
+
+// The bag as it stands now: server prices, stock and courier. Nothing the browser says about money is used.
+// Returns { lines, goods, shipping, kg, inside, problems } or { error }.
+function priceBag(bag, { pin = "", delivery = "pickup", holdToken = "" } = {}) {
+  if (!Array.isArray(bag) || !bag.length) return { error: "Your bag is empty." };
+  if (bag.length > 20) return { error: "That's a lot of pieces. Please order 20 or fewer at a time." };
+  const items = load().filter(isPublic), lines = [], problems = [];
+  for (const b of bag) {
+    const p = items.find((x) => x.id === String(b.id || b.productId || ""));
+    if (!p) { problems.push({ id: b.id, size: b.size || "", why: "gone", text: "No longer listed" }); continue; }
+    const options = optionsOf(p);
+    const picked = options.length === 1 ? options[0] : options.find((o) => o.size === String(b.size || ""));
+    const say = (why, text) => problems.push({ id: p.id, size: b.size || "", name: p.name, why, text });
+    if (p.status === "sold") { say("sold", "Sold out"); continue; }
+    if (!p.price) { say("price", "No price yet, ask us"); continue; }
+    if (options.length > 1 && !picked) { say("size", "Choose a size"); continue; }
+    if (picked?.left === 0) { say("sold", `${picked.size} has just sold out. Please choose another size`); continue; }
+    const size = holdSize(p, picked?.size);
+    if (p.status === "hold" || holds.blockedFor(p.id, size, holdToken)) { say("hold", "Someone is paying for the last one"); continue; }
+    const left = picked?.left ?? billing.stockOf(p);
+    const qty = Math.min(Math.max(1, Math.floor(Number(b.qty) || 1)), Math.max(1, left || 1), 9);
+    lines.push({ productId: p.id, productName: p.name, lot: lotOf(p), ...(picked?.size ? { size: picked.size } : {}), qty, price: picked?.price ?? p.price, image: p.image || null, _p: p });
+  }
+  const goods = lines.reduce((n, l) => n + l.price * l.qty, 0);
+  let shipping = 0, kg = 0, inside = false;
+  if (delivery === "ship" && /^[1-9]\d{5}$/.test(pin)) {
+    // One parcel: the weights add up, and the courier is charged on the total.
+    const C = SHOP.policy?.courier;
+    for (const l of lines) { const c = courierFor(C, l._p, pin); kg += (c.kg || 0) * l.qty; inside = c.inside; }
+    if (C?.perKg) shipping = inside ? C.insideKashmir || 0 : Math.ceil(kg * C.perKg);
+  }
+  return { lines, goods, shipping, kg: Math.round(kg * 100) / 100, inside, problems };
+}
+
 async function createOrder(req, res) {
   let b;
   try { b = JSON.parse(await readBody(req, 20 * 1024)); } catch { return send(res, 400, { error: "Something went wrong. Please try again." }); }
   if (b.website) return send(res, 200, { ok: true });
   if (!ORDERING_OPEN) return send(res, 403, { error: "Online ordering opens soon. Tap Enquire and we'll reply on WhatsApp." });
+  // Buying needs an account: the shop's choice, so every customer can see their orders and coins.
+  const me = customerOf(req);
+  if (!me) return send(res, 401, { error: "Please sign in to order.", signIn: true });
   if (!payWindow.isOpen(PAY_WINDOW)) return send(res, 409, { error: payWindow.closedText(PAY_WINDOW) });
   if (tooMany(clientIp(req))) return send(res, 429, { error: "Too many attempts. Please wait a few minutes." });
-  const p = load().filter(isPublic).find((x) => x.id === String(b.productId || ""));
-  if (!p) return send(res, 404, { error: "This piece is no longer listed." });
-  if (p.status === "sold") return send(res, 409, { error: "Sorry, this piece has just sold." });
-  if (p.status === "hold") return send(res, 409, { error: "Someone is paying for this piece right now. Tap Enquire and we'll tell you if it frees up." });
-  if (!p.price) return send(res, 409, { error: "This piece has no price yet. Tap Enquire and we'll tell you." });
   const name = String(b.name || "").replace(/\s+/g, " ").trim().slice(0, 60);
   const phone = normalisePhone(b.phone);
   const delivery = b.delivery === "ship" ? "ship" : "pickup";
@@ -385,31 +421,43 @@ async function createOrder(req, res) {
   if (delivery === "ship" && (!address || !city || !/^[1-9]\d{5}$/.test(pin))) {
     return send(res, 400, { error: "Please add your full address, city and 6 digit PIN code." });
   }
-  // The server decides the price from the size, never the browser.
-  const options = optionsOf(p);
-  const picked = options.length === 1 ? options[0] : options.find((o) => o.size === String(b.size || ""));
-  if (options.length > 1 && !picked) return send(res, 400, { error: "Please choose a size first." });
-  if (picked?.left === 0) return send(res, 409, { error: `Sorry, ${picked.size} has just sold out. Please choose another size.` });
-  if (holds.blockedFor(p.id, holdSize(p, picked?.size), String(b.holdToken || ""))) return send(res, 409, { error: "Someone else is ordering the last one right now. If they don't finish, it comes back within 10 minutes." });
-  const price = picked?.price ?? p.price;
+  // The bag comes from the request (what the customer sees), checked line by line here.
+  const bag = Array.isArray(b.lines) ? b.lines : b.productId ? [{ id: b.productId, size: b.size }] : [];
+  const q = priceBag(bag, { pin, delivery, holdToken: String(b.holdToken || "") });
+  if (q.error) return send(res, 400, { error: q.error });
+  // Same answers as before the bag: 404 for a piece that isn't listed, 400 for a missing size.
+  const only = (why) => q.problems.length && q.problems.every((x) => x.why === why);
+  if (only("gone") && !q.lines.length) return send(res, 404, { error: "This piece is no longer listed.", problems: q.problems });
+  if (only("size")) return send(res, 400, { error: "Please choose a size first.", problems: q.problems });
+  if (q.problems.length) return send(res, 409, { error: q.problems.length === 1 ? `${q.problems[0].name || "One piece"}: ${q.problems[0].text}.` : "Some pieces in your bag changed. Please check your bag.", problems: q.problems });
+  // Coins, only while the shop has redeeming switched on, and never more than the cap.
+  const coinsUsed = b.useCoins ? accounts.usable(me, q.goods) : 0;
   const orders = loadOrders();
-  // The customer pays the selling price, plus the courier charge they saw before paying.
-  const courier = delivery === "ship" ? courierFor(SHOP.policy?.courier, p, pin) : null, shipping = courier?.fee || 0;
+  const lines = q.lines.map(({ _p, image, ...l }) => l);
   const order = {
-    id: crypto.randomBytes(8).toString("hex"), code: newOrderCode(orders),
-    productId: p.id, productName: p.name, lot: lotOf(p), amount: price + shipping, ...(picked ? { size: picked.size } : {}),
-    ...(shipping ? { shipping, kg: courier.kg } : {}),
+    id: crypto.randomBytes(8).toString("hex"), code: newOrderCode(orders), customerId: me.id,
+    lines, productId: lines[0].productId, productName: lines.length === 1 ? lines[0].productName : `${lines[0].productName} + ${lines.length - 1} more`,
+    lot: lines[0].lot, ...(lines.length === 1 && lines[0].size ? { size: lines[0].size } : {}),
+    goods: q.goods, ...(coinsUsed ? { coinsUsed } : {}), amount: q.goods - coinsUsed + q.shipping,
+    ...(q.shipping ? { shipping: q.shipping, kg: q.kg } : {}),
     name, phone, delivery, address, city, pin, ...(b.hideName ? { hideName: true } : {}),
     status: "awaiting_payment", createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + ORDER_WINDOW_MS).toISOString(),
   };
   orders.push(order);
   saveOrders(orders);
+  if (coinsUsed) accounts.spend(me.id, coinsUsed, order.code);
+  accounts.setAddress(me.id, { name, phone, delivery, address, city, pin });
   // Nobody else can pay for a last piece during the window.
   const items = load();
-  const held = items.find((x) => x.id === order.productId);
-  if (held && !(held.quantity > 1) && held.status === "available") { held.status = "hold"; held.holdFor = order.code; save(items); }
-  orderAlert(order, held);
-  send(res, 200, { id: order.id, code: order.code, amount: order.amount, lot: order.lot, shipping, left: ORDER_WINDOW_MS });
+  let first = null;
+  for (const l of lines) {
+    const held = items.find((x) => x.id === l.productId);
+    first ||= held;
+    if (held && !(held.quantity > 1) && held.status === "available") { held.status = "hold"; held.holdFor = order.code; }
+  }
+  save(items);
+  orderAlert(order, first);
+  send(res, 200, { id: order.id, code: order.code, amount: order.amount, goods: order.goods, coinsUsed, lot: order.lot, shipping: q.shipping, left: ORDER_WINDOW_MS, lines: lines.length });
 }
 
 // "Pay now" pages from before the payment window are still open in some phones: nothing they send counts.
@@ -422,16 +470,19 @@ function orderAlert(o, p) {
     id: crypto.randomBytes(6).toString("hex"), at: new Date().toISOString(), kind: "order",
     summary: { kind: "order", ref: o.code },
     image: (p && p.image) || null,
-    text: `💰 *New order ${o.code}: ${Math.round(ORDER_WINDOW_MS / 60e3)} minutes to confirm*\n*${o.productName}*${o.size ? ` · ${o.size}` : ""} · ${inr(o.amount)}${o.promo ? ` (${o.promo}: ${inr(o.fullPrice)} − ${inr(o.discount)})` : ""}${o.shipping ? ` (includes ${inr(o.shipping)} courier for ${o.kg} kg)` : ""} · ${o.lot}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 Look for note ${o.code}\n\nThe customer is on the payment screen now. When ${inr(o.amount)} reaches your bank, reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
+    text: `💰 *New order ${o.code}: ${Math.round(ORDER_WINDOW_MS / 60e3)} minutes to confirm*\n${linesText(o)}\n*Total ${inr(o.amount)}*${o.coinsUsed ? ` (${inr(o.coinsUsed)} paid in coins)` : ""}${o.shipping ? ` (includes ${inr(o.shipping)} courier for ${o.kg} kg)` : ""}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 Look for note ${o.code}\n\nThe customer is on the payment screen now. When ${inr(o.amount)} reaches your bank, reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
   });
 }
 
 // The piece stops being held, whatever ended the order.
 function letGo(o, items) {
-  const p = items.find((x) => x.id === o.productId);
-  if (!p || p.status !== "hold" || p.holdFor !== o.code) return false;
-  p.status = "available"; delete p.holdFor;
-  return true;
+  let any = false;
+  for (const l of orderLines(o)) {
+    const p = items.find((x) => x.id === l.productId);
+    if (!p || p.status !== "hold" || p.holdFor !== o.code) continue;
+    p.status = "available"; delete p.holdFor; any = true;
+  }
+  return any;
 }
 
 // The customer went back to change their details: the order they leave behind mustn't hold the piece.
@@ -441,6 +492,7 @@ function orderCancel(res, id) {
   if (o.status !== "awaiting_payment") return send(res, 200, { code: o.code, status: o.status });
   o.status = "cancelled"; o.cancelledBy = "customer";
   saveOrders(orders);
+  if (o.customerId) accounts.undo(o.customerId, o.code);
   const items = load();
   if (letGo(o, items)) save(items);
   send(res, 200, { code: o.code, status: o.status });
@@ -463,6 +515,7 @@ _Faster:_ put it all in the caption, e.g. _Zara shirt 1499 M L_, and it's one ta
 *Description:* _desc 4795 your words_
 *Start over:* _clear_ drops every photo still waiting to be posted
 *Orders:* _confirm VX-1234_ or _cancel VX-1234_
+*Customer coins:* _coins_, _coins on_ or _coins off_
 The 4-digit code is the LOT number on the website, and I send it when you post.
 Tip: put *perfume*, *clothes*, *shoes* or *accessory* in the caption and I'll never have to ask which it is.`;
 
@@ -566,15 +619,23 @@ function orderCommand(text) {
     if (o.invoice) { const r = billing.cancel(o.invoice, `Order ${o.code} cancelled`); if (!r.error) o.invoice = null; }
     const lapsed = o.status === "lapsed"; // its piece was released already, and may have sold since
     o.status = "cancelled";
-    if (p && p.status === "hold" && p.holdFor === o.code) { p.status = "available"; delete p.holdFor; save(items); }
+    if (letGo(o, items)) save(items);
     saveOrders(orders);
+    if (o.customerId) accounts.undo(o.customerId, o.code);
     if (lapsed) return `❌ ${o.code} closed. If ${o.name} did pay, refund ${inr(o.amount)} to ${prettyPhone(o.phone)}.`;
-    return `❌ ${o.code} cancelled. “${o.productName}” is back on sale.\nTell the customer: ${hello(`Hi ${o.name}, Vibe X here. We couldn't find your payment for order ${o.code}. Could you send the payment screenshot?`)}`;
+    return `❌ ${o.code} cancelled. ${orderLines(o).length > 1 ? "Its pieces are" : `“${o.productName}” is`} back on sale.\nTell the customer: ${hello(`Hi ${o.name}, Vibe X here. We couldn't find your payment for order ${o.code}. Could you send the payment screenshot?`)}`;
   }
   if (o.status === "confirmed") return `${o.code} is already confirmed.`;
   if (o.status === "cancelled") return `${o.code} was cancelled. Ask the customer to order again.`;
   // Same path as the billing portal: stock comes off and the bill is written in one go.
-  const sale = billing.sell([{ productId: o.productId, qty: 1, price: o.amount - (o.shipping || 0), size: o.size }], {
+  // Coins come off the lines as a discount, so the bill shows the real money received.
+  let coinsLeft = o.coinsUsed || 0;
+  const sellLines = orderLines(o).map((l, i, all) => {
+    const share = i === all.length - 1 ? coinsLeft : Math.min(coinsLeft, Math.round(((o.coinsUsed || 0) * l.price * l.qty) / (o.goods || 1)));
+    coinsLeft -= share;
+    return { productId: l.productId, qty: l.qty, price: l.price, size: l.size, ...(share ? { disc: share } : {}) };
+  });
+  const sale = billing.sell(sellLines, {
     source: "website", order: o.code, holdFor: o.code, payment: "upi",
     charges: o.shipping ? [{ label: `Courier (${o.kg} kg)`, amount: o.shipping }] : [],
     customer: { name: o.name, phone: o.phone, address: o.delivery === "ship" ? `${o.address}, ${o.city} ${o.pin}` : "" },
@@ -585,9 +646,12 @@ function orderCommand(text) {
   o.confirmedAt = new Date().toISOString();
   o.invoice = sale.invoice.id;
   saveOrders(orders);
+  // Coins for the money actually paid for the goods (not the courier, not coins).
+  if (o.customerId) accounts.earn(o.customerId, (o.goods ?? o.amount - (o.shipping || 0)) - (o.coinsUsed || 0), o.code);
   const next = o.delivery === "ship" ? (SHOP.policy?.photoBeforeDispatch ? "📸 Send them a photo of this exact piece on WhatsApp, as the website promises. Then pack it for shipping" : "Pack it for shipping") : "Keep it aside for pickup";
   const after = sale.products.find((x) => x.id === o.productId);
-  return `✅ ${o.code} confirmed. “${o.productName}” marked ${after.status === "sold" ? "SOLD" : `sold (${after.quantity} left)`}.\n🧾 Bill ${sale.invoice.number}: ${billUrl(sale.invoice)}\n${next}. The customer's screen already shows it's confirmed.\nMessage them: ${hello(`Hi ${o.name}, Vibe X here. Payment received for ${o.code} (${o.productName}). ${o.delivery === "ship" ? "We'll share tracking once it ships." : "It's ready for pickup at the store."}`)}`;
+  const marked = orderLines(o).length > 1 ? `${orderLines(o).length} pieces marked sold` : `“${o.productName}” marked ${after.status === "sold" ? "SOLD" : `sold (${after.quantity} left)`}`;
+  return `✅ ${o.code} confirmed. ${marked}.\n🧾 Bill ${sale.invoice.number}: ${billUrl(sale.invoice)}\n${next}. The customer's screen already shows it's confirmed.\nMessage them: ${hello(`Hi ${o.name}, Vibe X here. Payment received for ${o.code} (${o.productName}). ${o.delivery === "ship" ? "We'll share tracking once it ships." : "It's ready for pickup at the store."}`)}`;
 }
 
 // ---- Owner key ----
@@ -623,7 +687,7 @@ ${head}
 <nav class="nav"><a href="/#rack">New drops</a><a class="nav-ig" href="https://www.instagram.com/vibex.india/" target="_blank" rel="noopener">Instagram ↗</a></nav></div></header>
 <main class="wrap pdp" id="pdp" data-id="${escHtml(id)}"></main>
 <div class="toast" id="toast" role="status" hidden></div>
-<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/pdp.js"></script><script src="/salebar.js"></script><script src="/newtab.js"></script><script src="/track.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
+<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/bag.js"></script><script src="/pdp.js"></script><script src="/salebar.js"></script><script src="/newtab.js"></script><script src="/track.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
 </body></html>`;
 }
 
@@ -657,7 +721,7 @@ ${head}
 }
 
 // v1 frame (surplus style) for policy and 404 pages.
-function v1Shell({ title, head = "", body }) {
+function v1Shell({ title, head = "", body, scripts = [] }) {
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -674,7 +738,7 @@ ${head}
 <footer class="foot"><div class="wrap"><div class="foot-mark">VIBE<span>X</span></div>
 <div class="foot-row mono"><span>© Vibe X · The Surplus Room</span><span>World brands, one destination</span></div>
 <nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a></nav></div></footer>
-<script src="/newtab.js"></script><script src="/track.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
+${scripts.length ? `<div class="toast" id="toast" role="status" hidden></div><script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}` : ""}<script src="/newtab.js"></script><script src="/track.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
 </body></html>`;
 }
 
@@ -755,6 +819,79 @@ function isLastPiece(p, size) {
 const analytics = createAnalytics({ STORE, productName: (id) => load().find((p) => p.id === id)?.name || id, productNames: () => Object.fromEntries(load().map((p) => [p.id, p.name])) });
 process.on("SIGTERM", () => { analytics.close(); process.exit(0); });
 
+// ---- Customer accounts (lib/accounts.js): bag, wishlist, address, orders, coins ----
+const accounts = createAccounts({ STORE, coinsConfig: SHOP.coins || {} });
+const COOKIE = "vxs";
+const cookieOf = (req) => { const m = new RegExp(`(?:^|;\\s*)${COOKIE}=([a-f0-9]{64})`).exec(req.headers.cookie || ""); return m ? m[1] : ""; };
+const customerOf = (req) => accounts.byToken(cookieOf(req));
+// HttpOnly: page scripts (and anything injected into them) can't read it. Secure on the live site.
+function setSession(req, res, token) {
+  const secure = process.env.RENDER || String(req.headers["x-forwarded-proto"] || "").startsWith("https") ? "; Secure" : "";
+  res.setHeader("Set-Cookie", `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${token ? Math.floor(accounts.SESSION_MS / 1000) : 0}${secure}`);
+}
+// What a signed-in customer's own page shows about their orders.
+function myOrders(c) {
+  const items = load();
+  return loadOrders().filter((o) => o.customerId === c.id).slice(-50).reverse().map((o) => ({
+    id: o.id, code: o.code, status: o.status, createdAt: o.createdAt, amount: o.amount, shipping: o.shipping || 0, coinsUsed: o.coinsUsed || 0, delivery: o.delivery,
+    lines: orderLines(o).map((l) => ({ productId: l.productId, name: l.productName, size: l.size || "", qty: l.qty, price: l.price, image: items.find((x) => x.id === l.productId)?.image || null })),
+  }));
+}
+const accountView = (c) => ({ ...accounts.view(c), orders: myOrders(c) });
+
+async function accountApi(req, res, route) {
+  const body = async (n = 16 * 1024) => { try { return JSON.parse((await readBody(req, n)) || "{}"); } catch { return null; } };
+  const post = req.method === "POST", me = customerOf(req);
+  if (req.method === "GET" && route === "me") return send(res, 200, me ? accountView(me) : { signedIn: false });
+  // WhatsApp: the page gets a code to send, then asks every couple of seconds whether it came.
+  if (post && route === "wa/start") {
+    if (tooMany(clientIp(req))) return send(res, 429, { error: "Too many tries. Please wait a few minutes." });
+    const bot = await wa.botNumber();
+    if (!bot && !process.env.WA_LOGIN_DEV) return send(res, 503, { error: "WhatsApp sign-in isn't available right now. Please use Google." });
+    const r = accounts.waStart(), text = `${SHOP_NAME} login ${r.code}`;
+    return send(res, 200, { code: r.code, pending: r.pending, text, link: `https://wa.me/${bot || "910000000000"}?text=${encodeURIComponent(text)}`, expiresIn: r.expiresIn });
+  }
+  if (post && route === "wa/check") {
+    const b = await body(1024);
+    const r = accounts.waCheck(String(b?.pending || ""));
+    if (!r.customer) return send(res, 200, r);
+    if (Array.isArray(b.bag) && b.bag.length) accounts.mergeBag(r.customer.id, b.bag);
+    if (Array.isArray(b.wish) && b.wish.length) accounts.setWish(r.customer.id, [...(r.customer.wish || []), ...b.wish]);
+    setSession(req, res, r.token);
+    return send(res, 200, accountView(accounts.get(r.customer.id)));
+  }
+  // Local testing only: pretend the WhatsApp message arrived from this number.
+  if (post && route === "wa/dev-send" && process.env.WA_LOGIN_DEV && !process.env.RENDER) {
+    const b = await body(1024);
+    return send(res, 200, { reply: accounts.waMessage(String(b?.from || ""), String(b?.text || "")) });
+  }
+  if (post && route === "google") {
+    if (tooMany(clientIp(req))) return send(res, 429, { error: "Too many tries. Please wait a few minutes." });
+    const b = await body(8 * 1024);
+    const r = await accounts.google(String(b?.credential || ""), process.env.GOOGLE_CLIENT_ID);
+    if (r.error) return send(res, 400, { error: r.error });
+    if (Array.isArray(b.bag) && b.bag.length) accounts.mergeBag(r.customer.id, b.bag);
+    if (Array.isArray(b.wish) && b.wish.length) accounts.setWish(r.customer.id, [...(r.customer.wish || []), ...b.wish]);
+    setSession(req, res, r.token);
+    return send(res, 200, accountView(accounts.get(r.customer.id)));
+  }
+  if (post && route === "logout") { accounts.endSession(cookieOf(req)); setSession(req, res, ""); return send(res, 200, { signedIn: false }); }
+  // The bag priced by the server: what checkout shows, and what the order will charge.
+  if (post && route === "quote") {
+    const b = await body();
+    if (!b) return send(res, 400, { error: "Bad request." });
+    const q = priceBag(b.lines || [], { pin: String(b.pin || ""), delivery: b.delivery === "ship" ? "ship" : "pickup", holdToken: String(b.holdToken || "") });
+    if (q.error) return send(res, 200, { lines: [], goods: 0, shipping: 0, problems: [], empty: true });
+    const coins = me ? accounts.usable(me, q.goods) : 0;
+    return send(res, 200, { lines: q.lines.map(({ _p, ...l }) => l), goods: q.goods, shipping: q.shipping, kg: q.kg, inside: q.inside, problems: q.problems, coinsUsable: coins, coinsBalance: me ? accounts.balance(me) : 0, redeemOn: accounts.redeemOn() });
+  }
+  if (!me) return send(res, 401, { error: "Please sign in.", signIn: true });
+  if (post && route === "bag") { const b = await body(); return b ? send(res, 200, { bag: accounts.setBag(me.id, b.bag).bag }) : send(res, 400, { error: "Bad request." }); }
+  if (post && route === "wish") { const b = await body(); return b ? send(res, 200, { wish: accounts.setWish(me.id, b.wish).wish }) : send(res, 400, { error: "Bad request." }); }
+  if (post && route === "address") { const b = await body(); return b ? send(res, 200, { address: accounts.setAddress(me.id, b).address }) : send(res, 400, { error: "Bad request." }); }
+  return send(res, 404, { error: "not found" });
+}
+
 // Newest video on the shop's channel: checked hourly here, so no visitor ever waits on YouTube.
 const latestVideo = videoFeed({ ...SHOP.youtube, file: path.join(STORE, "latest-video.json") });
 if (SHOP.youtube?.channelId) {
@@ -763,7 +900,7 @@ if (SHOP.youtube?.channelId) {
 }
 
 function sendConfig(res) {
-  const pub = { ...SHOP, pay: { ...SHOP.pay, window: PAY_WINDOW, closedText: payWindow.closedText(PAY_WINDOW) }, orderingOpen: ORDERING_OPEN, latestVideo: latestVideo.current() };
+  const pub = { ...SHOP, accounts: { google: process.env.GOOGLE_CLIENT_ID || "", whatsapp: Boolean(wa.enabled() || process.env.WA_LOGIN_DEV), coins: { perRupees: SHOP.coins?.perRupees || 100, maxPct: SHOP.coins?.maxPct || 10 } }, pay: { ...SHOP.pay, window: PAY_WINDOW, closedText: payWindow.closedText(PAY_WINDOW) }, orderingOpen: ORDERING_OPEN, latestVideo: latestVideo.current() };
   res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
   return res.end(`window.SHOP = ${JSON.stringify(pub).replace(/</g, "\\u003c")};\n`);
 }
@@ -786,6 +923,17 @@ function productMeta(req, id) {
   return { p, title, head };
 }
 
+// The customer's own pages. Everything on them is drawn by account.js from /api/account/me.
+function accountPage(res, which) {
+  const page = {
+    title: which === "bag" ? "Your bag · Vibe X" : "My account · Vibe X",
+    head: `<meta name="robots" content="noindex">`,
+    scripts: ["/art.js", "/order.js", "/vendor/qrcode.js", "/checkout.js", "/bag.js", "/account.js"],
+  };
+  const inner = `<div class="acct" id="acct" data-view="${which}"><p class="acct-load">Loading…</p></div>`;
+  send(res, 200, SHELL === "v1" ? v1Shell({ ...page, body: inner }) : pageShell({ ...page, body: `<div class="page-top"><main class="wrap">${inner}</main></div>` }), "text/html; charset=utf-8");
+}
+
 function productPage(req, res, id) {
   const { p, title, head } = productMeta(req, id);
   const html = SHELL === "v1"
@@ -793,7 +941,7 @@ function productPage(req, res, id) {
     : pageShell({
         title, head,
         body: `<div class="page-top"><main class="wrap pdp" id="pdp" data-id="${escHtml(id)}"></main></div>`,
-        scripts: ["/art.js", "/order.js", "/vendor/qrcode.js", "/checkout.js", "/pdp.js", "/salebar.js"],
+        scripts: ["/art.js", "/order.js", "/vendor/qrcode.js", "/checkout.js", "/bag.js", "/pdp.js", "/salebar.js"],
       });
   send(res, p ? 200 : 404, html, "text/html; charset=utf-8");
 }
@@ -828,6 +976,14 @@ async function ownerMessage(body) {
   if (stockReply) return { reply: stockReply };
   const orderReply = orderCommand(text);
   if (orderReply) return { reply: orderReply };
+  // "coins on" / "coins off": customers can spend their coins only while the owner says so.
+  const cm = /^coins?(?:\s+(on|off))?$/i.exec(text.trim());
+  if (cm) {
+    const on = cm[1] ? accounts.setRedeem(cm[1].toLowerCase() === "on") : accounts.redeemOn();
+    const people = accounts.list().filter((c) => accounts.balance(c) > 0);
+    const total = people.reduce((n, c) => n + accounts.balance(c), 0);
+    return { reply: `🪙 Coins: customers earn 1 coin for every ${inr(SHOP.coins?.perRupees || 100)} they pay (1 coin = ₹1).\nSpending is *${on ? "ON" : "OFF"}*${on ? `: coins can pay up to ${SHOP.coins?.maxPct || 10}% of a bag.` : "."}\n${people.length} customer${people.length === 1 ? " has" : "s have"} ${total} coins in all.\nSend *coins ${on ? "off" : "on"}* to switch it ${on ? "off" : "on"}.` };
+  }
   if (/^(stats|report|status|aaj|today)$/i.test(text.trim())) return { reply: statsReply() };
   if (/^(bills?|sales|hisab|hisaab)$/i.test(text.trim())) return { reply: billsReply() };
   if (/^(low|low stock|kam)$/i.test(text.trim())) return { reply: reports.lowText() };
@@ -1733,7 +1889,7 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
     const open = who.role === "owner" ? loadOrders().filter(toConfirm) : [], orders = open.length;
     const items = orders ? load() : [];
     // What the portal's big "confirm this order" pop-up needs, without a second request.
-    const pending = open.filter((o) => o.status === "awaiting_payment").map((o) => ({ code: o.code, productName: o.productName, size: o.size, amount: o.amount, shipping: o.shipping || 0, name: o.name, phone: o.phone, delivery: o.delivery, city: o.city, image: items.find((x) => x.id === o.productId)?.image || "", left: Math.max(0, Date.parse(o.expiresAt) - Date.now()) }));
+    const pending = open.filter((o) => o.status === "awaiting_payment").map((o) => ({ code: o.code, productName: o.productName, pieces: orderLines(o).length, size: o.size, amount: o.amount, shipping: o.shipping || 0, name: o.name, phone: o.phone, delivery: o.delivery, city: o.city, image: items.find((x) => x.id === o.productId)?.image || "", left: Math.max(0, Date.parse(o.expiresAt) - Date.now()) }));
     return send(res, 200, { v: [...PULSE_FILES.map(stamp), orders, new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })].join("-"), orders, pending });
   }
   // Everything the shop needs to start again, for keeping a copy off the server's disk.
@@ -1887,7 +2043,7 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
     if (r.invoice.order) {
       const orders = loadOrders();
       const o = orders.find((x) => x.code === r.invoice.order);
-      if (o && o.status !== "cancelled") { o.status = "cancelled"; o.invoice = null; saveOrders(orders); }
+      if (o && o.status !== "cancelled") { o.status = "cancelled"; o.invoice = null; saveOrders(orders); if (o.customerId) accounts.undo(o.customerId, o.code); }
     }
     return send(res, 200, { invoice: r.invoice });
   }
@@ -1912,6 +2068,7 @@ http
       if (p === "/webhook" && (req.method === "GET" || req.method === "POST")) return await whatsappWebhook(req, res, url);
       if (req.method === "POST" && p === "/api/enquiry") return await handleEnquiry(req, res);
       if (req.method === "POST" && p === "/api/orders") return await createOrder(req, res);
+      if (p.startsWith("/api/account/")) return await accountApi(req, res, p.slice("/api/account/".length));
       const om = /^\/api\/orders\/([a-f0-9]{16})(\/paid|\/cancel)?$/.exec(p);
       if (om && req.method === "POST" && om[2] === "/paid") return refused(res);
       if (om && req.method === "POST" && om[2]) return orderCancel(res, om[1]);
@@ -2079,6 +2236,7 @@ http
       const pv = /^\/preview\/(classic|modern)(\/.*)?$/.exec(p);
       if (pv) return previewRoute(req, res, pv[1], pv[2] || "");
       if (p === "/" ) return serveFile(res, PUBLIC, "index.html");
+      if (p === "/account" || p === "/bag") return accountPage(res, p.slice(1));
       if (p === "/demo") return serveFile(res, PUBLIC, "demo.html");
       const pm = /^\/p\/([\w-]{1,40})$/.exec(p);
       if (pm) return productPage(req, res, pm[1]);
