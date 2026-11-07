@@ -89,6 +89,9 @@ button { font-family: inherit; color: inherit; }
 .icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: var(--ink); transition: background .2s; }
 .icon:hover { background: var(--paper-2); }
 button.icon { border: 0; background: none; padding: 0; cursor: pointer; }
+/* the magnifier sits beside the WhatsApp and Instagram icons on a computer, left beside the menu on phones */
+#search-btn { order: 1; margin-right: -18px; flex: none; }
+.top-row > .icons { order: 2; }
 button.icon:hover, button.icon[aria-expanded="true"] { background: var(--paper-2); }
 
 /* ---- search: a box under the header ---- */
@@ -128,6 +131,7 @@ button.icon:hover, button.icon[aria-expanded="true"] { background: var(--paper-2
   .home .nav { display: none; }
   .home .top .logo { position: absolute; left: 50%; transform: translateX(-50%); font-size: 22px; }
   .home .icons { margin-left: auto; }
+  #search-btn { order: 0; margin-right: 0; }
 }
 body.menu-open { overflow: hidden; }
 .menu { position: fixed; inset: 58px 0 0; z-index: 19; background: var(--paper); padding: 12px var(--gut) 32px; display: flex; flex-direction: column; opacity: 0; transition: opacity .25s; overflow-y: auto; }
