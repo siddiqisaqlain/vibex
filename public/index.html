@@ -29,12 +29,25 @@
       <a href="#visit">The store</a>
     </nav>
     <div class="icons">
+      <button class="icon" id="search-btn" type="button" aria-label="Search" aria-expanded="false" aria-controls="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L20 20"/></svg>
+      </button>
       <a class="icon" id="wa-top" target="_blank" rel="noopener" aria-label="WhatsApp us">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5l1.3-4.2A8.5 8.5 0 1 1 8 19.3z"/><path d="M9 8.5c0 3.5 3 6.5 6.5 6.5l1-1.6-2-1-1 .8a5 5 0 0 1-2.7-2.7l.8-1-1-2z"/></svg>
       </a>
       <a class="icon" id="ig-top" target="_blank" rel="noopener" aria-label="Instagram">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r=".6"/></svg>
       </a>
+    </div>
+  </div>
+  <div class="search" id="search" role="search" hidden>
+    <div class="wrap">
+      <form class="search-form" id="search-form">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L20 20"/></svg>
+        <input id="search-q" type="search" placeholder="Search jackets, perfumes, brands…" aria-label="Search the shop" autocomplete="off" enterkeyhint="search" maxlength="60">
+        <button type="button" class="search-x" id="search-x" aria-label="Close search">×</button>
+      </form>
+      <div class="search-out" id="search-out" aria-live="polite"></div>
     </div>
   </div>
 </header>
@@ -224,6 +237,7 @@
 <script src="/vendor/qrcode.js"></script>
 <script src="/checkout.js"></script>
 <script src="/menu.js"></script>
+<script src="/search.js"></script>
 <script src="/shop.js"></script>
 <script src="/salebar.js"></script>
 <script src="/motion.js"></script>

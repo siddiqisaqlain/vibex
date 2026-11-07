@@ -22,7 +22,8 @@
 
   let products = [];
   // What the rack shows: a tab (All / New / a category) plus optional narrowing.
-  const view = { tab: "All", sub: null, size: null, band: null, brand: null, shown: PAGE };
+  const view = { tab: "All", sub: null, size: null, band: null, brand: null, q: null, shown: PAGE };
+  const SR = window.VXSearch;
   let moreLeft = false, holdLoad = 0;
   // Back from a product page: same number of pieces, so the customer lands where they were.
   const SHOWN_KEY = "vx-shown";
@@ -410,6 +411,7 @@
       else if (!b || !p.price || !b.test(p.price)) return false;
     }
     if (view.brand && p.brand !== view.brand) return false;
+    if (view.q && !SR.score(p, view.q)) return false;
     return true;
   }
 
@@ -427,6 +429,7 @@
 
   function renderActive() {
     const chips = [];
+    if (view.q) chips.push(["q", `“${view.q}”`]);
     if (view.size) chips.push(["size", `Size ${sizeLabel(view.size)}`]);
     if (view.band) chips.push(["band", view.band === "u2000" ? "Under ₹2,000" : BANDS.find((b) => b.id === view.band)?.label]);
     if (view.brand) chips.push(["brand", view.brand]);
@@ -438,7 +441,7 @@
   // photos never reload or go blank on phones.
   const cardCache = new Map();
   function renderGrid(fresh = new Set()) {
-    const list = products.filter(inView).sort(sortRack);
+    const list = view.q ? SR.find(products.filter(inView), view.q) : products.filter(inView).sort(sortRack);
     const shown = list.slice(0, view.shown);
     const grid = document.createElement("div");
     grid.className = "grid";
@@ -458,6 +461,7 @@
     for (const id of cardCache.keys()) if (!byId.has(id)) cardCache.delete(id);
     $("grid").replaceChildren(...(shown.length ? [grid] : []));
     $("empty").hidden = shown.length > 0;
+    $("empty").textContent = view.q ? `Nothing matches “${view.q}” here right now. Try fewer words, or ask us on WhatsApp.` : "Nothing here right now. New stock lands most days.";
     moreLeft = list.length > view.shown;
     $("count").textContent = list.length ? `Showing ${shown.length} of ${list.length}` : "";
     renderSubs();
@@ -511,6 +515,7 @@
       renderLooks();
       renderFeatured();
       if (first) { renderTicker(); document.documentElement.classList.add("vx-ready"); }
+      if (first && !qScrolled) { qScrolled = true; $("rack").scrollIntoView(); }
       // Arrived from another page's logo: Featured only exists once the products have loaded.
       if (first && location.hash === "#feat" && !$("feat").hidden) $("feat").scrollIntoView();
       if (fresh.size) {
@@ -532,7 +537,7 @@
     if (jump) {
       e.preventDefault();
       const tab = jump.dataset.jump;
-      setView({ tab, sub: jump.dataset.sub || null, size: null, band: null, brand: null }, true);
+      setView({ tab, sub: jump.dataset.sub || null, size: null, band: null, brand: null, q: null }, true);
       return;
     }
     const band = e.target.closest("[data-band]");
@@ -546,10 +551,10 @@
     const brand = e.target.closest("[data-brand]");
     if (brand) { setView({ brand: view.brand === brand.dataset.brand ? null : brand.dataset.brand }, true); return; }
     const clr = e.target.closest("[data-clear]");
-    if (clr) { const k = clr.dataset.clear; setView(k === "all" ? { size: null, band: null, brand: null } : { [k]: null }); return; }
+    if (clr) { const k = clr.dataset.clear; setView(k === "all" ? { size: null, band: null, brand: null, q: null } : { [k]: null }); return; }
     const goto = e.target.closest("[data-goto]");
     if (goto) {
-      setView({ tab: "All", sub: null, size: null, band: null, brand: null });
+      setView({ tab: "All", sub: null, size: null, band: null, brand: null, q: null });
       const el = document.querySelector(`.card[data-id="${CSS.escape(goto.dataset.goto)}"]`);
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
       $("toast").hidden = true;
@@ -563,6 +568,13 @@
   });
 
   window.VXOrder.install((id) => products.find((p) => p.id === id));
+
+  // Search: "See all" in the box, or a link to /?q=puffer, shows every match in the rack.
+  const searchRack = (q) => setView({ tab: "All", sub: null, size: null, band: null, brand: null, q }, true);
+  SR.connect(() => products, searchRack);
+  const askedFor = new URLSearchParams(location.search).get("q");
+  if (askedFor && askedFor.trim()) { view.q = askedFor.trim().slice(0, 60); view.tab = "All"; }
+  let qScrolled = !view.q;
 
   // ---- phone dock: hides while scrolling down, comes back on the way up ----
   let lastY = scrollY;
