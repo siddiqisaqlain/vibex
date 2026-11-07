@@ -109,6 +109,18 @@ async function run(b, label) {
   ok(await b.js(boxNames).then((x) => x.length === 1), `${label}: reopened, typing replaces the last search`);
   await b.tap("#stats"); await sleep(250);
   ok(await b.js(`document.getElementById("search").hidden`), `${label}: a tap elsewhere closes it`);
+  // the VIBEX logo opens search, and stays on the home page
+  await home(b);
+  await b.tap(".top .logo .lg-x"); await sleep(250);
+  ok(await b.js(`!document.getElementById("search").hidden && location.pathname==="/" && !location.hash`), `${label}: tapping the logo opens search`);
+  await b.tap(".top .logo .lg-x"); await sleep(120); await b.tap(".top .logo .lg-x"); await sleep(250);
+  ok(await b.js(`!document.getElementById("search").hidden`), `${label}: more taps on the logo keep it open`);
+  await b.type("gucci"); await sleep(150);
+  ok((await b.js(boxNames))[0] === "Gucci Flora", `${label}: and you can type straight away`);
+  // on a product page the logo still goes home
+  await b.nav(base + "/p/p4");
+  await b.tap(".logo");
+  ok(await b.until(`location.pathname==="/"`), `${label}: on a product page the logo goes home`);
   ok(await b.js(`document.documentElement.scrollWidth<=innerWidth`), `${label}: page fits the screen`);
 }
 

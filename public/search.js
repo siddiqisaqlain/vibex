@@ -86,6 +86,14 @@
   }
 
   btn.addEventListener("click", () => (box.hidden ? open() : close(true)));
+  // The VIBEX logo opens search too (logo.js calls this; it doesn't run for reduced motion, so here).
+  const logo = document.querySelector(".top .logo");
+  window.VXSearch.open = open;
+  if (logo) {
+    logo.setAttribute("aria-label", "Vibe X, search the shop");
+    logo.setAttribute("aria-controls", "search");
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) logo.addEventListener("click", (e) => { e.preventDefault(); open(); });
+  }
   input.addEventListener("input", draw);
   $("search-form").addEventListener("submit", (e) => { e.preventDefault(); showAll(); });
   $("search-x").addEventListener("click", () => close(true));
@@ -96,5 +104,5 @@
     if (e.key === "/" && box.hidden && !e.target.closest("input, textarea, select, [contenteditable]") && !e.metaKey && !e.ctrlKey) { e.preventDefault(); open(); }
   });
   // a tap anywhere else closes it
-  document.addEventListener("pointerdown", (e) => { if (!box.hidden && !box.contains(e.target) && !btn.contains(e.target)) close(); });
+  document.addEventListener("pointerdown", (e) => { if (!box.hidden && !box.contains(e.target) && !btn.contains(e.target) && !logo?.contains(e.target)) close(); });
 })();

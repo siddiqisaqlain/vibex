@@ -101,12 +101,13 @@
   });
   logo.addEventListener("pointerup", (e) => { moved = Math.abs(e.clientX - downX) > 8; });
 
-  // On the home page a tap goes to Featured instead of reloading (a reload would replay the intro),
-  // and a finger run along the rack only plays it. On other pages it's the link to home's Featured.
+  // On the home page a tap opens search (search.js) instead of reloading (a reload would replay the
+  // intro), and a finger run along the rack only plays it. On other pages it's the link to home's Featured.
   logo.addEventListener("click", (e) => {
     if (location.pathname !== "/") { if (moved) e.preventDefault(); return; }
     e.preventDefault();
     if (moved) return;
+    if (window.VXSearch?.open) { window.VXSearch.open(); return; }
     const feat = document.getElementById("feat");
     if (feat && !feat.hidden) feat.scrollIntoView({ behavior: "smooth" });
     else if (scrollY > 40) scrollTo({ top: 0, behavior: "smooth" });
