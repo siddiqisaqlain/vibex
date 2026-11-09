@@ -42,7 +42,7 @@ window.VXOrder = (() => {
   // On product pages only: a small "ask on Instagram / chat on WhatsApp" link as a last resort.
   function button(p, big = false) {
     if (p.status === "sold") return `<span class="order is-sold">Sold out</span>`;
-    const enquire = `<button type="button" class="enq" data-ask="${esc(p.id)}">${WA}Enquire</button>`;
+    const enquire = `<button type="button" class="enq" data-ask="${esc(p.id)}" aria-label="Ask on WhatsApp">${WA}Enquire</button>`;
     if (p.status === "hold") return `<span class="order is-hold">On hold</span>${enquire}`;
     // Online ordering stays off until the shop's real payment details are in shop.json.
     const order = S.orderingOpen === false ? ""

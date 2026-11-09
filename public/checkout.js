@@ -62,17 +62,18 @@ window.VXCheckout = (() => {
     const { esc } = O();
     const f = state.form, goods = state.goods;
     const C = S.policy?.courier;
-    const shipNote = C?.perKg ? `Courier is ${O().rupees(C.perKg)} per kg outside Kashmir. Enter your PIN code to see it before you pay.` : PAY.shippingFee == null ? "Courier charge depends on your location. We'll tell you the exact amount on WhatsApp before dispatch; if you don't want to pay it, cancel for a full refund." : PAY.shippingFee === 0 ? "Free shipping." : `Shipping: ${O().rupees(PAY.shippingFee)}.`;
+    const shipNote = C?.perKg ? `Courier ${O().rupees(C.perKg)}/kg outside Kashmir, shown before you pay.` : PAY.shippingFee == null ? "Courier charge depends on your location. We'll tell you the exact amount on WhatsApp before dispatch; if you don't want to pay it, cancel for a full refund." : PAY.shippingFee === 0 ? "Free shipping." : `Shipping: ${O().rupees(PAY.shippingFee)}.`;
     const coinBox = state.coinsUsable > 0
       ? `<label class="co-hide co-coins"><input type="checkbox" name="useCoins" value="1" ${f.useCoins !== "" ? "checked" : ""}><span>Use <b>${state.coinsUsable}</b> coins: ${O().rupees(state.coinsUsable)} off</span></label>`
       : state.coinsBalance > 0 ? `<p class="co-small co-coins">🪙 You have ${state.coinsBalance} coins. You can spend them when Vibe X opens coin offers.</p>` : "";
     shell(`${steps(1)}${bagRows()}
       <form class="co-form" novalidate>
         <h2>Your details</h2>
-        <label>Your name<input name="name" autocomplete="name" maxlength="60" value="${esc(f.name || "")}" required></label>
+        <p class="co-next">Takes 30 seconds. Next you pay by UPI, and we confirm on WhatsApp.</p>
         <label>WhatsApp number<div class="ask-phone"><span>+91</span><input name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="98765 43210" maxlength="14" value="${esc(f.phone || "")}" required></div></label>
+        <label>Your name<input name="name" autocomplete="name" maxlength="60" value="${esc(f.name || "")}" required></label>
         <fieldset class="co-choice"><legend>How do you want it?</legend>
-          <label><input type="radio" name="delivery" value="pickup" ${f.delivery !== "ship" ? "checked" : ""}><span><b>Pick up in Srinagar</b><small>Collect from the store</small></span></label>
+          <label><input type="radio" name="delivery" value="pickup" ${f.delivery === "pickup" ? "checked" : ""}><span><b>Pick up in Srinagar</b><small>Collect from the store</small></span></label>
           <label><input type="radio" name="delivery" value="ship" ${f.delivery === "ship" ? "checked" : ""}><span><b>Deliver to me</b><small>Anywhere in India. ${esc(shipNote)}</small></span></label>
         </fieldset>
         <div class="co-ship" ${f.delivery === "ship" ? "" : "hidden"}>
@@ -88,6 +89,7 @@ window.VXCheckout = (() => {
         <label class="co-hide"><input type="checkbox" name="hideName" value="1" ${f.hideName ? "checked" : ""}><span>Don't show my name on the site</span></label>
         ${coinBox}
         <button class="order co-cta" type="submit">Continue to payment · ${O().rupees(goods)}</button>
+        ${waOrder()}
         <p class="consent">We use your name and number only for this order and its delivery. Unless you tick the box, the site may show your first name and city with what you bought. Your first name is also kept on this device, so we can say hello next time. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
       </form>`);
     const form = dlg.querySelector("form");
@@ -114,6 +116,8 @@ window.VXCheckout = (() => {
     showFee();
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      // Nothing is ticked for a new customer (so the address boxes stay out of the way): ask, never guess.
+      if (!form.elements.delivery.value) { const er = form.querySelector(".ask-err"); er.textContent = "Choose pick up or delivery."; er.hidden = false; form.querySelector(".co-choice").scrollIntoView({ block: "center", behavior: "smooth" }); return; }
       state.form = Object.fromEntries(new FormData(form));
       if (form.elements.useCoins) state.form.useCoins = form.elements.useCoins.checked ? "1" : "";
       const btn = form.querySelector(".co-cta");
@@ -135,7 +139,16 @@ window.VXCheckout = (() => {
         stepDetails(ex.message);
       }
     });
-    form.querySelector("input[name=name]").focus();
+    // On a phone the keyboard would jump up over the form the moment it opens: only computers get the cursor.
+    if (!matchMedia("(pointer: coarse)").matches) form.querySelector("input[name=phone]").focus();
+  }
+
+  // For people who'd rather talk first: the same order, written out, on WhatsApp.
+  function waOrder() {
+    if (!S.whatsapp) return "";
+    const items = state.lines.map((l) => `${l.productName}${l.size ? ` (${l.size})` : ""} ${O().rupees(l.price * (l.qty || 1))}`).join(", ");
+    const text = `Hi Vibe X, I'd like to order: ${items}.`;
+    return `<a class="co-wa" href="https://wa.me/${O().esc(S.whatsapp)}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener" data-co-wa>Rather order on WhatsApp? Message us →</a>`;
   }
 
   // ---------- Step 2: pay ----------
@@ -391,7 +404,7 @@ window.VXCheckout = (() => {
     // Closed the box by accident, or went to the UPI app and came back: pick up the same order.
     if (same && !state.ranOut && state.endsAt > Date.now()) { stepPay(); dlg.showModal(); return; }
     const a = me?.address || {};
-    const saved = { name: a.name || me?.name || "", phone: a.phone || me?.phone || "", delivery: a.delivery || "ship", address: a.address || "", city: a.city || "", pin: a.pin || "" };
+    const saved = { name: a.name || me?.name || "", phone: a.phone || me?.phone || "", delivery: a.delivery || "", address: a.address || "", city: a.city || "", pin: a.pin || "" };
     state = { bag, lines: q.lines, goods: q.goods, coinsUsable: q.coinsUsable || 0, coinsBalance: q.coinsBalance || 0, form: state && state.form ? { ...state.form } : saved, order: null, tab: "upi" };
     if (payOpen()) stepDetails(); else stepClosed();
     dlg.showModal();

@@ -10,6 +10,26 @@
   let pick = null, needPick = false; // chosen size; true after "Order now" with none chosen
   let shot = 0; // which of the item's photos is showing
 
+  // A WhatsApp chat with the shop, the message already written. From the analytics (2026-11-09): people open a
+  // jacket and leave within 5 seconds, so the page answers the doubts they'd otherwise have to ask about.
+  const waLink = (text) => window.SHOP?.whatsapp ? `https://wa.me/${window.SHOP.whatsapp}?text=${encodeURIComponent(text)}` : "";
+  const sizeTxt = (p) => pick ? ` in size ${pick}` : "";
+  function trust(p) {
+    if (p.status !== "available") return "";
+    const maps = window.SHOP?.maps;
+    return `<ul class="pdp-trust" aria-label="Why buy here">
+      <li><span aria-hidden="true">✓</span><span><b>100% original</b> or your money back</span></li>
+      <li><span aria-hidden="true">📍</span><span><b>Try it on</b> at our Khanyaar store${maps ? ` · <a href="${esc(maps)}" target="_blank" rel="noopener">Directions</a>` : ""}</span></li>
+      <li><span aria-hidden="true">🚚</span><span><b>Ships anywhere</b> in India · or pick up in Srinagar</span></li>
+    </ul>`;
+  }
+  // Only the brand's catalogue shot: offer real photos of the exact piece, which is what a stranger wants to see.
+  function realPhotos(p) {
+    const link = waLink(`Hi Vibe X, can you send me real photos of ${p.name}${sizeTxt(p)}? (${lot(p)})`);
+    if (!link || p.status !== "available" || photosOf(p).length > 1) return "";
+    return `<a class="pdp-real" href="${esc(link)}" target="_blank" rel="noopener" data-real="${esc(p.id)}"><span aria-hidden="true">📸</span><span><b>See real photos of this piece</b>Ask on WhatsApp and we'll send them</span><i aria-hidden="true">→</i></a>`;
+  }
+
   const offPct = (p) => (p.mrp && p.price && p.mrp > p.price ? Math.round((1 - p.price / p.mrp) * 100) : 0);
 
   function media(p) {
@@ -45,7 +65,7 @@
     const on = chosenOf(p)?.size;
     const label = (o) => esc(o.size) + (o.left === 0 ? " · sold out" : multiPrice(p) ? ` · ${rupees(o.price)}` : "");
     return `<div class="pdp-sizes" role="group" aria-label="Choose size">
-        <p class="label">Choose size</p>
+        <div class="pdp-size-head"><p class="label">Choose size</p>${waLink("x") ? `<a class="pdp-size-help" href="${esc(waLink(`Hi Vibe X, what are the chest and length measurements of ${p.name}${sizeTxt(p)}? (${lot(p)})`))}" target="_blank" rel="noopener" data-sizehelp="${esc(p.id)}">Not sure? Get measurements</a>` : ""}</div>
         <div class="pills">${opts.map((o) => `<button type="button" class="pill${o.size === on ? " on" : ""}" data-pick="${esc(o.size)}" aria-pressed="${o.size === on}" ${o.left === 0 ? "disabled" : ""}>${label(o)}</button>`).join("")}</div>
         ${needPick ? `<p class="ask-err" role="alert">Choose your size to order</p>` : ""}
       </div>`;
@@ -102,7 +122,7 @@
     root.innerHTML = `
       <a class="back mono" href="${BASE}/#rack">← Back to the rack</a>
       <div class="pdp-grid">
-        <div class="pdp-media">${gallery(p)}</div>
+        <div class="pdp-media">${gallery(p)}${realPhotos(p)}</div>
         <div class="pdp-info">
           <p class="label">${esc([p.category, p.subcategory].filter(Boolean).join(" › "))}</p>
           ${p.brand ? `<span class="brand">${esc(p.brand)}</span>` : ""}
@@ -112,8 +132,9 @@
             ${off ? `<s>${rupees(p.mrp)}</s><span class="off">${off}% OFF</span>` : ""}
             ${off && showPromise() ? `<span class="pdp-save">You save ${rupees(p.mrp - price)}</span>` : ""}
           </div>
-          <p class="pdp-desc">${esc(p.description)}</p>
           ${sizePicker(p)}
+          ${trust(p)}
+          <p class="pdp-desc">${esc(p.description)}</p>
           <dl class="pdp-facts">
             ${p.sizes && (optionsOf(p).length < 2 || p.status !== "available") ? `<div><dt>Size</dt><dd>${esc(p.sizes)}</dd></div>` : ""}
             <div><dt>Condition</dt><dd>Original</dd></div>

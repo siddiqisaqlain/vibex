@@ -976,3 +976,32 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .pdp-info .actions:has(.vx-wish) { grid-template-columns: 1.4fr 1fr 48px; }
 .pdp-info .actions .vx-wish { width: 48px; height: auto; min-height: 42px; }
 @media (max-width: 520px) { .pdp-info .actions:has(.vx-wish) { grid-template-columns: 1fr 1fr 48px; } }
+
+/* ---- Product page trust (2026-11-09, from the analytics: people open a jacket and leave within 5 s) ---- */
+.pdp-trust { list-style: none; margin: 16px 0 4px; padding: 12px 14px; display: grid; gap: 8px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--paper-2, rgba(0,0,0,.025)); font-size: 14px; line-height: 1.35; }
+.pdp-trust li { display: grid; grid-template-columns: 22px 1fr; align-items: baseline; }
+.pdp-trust li > span:first-child { font-size: 14px; text-align: center; }
+.pdp-trust b { font-weight: 600; }
+.pdp-trust a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.pdp-real { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; margin-top: 10px; padding: 12px 14px; border: 1px solid var(--ink); border-radius: 12px; color: var(--ink); text-decoration: none; background: var(--paper); }
+.pdp-real > span:first-child { font-size: 20px; text-align: center; }
+.pdp-real b { display: block; font-size: 14.5px; font-weight: 600; }
+.pdp-real > span:nth-child(2) { font-size: 13px; color: var(--muted); }
+.pdp-real > span:nth-child(2) b { color: var(--ink); }
+.pdp-real i { font-style: normal; font-size: 18px; }
+.pdp-size-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.pdp-size-head .label { margin: 0; }
+.pdp-size-help { font-size: 13px; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.pdp-info .actions .order { white-space: nowrap; }
+/* Phones: one clear buy button, with WhatsApp and the heart as compact squares beside it. */
+@media (max-width: 820px) {
+  .pdp-info .actions, .pdp-info .actions:has(.vx-wish) { grid-template-columns: 1fr 50px 50px; }
+  .pdp-info .actions .enq { width: 50px; padding: 0; font-size: 0; gap: 0; }
+  .pdp-info .actions .enq svg { width: 22px; height: 22px; margin: 0; }
+  .pdp-info .actions .vx-wish { width: 50px; height: 50px; }
+  .pdp-info .actions .order { font-size: 15.5px; }
+}
+/* Checkout: what happens next, and a way out to WhatsApp for people who'd rather talk. */
+.co-next { margin: -4px 0 14px; font-size: 14px; line-height: 1.4; color: var(--muted); }
+.co-wa { display: block; margin: 12px 0 0; padding: 8px 0; text-align: center; font-size: 14px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.co-choice small { text-transform: none; letter-spacing: 0; }
