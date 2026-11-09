@@ -15,15 +15,14 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-alerts-"));
 
 let windowOpen = false;            // has the owner messaged the bot in the last 24 h?
 const sent = [];                   // every message the server asked Meta to send
+const dropped = [];                // free-form messages Meta "accepted" outside the window and never delivered
 const graph = http.createServer((req, res) => {
   let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => {
     const body = b ? JSON.parse(b) : {};
     if (req.url.endsWith("/messages")) {
       sent.push(body);
-      if (body.type !== "template" && !windowOpen) {
-        res.statusCode = 400;
-        return res.end(JSON.stringify({ error: { code: 131047, message: "Re-engagement message" } }));
-      }
+      // Like real Meta: a late free-form message is answered "sent", then silently dropped.
+      if (body.type !== "template" && !windowOpen) { dropped.push(body); return res.end(JSON.stringify({ messages: [{ id: "wamid.lost" }] })); }
       return res.end(JSON.stringify({ messages: [{ id: "wamid.x" }] }));
     }
     res.end("{}");
@@ -62,6 +61,7 @@ try {
   assert.equal(params[1], "enquiry");
   assert.match(params[2], /^EQ[A-Z0-9]{1,6}$/, `reference: ${params[2]}`);
   for (const p of params) assert.ok(!/[\n\t]/.test(p));
+  assert.equal(dropped.length, 0, "no free-form message wasted outside the window");
   ok("outside the 24 h window, the owner gets the approved template: Vibe X / enquiry / reference");
 
   const held = JSON.parse(fs.readFileSync(path.join(dir, "wa-alerts.json"), "utf8"));
