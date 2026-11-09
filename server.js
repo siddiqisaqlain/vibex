@@ -45,6 +45,19 @@ const SHOP = JSON.parse(fs.readFileSync(path.join(ROOT, "shop.json"), "utf8"));
 const ORDERING_OPEN = !(LIVE && SHOP.pay?.demo);
 const UPLOADS = path.join(STORE, "uploads");
 const DB = path.join(STORE, "products.json");
+// A test copy of the site starts with the live shop's products (SEED_FROM=https://vibexindia.com),
+// photos loaded from the live site. Once per data folder (the sample products made at start are replaced).
+const SEEDED = path.join(STORE, ".seeded");
+if (process.env.SEED_FROM && !fs.existsSync(SEEDED)) {
+  const from = process.env.SEED_FROM.replace(/\/$/, "");
+  fetch(`${from}/api/products`).then((r) => r.json()).then((list) => {
+    if (fs.existsSync(SEEDED) || !Array.isArray(list) || !list.length) return;
+    fs.writeFileSync(SEEDED, new Date().toISOString());
+    const abs = (u) => (typeof u === "string" && u.startsWith("/") ? from + u : u);
+    fs.writeFileSync(DB, JSON.stringify(list.map((p) => ({ ...p, image: abs(p.image), ...(p.images ? { images: p.images.map(abs) } : {}) }))));
+    console.log(`Seeded ${list.length} products from ${from}`);
+  }).catch((e) => console.error(`Couldn't seed products from ${from}: ${e.message}`));
+}
 const SEED = path.join(DATA, "seed.json");
 
 fs.mkdirSync(UPLOADS, { recursive: true });
@@ -2065,6 +2078,8 @@ http
   .createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const p = decodeURIComponent(url.pathname);
+    // A test copy of the site (TEST_SITE=1) is kept out of search engines.
+    if (process.env.TEST_SITE) res.setHeader("X-Robots-Tag", "noindex, nofollow");
     try {
       if (toDomain(req, res, p, url)) return;
       if (req.method === "GET" && p === "/api/products") return send(res, 200, publicProducts());
