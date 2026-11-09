@@ -156,6 +156,7 @@ window.VXCheckout = (() => {
     const { esc, rupees } = O();
     state.tab = tab;
     const o = state.order;
+    const pay = o.payExact || o.amount; // with bank-SMS checking, a few paise less: the order's tag
     const note = `${o.code} ${o.lot}`;
     // Only the payment options the shop has filled in (shop.json → pay).
     const tabs = [["upi", "UPI / QR"], ["bank", "Bank transfer"], ["number", "Pay to number"]]
@@ -165,9 +166,9 @@ window.VXCheckout = (() => {
       `<div class="co-field"><span>${label}</span><b class="${mono ? "mono" : ""}">${esc(value)}</b><button type="button" class="co-copy" data-copy="${esc(value)}" aria-label="Copy ${label}">${COPY}<em>Copy</em></button></div>`;
     let body = "";
     if (tab === "upi") {
-      const link = upiLink(o.amount, note);
+      const link = upiLink(pay, note);
       const qr = PAY.qrImage ? `<img src="${esc(PAY.qrImage)}" alt="Vibe X payment QR">` : qrSvg(link);
-      body = `<div class="co-qr">${qr}<p>Scan with GPay, PhonePe, Paytm or any UPI app.${PAY.qrImage ? ` Enter <b>${rupees(o.amount)}</b>.` : " The amount fills in by itself."}</p></div>
+      body = `<div class="co-qr">${qr}<p>Scan with GPay, PhonePe, Paytm or any UPI app.${PAY.qrImage ? ` Enter <b>${rupees(pay)}</b>${o.payExact ? ", with the paise" : ""}.` : " The amount fills in by itself."}</p></div>
         ${isPhone ? `<a class="btn btn-ink co-upi" href="${esc(link)}">Open my UPI app</a>` : ""}
         ${field("UPI ID", PAY.upiId)}`;
     } else if (tab === "bank") {
@@ -179,7 +180,8 @@ window.VXCheckout = (() => {
     shell(`${steps(2)}
       ${PAY.demo ? `<p class="co-demo">Demo payment details. Don't send real money.</p>` : ""}
       <p class="co-timer">Pay within <b data-clock></b></p>
-      <div class="co-amount"><span>Pay exactly</span><b>${rupees(o.amount)}</b><button type="button" class="co-copy" data-copy="${o.amount}" aria-label="Copy amount">${COPY}<em>Copy</em></button></div>
+      <div class="co-amount"><span>Pay exactly</span><b>${rupees(pay)}</b><button type="button" class="co-copy" data-copy="${pay}" aria-label="Copy amount">${COPY}<em>Copy</em></button></div>
+      ${o.payExact ? `<p class="co-small co-exact">The paise are your order's tag: pay exactly <b>${rupees(pay)}</b> and it confirms by itself.</p>` : ""}
       ${o.shipping || o.coinsUsed ? `<p class="co-small">${rupees(o.goods)} for ${state.lines.length > 1 ? `${state.lines.length} pieces` : "the piece"}${o.coinsUsed ? ` − ${rupees(o.coinsUsed)} coins` : ""}${o.shipping ? ` + ${rupees(o.shipping)} courier` : ""}.</p>` : ""}
       <p class="co-small">Add <b class="mono">${esc(o.code)}</b> in the payment note so we can match it.</p>
       <div class="co-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === tab}">${l}</button>`).join("")}</div>

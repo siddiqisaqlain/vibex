@@ -20,6 +20,9 @@ const { readJson, writeJson, dailyBackup } = require("./lib/jsonstore");
 const { videoFeed } = require("./lib/youtube");
 const createAnalytics = require("./lib/analytics");
 const createAccounts = require("./lib/accounts");
+const smsPay = require("./lib/smspay");
+// Automatic payment check from bank SMS: on when PAY_SMS_TOKEN is set (lib/smspay.js).
+const SMS_PAY = () => Boolean(process.env.PAY_SMS_TOKEN);
 const SHOP_NAME = "Vibe X";
 
 const PORT = Number(process.env.PORT) || 4300;
@@ -348,7 +351,7 @@ const ORDERS = path.join(STORE, "orders.json");
 const loadOrders = () => readJson(ORDERS, []);
 const saveOrders = (o) => writeJson(ORDERS, o);
 const lotOf = (p) => "LOT " + (p.code || hashLot(p.id));
-const inr = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
+const inr = (n) => `₹${Number(n).toLocaleString("en-IN", Number.isInteger(Number(n)) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function newOrderCode(orders) {
   for (;;) {
@@ -400,6 +403,34 @@ function priceBag(bag, { pin = "", delivery = "pickup", holdToken = "" } = {}) {
   return { lines, goods, shipping, kg: Math.round(kg * 100) / 100, inside, problems };
 }
 
+// The owner's phone forwards a bank SMS here. A credit of exactly one open order's amount confirms it.
+const smsSeen = new Map(); // hash of the SMS -> time: forwarder apps retry, and one payment must count once
+async function paySms(req, res, url) {
+  if (!SMS_PAY()) return send(res, 404, { error: "not found" });
+  if (!smsPay.sameToken(url.searchParams.get("t") || req.headers["x-sms-token"], process.env.PAY_SMS_TOKEN)) return send(res, 401, { error: "bad token" });
+  let raw = "";
+  try { raw = await readBody(req, 16 * 1024); } catch { return send(res, 400, { error: "too big" }); }
+  const { text, from } = smsPay.smsText(raw, req.headers["content-type"]);
+  const h = crypto.createHash("sha256").update(text).digest("hex");
+  for (const [k, t] of smsSeen) if (Date.now() - t > 864e5) smsSeen.delete(k);
+  if (smsSeen.has(h)) return send(res, 200, { ok: true, matched: null, why: "seen before" });
+  smsSeen.set(h, Date.now());
+  const paise = smsPay.creditPaise(text);
+  if (!paise) { console.log(`Bank SMS${from ? ` from ${from.slice(0, 12)}` : ""}: not a credit, ignored`); return send(res, 200, { ok: true, matched: null, why: "not a credit" }); }
+  const recent = Date.now() - 3 * 3600e3;
+  const hits = loadOrders().filter((o) => o.payExact && Math.round(o.payExact * 100) === paise && (o.status === "awaiting_payment" || o.status === "lapsed") && Date.parse(o.createdAt) > recent);
+  if (hits.length !== 1) { console.log(`Bank SMS: credit of ${inr(paise / 100)} matched ${hits.length} orders, left for the owner`); return send(res, 200, { ok: true, matched: null, why: `${hits.length} orders match` }); }
+  const o = hits[0];
+  const reply = orderCommand(`confirm ${o.code}`);
+  const all = loadOrders(), done = all.find((x) => x.id === o.id);
+  if (done?.status === "confirmed") { done.paidBy = "bank-sms"; saveOrders(all); }
+  console.log(`Bank SMS: ${inr(paise / 100)} credited, ${o.code} ${done?.status === "confirmed" ? "confirmed automatically" : "could not be confirmed"}`);
+  sendToOwner({ id: crypto.randomBytes(6).toString("hex"), at: new Date().toISOString(), kind: "order", summary: { kind: "order", ref: o.code },
+    text: `🤖 *Paid: ${inr(paise / 100)} reached your bank* (from your bank SMS)
+${reply}` });
+  send(res, 200, { ok: true, matched: o.code, status: done?.status });
+}
+
 async function createOrder(req, res) {
   let b;
   try { b = JSON.parse(await readBody(req, 20 * 1024)); } catch { return send(res, 400, { error: "Something went wrong. Please try again." }); }
@@ -434,11 +465,15 @@ async function createOrder(req, res) {
   if (!me) { const made = accounts.create({ name }); me = made.customer; setSession(req, res, made.token); }
   const orders = loadOrders();
   const lines = q.lines.map(({ _p, image, ...l }) => l);
+  const amount = q.goods - coinsUsed + q.shipping;
+  // With bank-SMS checking on, the customer pays a few paise less than the price, an amount no other open order uses.
+  const recent = Date.now() - 3 * 3600e3;
+  const paise = SMS_PAY() ? smsPay.uniquePaise(amount, orders.filter((o) => (o.status === "awaiting_payment" || o.status === "lapsed") && Date.parse(o.createdAt) > recent)) : 0;
   const order = {
     id: crypto.randomBytes(8).toString("hex"), code: newOrderCode(orders), customerId: me.id,
     lines, productId: lines[0].productId, productName: lines.length === 1 ? lines[0].productName : `${lines[0].productName} + ${lines.length - 1} more`,
     lot: lines[0].lot, ...(lines.length === 1 && lines[0].size ? { size: lines[0].size } : {}),
-    goods: q.goods, ...(coinsUsed ? { coinsUsed } : {}), amount: q.goods - coinsUsed + q.shipping,
+    goods: q.goods, ...(coinsUsed ? { coinsUsed } : {}), amount, ...(paise ? { paise, payExact: Math.round(amount * 100 - paise) / 100 } : {}),
     ...(q.shipping ? { shipping: q.shipping, kg: q.kg } : {}),
     name, phone, delivery, address, city, pin, ...(b.hideName ? { hideName: true } : {}),
     status: "awaiting_payment", createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + ORDER_WINDOW_MS).toISOString(),
@@ -457,7 +492,7 @@ async function createOrder(req, res) {
   }
   save(items);
   orderAlert(order, first);
-  send(res, 200, { id: order.id, code: order.code, amount: order.amount, goods: order.goods, coinsUsed, lot: order.lot, shipping: q.shipping, left: ORDER_WINDOW_MS, lines: lines.length });
+  send(res, 200, { id: order.id, code: order.code, amount: order.amount, ...(order.payExact ? { payExact: order.payExact, auto: true } : {}), goods: order.goods, coinsUsed, lot: order.lot, shipping: q.shipping, left: ORDER_WINDOW_MS, lines: lines.length });
 }
 
 // "Pay now" pages from before the payment window are still open in some phones: nothing they send counts.
@@ -470,7 +505,7 @@ function orderAlert(o, p) {
     id: crypto.randomBytes(6).toString("hex"), at: new Date().toISOString(), kind: "order",
     summary: { kind: "order", ref: o.code },
     image: (p && p.image) || null,
-    text: `💰 *New order ${o.code}: ${Math.round(ORDER_WINDOW_MS / 60e3)} minutes to confirm*\n${linesText(o)}\n*Total ${inr(o.amount)}*${o.coinsUsed ? ` (${inr(o.coinsUsed)} paid in coins)` : ""}${o.shipping ? ` (includes ${inr(o.shipping)} courier for ${o.kg} kg)` : ""}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 Look for note ${o.code}\n\nThe customer is on the payment screen now. When ${inr(o.amount)} reaches your bank, reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
+    text: `💰 *New order ${o.code}: ${Math.round(ORDER_WINDOW_MS / 60e3)} minutes to confirm*\n${linesText(o)}\n*Total ${inr(o.amount)}*${o.coinsUsed ? ` (${inr(o.coinsUsed)} paid in coins)` : ""}${o.shipping ? ` (includes ${inr(o.shipping)} courier for ${o.kg} kg)` : ""}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 Look for note ${o.code}\n\nThe customer is on the payment screen now${o.payExact ? `, paying exactly *${inr(o.payExact)}*. Your bank SMS confirms it by itself; if it doesn't,` : `. When ${inr(o.amount)} reaches your bank,`} reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
   });
 }
 
@@ -633,7 +668,8 @@ function orderCommand(text) {
   const sellLines = orderLines(o).map((l, i, all) => {
     const share = i === all.length - 1 ? coinsLeft : Math.min(coinsLeft, Math.round(((o.coinsUsed || 0) * l.price * l.qty) / (o.goods || 1)));
     coinsLeft -= share;
-    return { productId: l.productId, qty: l.qty, price: l.price, size: l.size, ...(share ? { disc: share } : {}) };
+    const off = share + (i === all.length - 1 ? (o.paise || 0) / 100 : 0); // the paise taken off for the bank-SMS match
+    return { productId: l.productId, qty: l.qty, price: l.price, size: l.size, ...(off ? { disc: Math.round(off * 100) / 100 } : {}) };
   });
   const sale = billing.sell(sellLines, {
     source: "website", order: o.code, holdFor: o.code, payment: "upi",
@@ -2036,6 +2072,7 @@ http
       if (p === "/webhook" && (req.method === "GET" || req.method === "POST")) return await whatsappWebhook(req, res, url);
       if (req.method === "POST" && p === "/api/enquiry") return await handleEnquiry(req, res);
       if (req.method === "POST" && p === "/api/orders") return await createOrder(req, res);
+      if (req.method === "POST" && p === "/api/pay/sms") return await paySms(req, res, url);
       if (p.startsWith("/api/account/")) return await accountApi(req, res, p.slice("/api/account/".length));
       const om = /^\/api\/orders\/([a-f0-9]{16})(\/paid|\/cancel)?$/.exec(p);
       if (om && req.method === "POST" && om[2] === "/paid") return refused(res);

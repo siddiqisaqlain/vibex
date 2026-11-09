@@ -17,7 +17,7 @@ window.VXOrder = (() => {
   }
   const S = window.SHOP;
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN");
+  const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN", Number.isInteger(Number(n)) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const hash = (s) => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
   const lot = (p) => "LOT " + (p.code || String(hash(p.id) % 9000 + 1000));
   const pageUrl = (p) => `${location.origin}/p/${encodeURIComponent(p.id)}`;
