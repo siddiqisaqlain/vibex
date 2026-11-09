@@ -9,7 +9,6 @@ import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { shopperCookie } from "./_shopper.mjs";
 
 const OWNER = "919000000003";
 const SECRET = "test-secret";
@@ -30,7 +29,7 @@ await new Promise((r) => graph.listen(0, "127.0.0.1", r));
 
 const srv = spawn(process.execPath, ["server.js"], {
   cwd: path.resolve(import.meta.dirname, ".."),
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", WA_TOKEN: "t", WA_LOGIN_DEV: "1", WA_PHONE_ID: "123", WA_APP_SECRET: SECRET,
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, ORDER_HOURS: "0-24", OWNER_KEY: "k", WA_TOKEN: "t", WA_PHONE_ID: "123", WA_APP_SECRET: SECRET,
     OWNER_WHATSAPP: OWNER, WA_ALBUM_MS: "400", DRAFT_STALE_MS: "1500", PUBLIC_URL: "https://shop.example", WA_GRAPH_URL: `http://127.0.0.1:${graph.address().port}`, ANTHROPIC_API_KEY: "" },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -211,8 +210,7 @@ try {
   assert.equal(g.sizePrices, undefined, "the raw price map stays on the server");
   ok("a caption with ml prices lists one product with two priced sizes and its description");
 
-  const cookie = await shopperCookie(base);
-  const order = (extra) => fetch(`${base}/api/orders`, { method: "POST", headers: { "Content-Type": "application/json", cookie }, body: JSON.stringify({ productId: g.id, name: "Asha", phone: "9876543210", delivery: "pickup", ...extra }) });
+  const order = (extra) => fetch(`${base}/api/orders`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productId: g.id, name: "Asha", phone: "9876543210", delivery: "pickup", ...extra }) });
   let r = await order({});
   assert.equal(r.status, 400);
   assert.match((await r.json()).error, /choose a size/i);

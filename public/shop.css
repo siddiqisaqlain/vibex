@@ -969,6 +969,9 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .acct-sum { display: flex; flex-direction: column; gap: 12px; }
 @media (min-width: 820px) { .acct { max-width: 1040px; } .acct-bag { grid-template-columns: 1fr 340px; align-items: start; } .acct-sum { position: sticky; top: 90px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; } }
 .top-row > .vx-hdr { margin-left: 0; }
+/* Phones: the logo sits in the middle, so the right side keeps only WhatsApp and the bag.
+   Instagram and My account are in the menu. */
+@media (max-width: 900px) { .home .icons #ig-top, .home .icons .vx-hbtn[href="/account"] { display: none; } }
 /* the wishlist heart sits at the end of the buy row */
 .pdp-info .actions:has(.vx-wish) { grid-template-columns: 1.4fr 1fr 48px; }
 .pdp-info .actions .vx-wish { width: 48px; height: auto; min-height: 42px; }

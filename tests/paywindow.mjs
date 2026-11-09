@@ -6,7 +6,6 @@ import path from "node:path";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
-import { shopperCookie } from "./_shopper.mjs";
 
 const require = createRequire(import.meta.url);
 const { isOpen, closedText, read } = require("../lib/paywindow.js");
@@ -15,8 +14,8 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-paywindow-"));
 const base = `http://127.0.0.1:${PORT}`;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const boot = (extra) => spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."), stdio: "ignore",
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", ANTHROPIC_API_KEY: "", WA_TOKEN: "", WA_LOGIN_DEV: "1", ORDER_WINDOW_MS: String(WINDOW), ORDER_SWEEP_MS: "100", ...extra } });
-const up = async () => { for (let i = 0; i < 50; i++) { try { await fetch(`${base}/api/products`); break; } catch { await wait(100); } } H.cookie ||= await shopperCookie(base); };
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", ANTHROPIC_API_KEY: "", WA_TOKEN: "", ORDER_WINDOW_MS: String(WINDOW), ORDER_SWEEP_MS: "100", ...extra } });
+const up = async () => { for (let i = 0; i < 50; i++) { try { await fetch(`${base}/api/products`); return; } catch { await wait(100); } } };
 const H = { "Content-Type": "application/json", "x-owner-key": "k", "x-forwarded-for": "" };
 let ip = 1;
 const post = async (p, b = {}) => { const r = await fetch(base + p, { method: "POST", headers: { ...H, "x-forwarded-for": `10.0.0.${ip}` }, body: JSON.stringify(b) }); return { ...(await r.json().catch(() => ({}))), status: r.status }; };

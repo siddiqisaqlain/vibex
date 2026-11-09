@@ -307,7 +307,7 @@ async function whatsappWebhook(req, res, url) {
   if (!wa.enabled()) return console.warn("WhatsApp webhook called but WA_* / OWNER_WHATSAPP settings are missing");
   let payload;
   try { payload = JSON.parse(raw); } catch { return; }
-  wa.handleWebhook(payload, { ownerMessage, customerMessage: (from, text) => accounts.waMessage(from, text), shopName: SHOP_NAME, shopKey: "vibex", shopUrl: siteUrl() || "our website", choiceFile: path.join(STORE, "wa-shop.json") },
+  wa.handleWebhook(payload, { ownerMessage, shopName: SHOP_NAME, shopKey: "vibex", shopUrl: siteUrl() || "our website", choiceFile: path.join(STORE, "wa-shop.json") },
     raw, req.headers["x-hub-signature-256"]);
 }
 
@@ -405,9 +405,8 @@ async function createOrder(req, res) {
   try { b = JSON.parse(await readBody(req, 20 * 1024)); } catch { return send(res, 400, { error: "Something went wrong. Please try again." }); }
   if (b.website) return send(res, 200, { ok: true });
   if (!ORDERING_OPEN) return send(res, 403, { error: "Online ordering opens soon. Tap Enquire and we'll reply on WhatsApp." });
-  // Buying needs an account: the shop's choice, so every customer can see their orders and coins.
-  const me = customerOf(req);
-  if (!me) return send(res, 401, { error: "Please sign in to order.", signIn: true });
+  // No sign-in. This phone's account, if it has ordered before; the first order makes one (below).
+  let me = customerOf(req);
   if (!payWindow.isOpen(PAY_WINDOW)) return send(res, 409, { error: payWindow.closedText(PAY_WINDOW) });
   if (tooMany(clientIp(req))) return send(res, 429, { error: "Too many attempts. Please wait a few minutes." });
   const name = String(b.name || "").replace(/\s+/g, " ").trim().slice(0, 60);
@@ -431,7 +430,8 @@ async function createOrder(req, res) {
   if (only("size")) return send(res, 400, { error: "Please choose a size first.", problems: q.problems });
   if (q.problems.length) return send(res, 409, { error: q.problems.length === 1 ? `${q.problems[0].name || "One piece"}: ${q.problems[0].text}.` : "Some pieces in your bag changed. Please check your bag.", problems: q.problems });
   // Coins, only while the shop has redeeming switched on, and never more than the cap.
-  const coinsUsed = b.useCoins ? accounts.usable(me, q.goods) : 0;
+  const coinsUsed = me && b.useCoins ? accounts.usable(me, q.goods) : 0;
+  if (!me) { const made = accounts.create({ name }); me = made.customer; setSession(req, res, made.token); }
   const orders = loadOrders();
   const lines = q.lines.map(({ _p, image, ...l }) => l);
   const order = {
@@ -843,39 +843,6 @@ async function accountApi(req, res, route) {
   const body = async (n = 16 * 1024) => { try { return JSON.parse((await readBody(req, n)) || "{}"); } catch { return null; } };
   const post = req.method === "POST", me = customerOf(req);
   if (req.method === "GET" && route === "me") return send(res, 200, me ? accountView(me) : { signedIn: false });
-  // WhatsApp: the page gets a code to send, then asks every couple of seconds whether it came.
-  if (post && route === "wa/start") {
-    if (tooMany(clientIp(req))) return send(res, 429, { error: "Too many tries. Please wait a few minutes." });
-    const bot = await wa.botNumber();
-    if (!bot && !process.env.WA_LOGIN_DEV) return send(res, 503, { error: "WhatsApp sign-in isn't available right now. Please use Google." });
-    const r = accounts.waStart(), text = `${SHOP_NAME} login ${r.code}`;
-    return send(res, 200, { code: r.code, pending: r.pending, text, link: `https://wa.me/${bot || "910000000000"}?text=${encodeURIComponent(text)}`, expiresIn: r.expiresIn });
-  }
-  if (post && route === "wa/check") {
-    const b = await body(1024);
-    const r = accounts.waCheck(String(b?.pending || ""));
-    if (!r.customer) return send(res, 200, r);
-    if (Array.isArray(b.bag) && b.bag.length) accounts.mergeBag(r.customer.id, b.bag);
-    if (Array.isArray(b.wish) && b.wish.length) accounts.setWish(r.customer.id, [...(r.customer.wish || []), ...b.wish]);
-    setSession(req, res, r.token);
-    return send(res, 200, accountView(accounts.get(r.customer.id)));
-  }
-  // Local testing only: pretend the WhatsApp message arrived from this number.
-  if (post && route === "wa/dev-send" && process.env.WA_LOGIN_DEV && !process.env.RENDER) {
-    const b = await body(1024);
-    return send(res, 200, { reply: accounts.waMessage(String(b?.from || ""), String(b?.text || "")) });
-  }
-  if (post && route === "google") {
-    if (tooMany(clientIp(req))) return send(res, 429, { error: "Too many tries. Please wait a few minutes." });
-    const b = await body(8 * 1024);
-    const r = await accounts.google(String(b?.credential || ""), process.env.GOOGLE_CLIENT_ID);
-    if (r.error) return send(res, 400, { error: r.error });
-    if (Array.isArray(b.bag) && b.bag.length) accounts.mergeBag(r.customer.id, b.bag);
-    if (Array.isArray(b.wish) && b.wish.length) accounts.setWish(r.customer.id, [...(r.customer.wish || []), ...b.wish]);
-    setSession(req, res, r.token);
-    return send(res, 200, accountView(accounts.get(r.customer.id)));
-  }
-  if (post && route === "logout") { accounts.endSession(cookieOf(req)); setSession(req, res, ""); return send(res, 200, { signedIn: false }); }
   // The bag priced by the server: what checkout shows, and what the order will charge.
   if (post && route === "quote") {
     const b = await body();
@@ -885,7 +852,8 @@ async function accountApi(req, res, route) {
     const coins = me ? accounts.usable(me, q.goods) : 0;
     return send(res, 200, { lines: q.lines.map(({ _p, ...l }) => l), goods: q.goods, shipping: q.shipping, kg: q.kg, inside: q.inside, problems: q.problems, coinsUsable: coins, coinsBalance: me ? accounts.balance(me) : 0, redeemOn: accounts.redeemOn() });
   }
-  if (!me) return send(res, 401, { error: "Please sign in.", signIn: true });
+  // Before a phone's first order there's no account: its bag and wishlist stay in the browser.
+  if (!me) return send(res, 200, { signedIn: false });
   if (post && route === "bag") { const b = await body(); return b ? send(res, 200, { bag: accounts.setBag(me.id, b.bag).bag }) : send(res, 400, { error: "Bad request." }); }
   if (post && route === "wish") { const b = await body(); return b ? send(res, 200, { wish: accounts.setWish(me.id, b.wish).wish }) : send(res, 400, { error: "Bad request." }); }
   if (post && route === "address") { const b = await body(); return b ? send(res, 200, { address: accounts.setAddress(me.id, b).address }) : send(res, 400, { error: "Bad request." }); }
@@ -900,7 +868,7 @@ if (SHOP.youtube?.channelId) {
 }
 
 function sendConfig(res) {
-  const pub = { ...SHOP, accounts: { google: process.env.GOOGLE_CLIENT_ID || "", whatsapp: Boolean(wa.enabled() || process.env.WA_LOGIN_DEV), coins: { perRupees: SHOP.coins?.perRupees || 100, maxPct: SHOP.coins?.maxPct || 10 } }, pay: { ...SHOP.pay, window: PAY_WINDOW, closedText: payWindow.closedText(PAY_WINDOW) }, orderingOpen: ORDERING_OPEN, latestVideo: latestVideo.current() };
+  const pub = { ...SHOP, accounts: { coins: { perRupees: SHOP.coins?.perRupees || 100, maxPct: SHOP.coins?.maxPct || 10 } }, pay: { ...SHOP.pay, window: PAY_WINDOW, closedText: payWindow.closedText(PAY_WINDOW) }, orderingOpen: ORDERING_OPEN, latestVideo: latestVideo.current() };
   res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
   return res.end(`window.SHOP = ${JSON.stringify(pub).replace(/</g, "\\u003c")};\n`);
 }

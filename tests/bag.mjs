@@ -1,5 +1,6 @@
-// Bag + accounts: sign in with a WhatsApp code, a bag of several pieces becomes one order, the owner
-// confirms it into one bill, coins are earned, spent only when switched on, and come back on cancel.
+// Bag + accounts with no sign-in: anyone can order, the first order quietly makes the phone's account,
+// a bag of several pieces becomes one order, the owner confirms it into one bill, coins are earned,
+// spent only when switched on, and come back on cancel.
 // Runs the real server. `node tests/bag.mjs`
 import fs from "node:fs";
 import os from "node:os";
@@ -12,7 +13,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-bag-"));
 const base = `http://127.0.0.1:${PORT}`;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const srv = spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."), stdio: "ignore",
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", ANTHROPIC_API_KEY: "", WA_TOKEN: "", WA_LOGIN_DEV: "1", ORDER_HOURS: "0-24", RENDER: "" } });
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", ANTHROPIC_API_KEY: "", WA_TOKEN: "", ORDER_HOURS: "0-24", RENDER: "" } });
 process.on("exit", () => srv.kill());
 for (let i = 0; i < 60; i++) { try { await fetch(`${base}/api/products`); break; } catch { await wait(100); } }
 
@@ -38,64 +39,51 @@ const item = async (name, price, quantity = 1) => {
   return product.id;
 };
 const statusOf = async (id) => (await owner("GET", "/api/products")).find((p) => p.id === id)?.status;
-async function signIn(b, phone) {
-  const st = await b.post("/api/account/wa/start");
-  assert.match(st.code, /^\d{6}$/); assert.match(st.link, /^https:\/\/wa\.me\/\d+\?text=Vibe%20X%20login%20\d{6}$/);
-  assert.equal((await b.post("/api/account/wa/check", { pending: st.pending })).waiting, true);
-  const reply = (await b.post("/api/account/wa/dev-send", { from: `91${phone}`, text: st.text })).reply;
-  assert.match(reply, /signed in/);
-  return b.post("/api/account/wa/check", { pending: st.pending, bag: [] });
-}
-
 const jacket = await item("Puma jacket", 7199);
 const perfume = await item("Zara perfume", 1999, 5);
 const scarf = await item("Wool scarf", 999);
 
-// 1. Buying needs an account.
-const guest = browser();
-let r = await guest.post("/api/orders", { lines: [{ id: jacket }], name: "Aamir", phone: "9876500001", delivery: "pickup" });
-assert.equal(r.status, 401); assert.equal(r.signIn, true);
-assert.equal(await statusOf(jacket), "available");
-ok("signed out: order refused, piece not held");
-
-// 2. A guessed or wrong code signs nobody in; an old code is refused.
-assert.match((await guest.post("/api/account/wa/dev-send", { from: "919999999999", text: "Vibe X login 000000" })).reply, /run out/);
-assert.equal((await guest.post("/api/account/wa/check", { pending: "nope" })).expired, true);
-assert.equal((await guest.get("/api/account/me")).signedIn, false);
-ok("wrong code / wrong secret: not signed in");
-
-// 3. WhatsApp sign-in: the number the message came from is the account.
+// 1. No sign-in: a new phone is signed out, and its bag API simply says so.
 const amir = browser();
-const me = await signIn(amir, "9876500002");
-assert.equal(me.signedIn, true); assert.equal(me.phone, "9876500002");
-assert.match(amir.cookie(), /^vxs=[a-f0-9]{64}$/);
-assert.equal((await amir.get("/api/account/me")).phone, "9876500002");
-ok("WhatsApp code signs in, cookie set, /me knows them");
+assert.equal((await amir.get("/api/account/me")).signedIn, false);
+assert.equal((await amir.post("/api/account/bag", { bag: [{ id: jacket }] })).signedIn, false);
+ok("new phone: no account yet, nothing refused");
 
-// 4. The bag follows the account; the quote is the server's price, not the browser's.
-await amir.post("/api/account/bag", { bag: [{ id: jacket }, { id: perfume, qty: 2 }, { id: "fake-id" }] });
-const q = await amir.post("/api/account/quote", { lines: [{ id: jacket, price: 1 }, { id: perfume, qty: 2 }] });
-assert.equal(q.goods, 7199 + 2 * 1999); assert.equal(q.lines.length, 2);
-const again = browser(); await signIn(again, "9876500002");
-const seen = (await again.get("/api/account/me")).bag;
-assert.equal(seen.length, 3);
-const q3 = await again.post("/api/account/quote", { lines: seen });
-assert.equal(q3.lines.length, 2); assert.equal(q3.problems[0].why, "gone"); // shown as "No longer listed"
-ok("bag saved to account, seen on a second phone; quote uses server prices");
+// 2. The quote is the server's price, not the browser's, and flags pieces that are gone.
+const q = await amir.post("/api/account/quote", { lines: [{ id: jacket, price: 1 }, { id: perfume, qty: 2 }, { id: "fake-id" }] });
+assert.equal(q.goods, 7199 + 2 * 1999); assert.equal(q.lines.length, 2); assert.equal(q.problems[0].why, "gone");
+ok("quote uses server prices; gone pieces flagged");
 
 // 5. One order for the whole bag: last piece held, owner gets every line.
-r = await amir.post("/api/orders", { lines: [{ id: jacket }, { id: perfume, qty: 2 }], name: "Aamir Khan", phone: "9876500002", delivery: "pickup" });
+// The first order makes this phone's account and sets its cookie.
+let r = await amir.post("/api/orders", { lines: [{ id: jacket }, { id: perfume, qty: 2 }], name: "Aamir Khan", phone: "9876500002", delivery: "pickup" });
 assert.equal(r.status, 200); assert.equal(r.amount, 11197); assert.equal(r.lines, 2);
+assert.match(amir.cookie(), /^vxs=[a-f0-9]{64}$/);
+const me = await amir.get("/api/account/me");
+assert.equal(me.signedIn, true); assert.equal(me.name, "Aamir Khan"); assert.equal(me.address.phone, "9876500002"); assert.equal(me.orders.length, 1);
 assert.equal(await statusOf(jacket), "hold");
 const alert = JSON.parse(fs.readFileSync(path.join(dir, "inbox.json"), "utf8")).at(-1).text;
 assert.match(alert, /Puma jacket/); assert.match(alert, /Zara perfume × 2 · ₹3,998/); assert.match(alert, /Total ₹11,197/);
-ok("bag order: one code, held last piece, alert lists every line");
+ok("first order: account made, cookie set, details saved; one code, held last piece, alert lists every line");
+
+// Its bag and wishlist now live in the account.
+await amir.post("/api/account/bag", { bag: [{ id: scarf }] });
+assert.equal((await amir.get("/api/account/me")).bag.length, 1);
+ok("after the first order the bag is kept in the account");
 
 // 6. Someone else can't buy the held jacket.
-const sana = browser(); await signIn(sana, "9876500003");
+const sana = browser();
 r = await sana.post("/api/orders", { lines: [{ id: jacket }], name: "Sana", phone: "9876500003", delivery: "pickup" });
 assert.equal(r.status, 409); assert.ok(r.problems?.length);
 ok("held piece refused to a second customer");
+
+// Typing someone else's number never opens their account.
+r = await sana.post("/api/orders", { lines: [{ id: perfume }], name: "Sana", phone: "9876500002", delivery: "pickup" });
+assert.equal(r.status, 200);
+const sanaMe = await sana.get("/api/account/me");
+assert.equal(sanaMe.orders.length, 1); assert.equal(sanaMe.name, "Sana");
+assert.equal((await amir.get("/api/account/me")).orders.length, 1);
+ok("same number on another phone: a separate account, nobody else's orders shown");
 
 // 7. Owner confirms: one bill with both lines, stock off, coins earned (1 per ₹100).
 let reply = (await say(`confirm ${(await amir.get("/api/account/me")).orders[0].code}`)).reply;
@@ -132,12 +120,6 @@ await owner("POST", `/api/billing/invoices/${bill.id}/cancel`, { reason: "test" 
 acct = await amir.get("/api/account/me");
 assert.equal(acct.coins.balance, 0); assert.equal(acct.orders.find((o) => o.code === first.code).status, "cancelled");
 ok("bill cancelled: earned coins taken back");
-
-// 11. Signing out ends the session for real.
-await amir.post("/api/account/logout");
-assert.equal((await amir.get("/api/account/me")).signedIn, false);
-assert.equal((await again.get("/api/account/me")).signedIn, true); // the other phone stays in
-ok("sign out ends this session only");
 
 // 12. Pages exist.
 for (const p of ["/account", "/bag"]) { const h = await (await fetch(base + p)).text(); assert.match(h, /id="acct"/); assert.match(h, /bag\.js/); }

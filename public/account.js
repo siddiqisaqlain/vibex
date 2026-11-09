@@ -34,16 +34,16 @@
       <aside class="acct-sum"><div class="vx-total"><span>Total</span><b>${rupees(q.goods)}</b></div>
       ${earn ? `<p class="co-small vx-earn">🪙 You'll earn <b>${earn} coin${earn === 1 ? "" : "s"}</b> with this order.</p>` : ""}
       ${off.length ? `<p class="co-small">Remove the pieces in grey to continue.</p>` : ""}
-      <button type="button" class="order co-cta" data-checkout-page ${q.lines.length && !off.length ? "" : "disabled"}>${B.me().signedIn ? "Checkout" : "Sign in to checkout"} · ${rupees(q.goods)}</button>
+      <button type="button" class="order co-cta" data-checkout-page ${q.lines.length && !off.length ? "" : "disabled"}>Checkout · ${rupees(q.goods)}</button>
       <a class="co-back" href="/#rack">Keep shopping</a></aside></div>`;
   }
 
   // ---------- /account ----------
   function drawSignedOut() {
     root.innerHTML = `<h1 class="acct-h">My account</h1>
-      <div class="acct-card acct-signin"><p>Sign in to see your orders, saved address, wishlist and coins on any phone.</p>
-      <button type="button" class="btn btn-ink" data-signin>Sign in</button></div>
-      ${B.wish().length ? `<section class="acct-sec" id="wish"><h2>Saved on this phone</h2>${wishGrid(B.wish())}</section>` : ""}`;
+      <div class="acct-card acct-signin"><p>No sign-up needed. After your first order, this page shows your orders, saved address and coins, right here on this phone.</p>
+      <a class="btn btn-ink" href="/#rack">Shop new drops</a></div>
+      <section class="acct-sec" id="wish"><h2>Wishlist</h2>${wishGrid(B.wish())}</section>`;
   }
   function wishGrid(ids) {
     const list = ids.map((id) => products.find((p) => p.id === id)).filter(Boolean);
@@ -79,7 +79,7 @@
           <input type="hidden" name="delivery" value="${a.delivery === "pickup" ? "pickup" : "ship"}">
           <button class="btn btn-line" type="submit">Save address</button><p class="co-small acct-saved" role="status" hidden>Saved.</p>
         </form></section>
-      <button type="button" class="co-back acct-out" data-signout>Sign out</button>`;
+      <p class="co-small acct-note">Your orders and coins are kept on this phone, in this browser.</p>`;
     root.querySelector(".acct-addr").addEventListener("submit", async (e) => {
       e.preventDefault();
       await fetch("/api/account/address", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(new FormData(e.target))) });
@@ -92,10 +92,8 @@
     const rm = e.target.closest("[data-rm-page]");
     if (rm) { B.remove(rm.dataset.rmPage, rm.dataset.size || ""); return drawBag(); }
     if (e.target.closest("[data-checkout-page]")) return B.checkout();
-    if (e.target.closest("[data-signin]")) { if (await B.signIn("Sign in")) drawAccount(); return; }
-    if (e.target.closest("[data-signout]")) { await B.signOut(); return drawAccount(); }
   });
-  // Wishlist hearts and sign-in change things drawn here.
+  // Wishlist hearts and the bag change things drawn here.
   let t = null;
   document.addEventListener("vx-bag", () => { clearTimeout(t); t = setTimeout(() => { if (!document.querySelector("dialog[open]")) draw(); }, 300); });
   load().then(draw);

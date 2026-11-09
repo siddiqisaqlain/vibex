@@ -1,7 +1,7 @@
-// The bag, the wishlist and signing in. Loaded on every shop page after order.js and checkout.js.
-// Signed out, the bag lives in this browser. Signed in, it lives in the account, so it follows the
-// customer to any phone. Buying needs an account (the shop's choice): Checkout asks them to sign in
-// with WhatsApp (free: they send us a code from their own number) or Google.
+// The bag and the wishlist. Loaded on every shop page after order.js and checkout.js.
+// No sign-in (2026-11-09): before a phone's first order, the bag and wishlist live in this browser.
+// The first order quietly makes the phone's account (a cookie), and from then on they live there,
+// next to its orders, saved address and coins.
 window.VXBag = (() => {
   const S = window.SHOP, A = S.accounts || {};
   const O = () => window.VXOrder;
@@ -9,21 +9,21 @@ window.VXBag = (() => {
     get(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } },
   };
-  // Google refuses to sign in inside app browsers (Instagram, Facebook, WhatsApp...). Show it only where it works.
-  const inApp = /FBAN|FBAV|FB_IAB|FBIOS|Instagram|Line\/|WhatsApp|Snapchat|; wv\)/i.test(navigator.userAgent);
   const BAG_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l1 14H5L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>`;
   const USER_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>`;
-  const WA_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"/></svg>`;
 
   let me = { signedIn: false }, bag = store.get("vx-bag") || [], wish = store.get("vx-wish") || [];
   const ready = fetch("/api/account/me", { cache: "no-store" }).then((r) => r.json()).then((m) => { if (m.signedIn) adopt(m); return me; }).catch(() => me).finally(paint);
   const products = () => window.VXProducts || [];
 
+  // The phone's account is there (it ordered before): what this browser still holds joins it.
   function adopt(m) {
     me = m;
-    bag = m.bag || [];
-    wish = m.wish || [];
+    const key = (l) => `${l.id}|${l.size || ""}`, local = bag.length + wish.length;
+    bag = [...(m.bag || []), ...bag.filter((l) => !(m.bag || []).some((x) => key(x) === key(l)))];
+    wish = [...new Set([...(m.wish || []), ...wish])];
     store.set("vx-bag", []); store.set("vx-wish", []); // the account holds them now
+    if (local) save();
     if (m.name) O()?.rememberName?.(m.name);
   }
   function save() {
@@ -69,7 +69,7 @@ window.VXBag = (() => {
     wish = wish.includes(id) ? wish.filter((x) => x !== id) : [...wish, id];
     save();
     window.VXTrack?.("wish", { pr: id, x: wish.includes(id) ? "on" : "off" });
-    if (wish.includes(id)) O().toast(`<b>Saved</b><span>In your wishlist${me.signedIn ? "" : ". Sign in to keep it on every phone"}.</span><a class="toast-go" href="/account#wish">View</a>`);
+    if (wish.includes(id)) O().toast(`<b>Saved</b><span>In your wishlist.</span><a class="toast-go" href="/account#wish">View</a>`);
   }
 
   // ---------- the bag sheet ----------
@@ -85,7 +85,6 @@ window.VXBag = (() => {
       if (rm) { remove(rm.dataset.rm, rm.dataset.size || ""); return openSheet(); }
       if (e.target.closest("[data-checkout]")) return checkout();
     });
-    dlg.addEventListener("close", () => { stopWait(); });
     return dlg;
   }
   async function quote(extra = {}) {
@@ -119,7 +118,7 @@ window.VXBag = (() => {
       <ul class="vx-lines">${rows}</ul>
       ${q.lines.length ? `<div class="vx-total"><span>Total</span><b>${rupees(q.goods)}</b></div>
       ${earn ? `<p class="co-small vx-earn">🪙 You'll earn <b>${earn} coin${earn === 1 ? "" : "s"}</b> with this order.</p>` : ""}
-      <button type="button" class="order co-cta" data-checkout>${me.signedIn ? "Checkout" : "Sign in to checkout"} · ${rupees(q.goods)}</button>` : ""}
+      <button type="button" class="order co-cta" data-checkout>Checkout · ${rupees(q.goods)}</button>` : ""}
       ${off.length ? `<p class="co-small">Pieces marked in grey can't be ordered right now. Remove them to continue.</p>` : ""}
       <button type="button" class="co-back" data-close>Keep shopping</button></div>`;
     if (added) window.VXTrack?.("bag_view", { n: q.goods });
@@ -130,90 +129,19 @@ window.VXBag = (() => {
     if (q.problems?.length) return openSheet();
     if (!q.lines.length) return openSheet();
     window.VXTrack?.("bag_checkout", { n: q.goods });
-    if (!me.signedIn) { const ok = await signIn("Sign in to order"); if (!ok) return; }
     dlg?.close();
     window.VXCheckout.openBag(q, me);
   }
 
-  // ---------- signing in ----------
-  let wait = null;
-  function stopWait() { clearInterval(wait); wait = null; document.removeEventListener("visibilitychange", onBack); }
-  let checkNow = null;
-  function onBack() { if (document.visibilityState === "visible") checkNow?.(); }
-
-  // Resolves true once signed in, false if they close the box.
-  function signIn(title = "Sign in") {
-    return new Promise(async (resolve) => {
-      const d = dialog(), { esc } = O();
-      if (!d.open) d.showModal();
-      let done = false;
-      const finish = (m) => { if (done) return; done = true; stopWait(); if (m) { adopt(m); paint(); window.VXTrack?.("signin", { x: m.via }); } resolve(Boolean(m)); };
-      d.addEventListener("close", () => finish(null), { once: true });
-      const google = A.google && !inApp;
-      d.innerHTML = `<div class="co vx-sign"><button type="button" class="ask-x" data-close aria-label="Close">×</button>
-        <h2>${esc(title)}</h2>
-        <p class="co-small">One tap, no password. Your bag, orders, saved address and coins stay with you on any phone.</p>
-        ${A.whatsapp ? `<a class="btn vx-wa" data-wa href="#" aria-disabled="true">${WA_SVG}<span>Verify on WhatsApp</span></a>
-        <p class="co-small vx-wa-how">WhatsApp opens with a message ready. Just press <b>Send</b>, then come back here.</p>` : ""}
-        ${google ? `<div class="vx-or"><span>or</span></div><div class="vx-google" id="vx-google"></div>` : ""}
-        ${A.google && inApp ? `<p class="co-small vx-inapp">Google sign-in only works in Chrome or Safari. WhatsApp works right here.</p>` : ""}
-        <p class="ask-err" role="alert" hidden></p>
-        <p class="consent">We keep your name, number or email, address and orders to run your account. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p></div>`;
-      const err = (t) => { const e = d.querySelector(".ask-err"); e.textContent = t; e.hidden = !t; };
-      if (!A.whatsapp && !google) err("Sign-in isn't available right now. Message us on WhatsApp to order.");
-
-      // WhatsApp: the code is fetched first, so tapping the button is a plain link the app can open.
-      if (A.whatsapp) {
-        const a = d.querySelector("[data-wa]");
-        a.addEventListener("click", (e) => { if (a.getAttribute("aria-disabled") === "true") e.preventDefault(); else { window.VXTrack?.("signin_wa"); d.querySelector(".vx-wa-how").innerHTML = "Waiting for your WhatsApp message… <b>Press Send</b> in WhatsApp, then come back."; } });
-        let st;
-        try {
-          st = await fetch("/api/account/wa/start", { method: "POST" }).then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; });
-          a.href = st.link; a.target = "_blank"; a.rel = "noopener"; a.removeAttribute("aria-disabled");
-          a.dataset.code = st.code;
-        } catch (ex) { err(ex.message || "WhatsApp sign-in isn't available right now."); }
-        if (st) {
-          checkNow = async () => {
-            if (done) return;
-            const r = await fetch("/api/account/wa/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pending: st.pending, bag, wish }) }).then((x) => x.json()).catch(() => ({ waiting: true }));
-            if (r.signedIn) finish(r);
-            else if (r.expired) { stopWait(); err("That code ran out. Close this and try again."); }
-          };
-          wait = setInterval(checkNow, 2000);
-          document.addEventListener("visibilitychange", onBack);
-        }
-      }
-      if (google) {
-        loadGoogle().then(() => {
-          window.google.accounts.id.initialize({
-            client_id: A.google, ux_mode: "popup",
-            callback: async ({ credential }) => {
-              const r = await fetch("/api/account/google", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential, bag, wish }) }).then(async (x) => ({ ok: x.ok, j: await x.json() })).catch(() => ({ ok: false, j: {} }));
-              if (r.ok && r.j.signedIn) finish(r.j); else err(r.j.error || "Google sign-in failed. Please try again.");
-            },
-          });
-          const el = d.querySelector("#vx-google");
-          if (el) window.google.accounts.id.renderButton(el, { theme: "outline", size: "large", shape: "pill", text: "continue_with", width: Math.min(360, el.clientWidth || 320) });
-        }).catch(() => { const el = d.querySelector("#vx-google"); if (el) el.innerHTML = `<p class="co-small">Google sign-in didn't load. Use WhatsApp instead.</p>`; });
-      }
-    });
-  }
-  let gLoad = null;
-  function loadGoogle() {
-    return gLoad ||= new Promise((ok, bad) => {
-      const s = document.createElement("script");
-      s.src = "https://accounts.google.com/gsi/client"; s.async = true; s.onload = ok; s.onerror = () => { gLoad = null; bad(); };
-      document.head.appendChild(s);
-    });
-  }
-  async function signOut() {
-    await fetch("/api/account/logout", { method: "POST" }).catch(() => {});
-    me = { signedIn: false }; bag = []; wish = [];
-    save();
-  }
   // After an order is confirmed, the pieces it bought leave the bag.
-  function ordered(lines) {
+  // The first order made this phone's account just now: pick it up, so the rest of the bag moves into it.
+  async function ordered(lines) {
     bag = bag.filter((b) => !lines.some((l) => (l.productId || l.id) === b.id && (l.size || "") === (b.size || "")));
+    if (!me.signedIn) {
+      store.set("vx-bag", bag);
+      const m = await fetch("/api/account/me", { cache: "no-store" }).then((r) => r.json()).catch(() => ({}));
+      if (m.signedIn) { adopt(m); return paint(); }
+    }
     save();
   }
 
@@ -225,5 +153,5 @@ window.VXBag = (() => {
   });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", paint); else paint();
 
-  return { add, remove, openSheet, checkout, signIn, signOut, ordered, toggleWish, quote, ready, me: () => me, bag: () => bag, wish: () => wish, inApp };
+  return { add, remove, openSheet, checkout, ordered, toggleWish, quote, ready, me: () => me, bag: () => bag, wish: () => wish };
 })();

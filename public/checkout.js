@@ -122,8 +122,6 @@ window.VXCheckout = (() => {
       try {
         const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...state.form, useCoins: Boolean(state.form.useCoins), holdToken: window.VXVisit?.s, lines: state.bag }) });
         const out = await res.json().catch(() => ({}));
-        // Signed out in another tab, or the session ran out: sign in again and carry on.
-        if (res.status === 401 && out.signIn && window.VXBag) { dlg.close(); if (await window.VXBag.signIn("Sign in to order")) { window.VXBag.checkout(); } return; }
         if (res.status === 409 && out.problems && window.VXBag) { dlg.close(); window.VXBag.openSheet(); return; }
         if (!res.ok) throw new Error(out.error || "Couldn't start the order. Please try again.");
         state.order = out;
