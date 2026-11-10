@@ -37,10 +37,10 @@
     "_photoNote": "Turn on only if the shop will really send a photo of every piece on WhatsApp before dispatch. It adds that line to the promise on product pages.",
     "photoBeforeDispatch": true,
     "courier": {
-      "_note": "Owner's rate (2026-11-06): Rs 130 per kg outside Kashmir. PINs starting 190-193 count as Kashmir, so Jammu and Ladakh pay the rate. kg is the packed weight charged for each piece: subcategory first, then category, then default. These weights are estimates; correct them here. insideKashmir: the fee inside Kashmir, or null to confirm it on WhatsApp before dispatch.",
+      "_note": "Owner's rate (2026-11-06): Rs 130 per kg outside Kashmir. PINs starting 190-193 count as Kashmir, so Jammu and Ladakh pay the rate. kg is the packed weight charged for each piece: subcategory first, then category, then default. These weights are estimates; correct them here. insideKashmir: the flat fee inside Kashmir (Rs 100, owner via user 2026-11-09), or null to confirm it on WhatsApp before dispatch.",
       "perKg": 130,
       "kashmirPins": ["190", "191", "192", "193"],
-      "insideKashmir": null,
+      "insideKashmir": 100,
       "kg": { "default": 1, "Footwear": 2 }
     }
   },

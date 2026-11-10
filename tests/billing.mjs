@@ -98,7 +98,8 @@ try {
   assert.equal(bill.lines[0].amount, 2799); assert.equal(bill.charges[0].amount, 130); assert.equal(bill.total, 2929); ok("the bill shows the selling price and the courier as separate lines");
   await wa(`cancel ${o.code}`);
   o = await post("/api/orders", { ...ship, pin: "190001" });
-  assert.equal(o.amount, 2799); assert.equal(o.shipping, 0); ok("inside Kashmir no charge is guessed");
+  const flat = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../shop.json"), "utf8")).policy.courier.insideKashmir || 0;
+  assert.equal(o.shipping, flat); assert.equal(o.amount, 2799 + flat); ok("inside Kashmir: the flat fee from shop.json, never a per-kg guess");
 
   // 8. Ten tills at once on 1 piece: exactly one bill
   await post("/api/billing/stock", { productId: "a1", quantity: 1 });
