@@ -24,3 +24,12 @@ Nightly SEO / GEO / AEO notes. Newest last. Hard rules: no checkout/payment/lega
 - **Checks:** node --check server.js; local / and /sitemap.xml 200; JSON-LD parses; tests/domain.mjs 22/22. Needed `npm ci` in the sandbox first.
 - **Note:** live site still unreachable from the sandbox (proxy 403), judged from repo.
 - **Next:** Product JSON-LD + canonical on /p/<id> (productMeta); canonical/OG on legal pages; /llms.txt; FAQ + FAQPage; meta/alt/headings.
+
+## 2026-11-10 (night 3)
+- **Changed:** `productMeta` now adds a canonical link, Product JSON-LD (name, description, image, brand, category, sku from LOT code, Offer with INR price and InStock/SoldOut availability, seller) and BreadcrumbList (Home > product) to every /p/<id> that exists. 404 pages get none.
+- **Why:** backlog item 2.
+- **Files:** server.js, OPTIMIZER-LOG.md.
+- **Checks:** node --check server.js; local server with seed products: /p/s1 200, both JSON-LD blocks parse, canonical present, /p/nope 404, / 200; tests/domain.mjs 22/22.
+- **Left out on purpose:** itemCondition, ratings, reviews, GTIN (no such facts). Breadcrumb has no category level because no category pages exist.
+- **Note:** live site unreachable from the sandbox again (proxy refused), judged from repo.
+- **Next:** canonical/OG on legal pages and /wardrobe; /llms.txt from shop.json; FAQ + FAQPage from shop.json policy; meta description quality, image alt text, heading order.

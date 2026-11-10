@@ -1010,7 +1010,27 @@ function productMeta(req, id) {
     ["og:url", `${origin}/p/${encodeURIComponent(id)}`],
     ...(p && p.image ? [["og:image", origin + p.image], ["og:image:alt", p.name]] : []),
   ].map(([k, v]) => `<meta property="${k}" content="${escHtml(v)}">`).join("\n");
-  const head = `<meta name="description" content="${escHtml(desc)}">\n${og}\n<meta name="twitter:card" content="${p && p.image ? "summary_large_image" : "summary"}">`;
+  // Canonical link and Product JSON-LD: only fields the product really has (no ratings, reviews, GTINs or condition claims).
+  let ld = "";
+  if (p) {
+    const url = `${origin}/p/${encodeURIComponent(id)}`;
+    const product = {
+      "@context": "https://schema.org", "@type": "Product", name: p.name, url,
+      ...(p.description ? { description: p.description.slice(0, 500) } : {}),
+      ...(p.image ? { image: origin + p.image } : {}),
+      ...(p.brand ? { brand: { "@type": "Brand", name: p.brand } } : {}),
+      ...(p.category ? { category: p.category } : {}),
+      ...(p.code ? { sku: String(p.code) } : {}),
+      ...(p.price ? { offers: { "@type": "Offer", url, price: String(p.price), priceCurrency: "INR", availability: billing.stockOf(p) > 0 && p.status !== "sold" ? "https://schema.org/InStock" : "https://schema.org/SoldOut", seller: { "@type": "Store", name: SHOP.name } } } : {}),
+    };
+    const crumbs = { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [
+      { "@type": "ListItem", position: 1, name: SHOP.name, item: origin + "/" },
+      { "@type": "ListItem", position: 2, name: p.name, item: url },
+    ] };
+    ld = [product, crumbs].map((o) => `\n<script type="application/ld+json">${JSON.stringify(o).replace(/</g, "\\u003c")}</script>`).join("");
+  }
+  const canon = p ? `<link rel="canonical" href="${escHtml(`${origin}/p/${encodeURIComponent(id)}`)}">\n` : "";
+  const head = `${canon}<meta name="description" content="${escHtml(desc)}">\n${og}\n<meta name="twitter:card" content="${p && p.image ? "summary_large_image" : "summary"}">${ld}`;
   return { p, title, head };
 }
 
