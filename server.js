@@ -430,7 +430,7 @@ async function paySms(req, res, url) {
   if (smsSeen.has(h)) return send(res, 200, { ok: true, matched: null, why: "seen before" });
   smsSeen.set(h, Date.now());
   const paise = smsPay.creditPaise(text);
-  if (!paise) { console.log(`Bank SMS${from ? ` from ${from.slice(0, 12)}` : ""}: not a credit, ignored`); return send(res, 200, { ok: true, matched: null, why: "not a credit" }); }
+  if (!paise) { console.log(`Bank SMS${from ? ` from ${from.slice(0, 12)}` : ""}: not a credit, ignored${process.env.TEST_SITE ? ` (test site, text: ${text.slice(0, 200).replace(/\d{6,}/g, (m) => "…" + m.slice(-3))})` : ""}`); return send(res, 200, { ok: true, matched: null, why: "not a credit" }); }
   const recent = Date.now() - 3 * 3600e3;
   const hits = loadOrders().filter((o) => o.payExact && Math.round(o.payExact * 100) === paise && (o.status === "awaiting_payment" || o.status === "lapsed") && Date.parse(o.createdAt) > recent);
   if (hits.length !== 1) { console.log(`Bank SMS: credit of ${inr(paise / 100)} matched ${hits.length} orders, left for the owner`); return send(res, 200, { ok: true, matched: null, why: `${hits.length} orders match` }); }
