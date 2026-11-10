@@ -1025,6 +1025,26 @@ function accountPage(res, which) {
   send(res, 200, SHELL === "v1" ? v1Shell({ ...page, body: inner }) : pageShell({ ...page, body: `<div class="page-top"><main class="wrap">${inner}</main></div>` }), "text/html; charset=utf-8");
 }
 
+// robots.txt and sitemap.xml for Google. The sitemap is built from the live product list, so a new
+// piece appears in it by itself. Owner, billing, account and API paths are kept out of search.
+function siteOrigin(req) {
+  const proto = String(req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
+  return siteUrl() || `${proto}://${req.headers.host}`;
+}
+function robotsTxt(req) {
+  return [
+    "User-agent: *", "Allow: /",
+    "Disallow: /api/", "Disallow: /billing", "Disallow: /analytics", "Disallow: /kit", "Disallow: /bag", "Disallow: /account", "Disallow: /bill/", "Disallow: /preview/",
+    "", `Sitemap: ${siteOrigin(req)}/sitemap.xml`, "",
+  ].join("\n");
+}
+function sitemapXml(req) {
+  const origin = siteOrigin(req);
+  const pages = ["/", "/wardrobe", "/returns", "/terms", "/privacy", "/contact"];
+  const urls = [...pages, ...load().filter(isPublic).map((x) => `/p/${encodeURIComponent(x.id)}`)];
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${escHtml(origin + u)}</loc></url>`).join("\n")}\n</urlset>\n`;
+}
+
 function productPage(req, res, id) {
   const { p, title, head } = productMeta(req, id);
   const html = SHELL === "v1"
@@ -2657,6 +2677,8 @@ async function handle(req, res) {
       if (req.method === "GET" && p === "/api/guide") return send(res, 200, await analytics.guideModel());
       const pv = /^\/preview\/(classic|modern)(\/.*)?$/.exec(p);
       if (pv) return previewRoute(req, res, pv[1], pv[2] || "");
+      if (req.method === "GET" && p === "/robots.txt") return send(res, 200, robotsTxt(req), "text/plain; charset=utf-8", "public, max-age=3600");
+      if (req.method === "GET" && p === "/sitemap.xml") return send(res, 200, sitemapXml(req), "application/xml; charset=utf-8", "public, max-age=900");
       if (p === "/" ) return serveFile(res, PUBLIC, "index.html");
       if (p === "/account" || p === "/bag") return accountPage(res, p.slice(1));
       if (p === "/demo") return serveFile(res, PUBLIC, "demo.html");
