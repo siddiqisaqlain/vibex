@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400..800&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/owner/replay.css">
+<title>Vibe X Tests</title>
+<style>
+  :root{color-scheme:light;--paper:#f4f2ee;--card:#fbfaf8;--ink:#121212;--ink2:#3d3c39;--mute:#6b6963;--line:rgba(18,18,18,.13);--hover:#ebe8e2;
+    --red:#e2382c;--redText:#b9271c;--redBg:#f9e6e1;--green:#1f7a52;--greenBg:#e3f0e9;--mono:"Geist Mono",ui-monospace,Menlo,monospace}
+  @media (prefers-color-scheme:dark){:root{color-scheme:dark;--paper:#141312;--card:#1c1b19;--ink:#f2f0ea;--ink2:#c9c6bd;--mute:#9b988f;--line:rgba(255,255,255,.14);--hover:#272522;
+    --red:#f0604f;--redText:#f58a7c;--redBg:#33201c;--green:#4fbe86;--greenBg:#17291f}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.4 "Schibsted Grotesk","Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  button,input,select,textarea{font:inherit;color:inherit}
+  .hide{display:none!important}
+  .m{font-family:var(--mono)}
+  header.top{position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--line);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header.top h1{font-size:17px;margin:0;font-weight:800;letter-spacing:-.02em}
+  header.top a{color:var(--mute);font:12px var(--mono)}
+  nav.tabs{border-bottom:1px solid var(--line);display:flex;gap:2px;padding:0 12px;position:sticky;top:49px;z-index:4;background:var(--paper)}
+  nav.tabs button{border:0;background:none;padding:12px;min-height:44px;font-weight:600;color:var(--mute);cursor:pointer;border-bottom:2px solid transparent}
+  nav.tabs button.on{color:var(--ink);border-bottom-color:var(--ink)}
+  main{padding:16px 20px 60px;max-width:1180px;margin:0 auto}
+  section.view{display:none}section.view.on{display:block}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:16px;margin-bottom:14px}
+  .card h2{margin:0 0 4px;font-size:16px}
+  .lead{color:var(--mute);margin:0 0 12px;font-size:14px;max-width:70ch}
+  label{display:block;font-size:13px;color:var(--ink2);margin:10px 0 4px}
+  input[type=text],select,textarea{width:100%;background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:8px 10px;min-height:40px}
+  textarea{min-height:64px;resize:vertical}
+  .two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  @media (max-width:760px){.two{grid-template-columns:1fr}}
+  .btn{border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:3px;padding:8px 14px;min-height:40px;cursor:pointer;font-weight:600}
+  .btn.line{background:none;color:var(--ink)}
+  .btn.small{min-height:34px;padding:5px 10px;font-size:13px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .err{color:var(--redText);font-size:13px;min-height:18px;margin:8px 0 0}
+  .tag{font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:3px 7px;border-radius:3px;background:var(--hover);color:var(--ink2)}
+  .tag.run{background:var(--greenBg);color:var(--green)}
+  .bars{display:grid;grid-template-columns:120px 1fr 90px;gap:6px 10px;align-items:center;margin:12px 0;font-size:14px}
+  .bar{height:12px;background:var(--hover);border-radius:2px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ink)}
+  .verdict{font-weight:700;margin:6px 0}
+  .verdict.win{color:var(--green)}
+  .copy{font-size:13px;color:var(--ink2);border-left:2px solid var(--line);padding-left:10px;margin:6px 0}
+  .chips{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+  .chips button{border:1px solid var(--line);background:none;border-radius:3px;padding:6px 10px;min-height:36px;cursor:pointer;font:12px var(--mono);color:var(--ink2)}
+  .chips button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font:600 11px var(--mono);text-transform:uppercase;color:var(--mute)}
+  tr.pick{cursor:pointer}tr.pick:hover{background:var(--hover)}
+  .flag{font:600 11px var(--mono);padding:2px 6px;border-radius:3px;margin-right:4px;white-space:nowrap}
+  .flag.bad{background:var(--redBg);color:var(--redText)}.flag.good{background:var(--greenBg);color:var(--green)}.flag.n{background:var(--hover);color:var(--ink2)}
+  .scroll{overflow-x:auto}
+  #player{background:#000;border-radius:4px;overflow:hidden;position:relative;height:min(70vh,640px)}
+  #stage{position:absolute;left:0;top:0;transform-origin:0 0}
+  .ctl{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  .ctl input[type=range]{flex:1;min-width:160px}
+  .ctl select{width:auto;min-height:34px;padding:4px 8px}
+  .empty{color:var(--mute)}
+  #lock{position:fixed;inset:0;background:var(--paper);display:grid;place-items:center;z-index:20}
+  #lock form{width:min(340px,90vw)}
+</style>
+</head>
+<body>
+<div id="lock" class="hide"><form id="lockForm"><h2>Owner key</h2><input type="text" id="keyIn" autocomplete="off" aria-label="Owner key"><p class="err" id="lockErr"></p><button class="btn">Open</button></form></div>
+<header class="top">
+  <h1>Vibe X · Lab</h1>
+  <a href="/analytics">← Analytics</a><a href="/" target="_blank" rel="noopener">Open shop ↗</a>
+</header>
+<nav class="tabs"><button data-v="tests" class="on">A/B tests</button><button data-v="rec">Recordings</button></nav>
+<main>
+  <section class="view on" id="v-tests">
+    <div class="card">
+      <h2>New test: the home page headline</h2>
+      <p class="lead">Half your visitors see A (the page as it is), half see B, at the same time. Whatever else happens that week (a sale, an Instagram post, Eid) hits both halves equally, so the difference is down to your change. A test only calls a winner when it's 95% sure, at least 100 people saw each version, and it ran its full length. Prices never change.</p>
+      <form id="newTest">
+        <div class="two">
+          <div><label for="tName">Name, for you</label><input type="text" id="tName" maxlength="80" placeholder="Shorter headline"></div>
+          <div><label for="tMetric">What counts as a win</label><select id="tMetric"></select></div>
+        </div>
+        <div class="two">
+          <div><label for="tAud">Who's in the test</label><select id="tAud">
+            <option value="">Everyone on the home page</option><option value="new">First-time visitors</option><option value="returning">Returning visitors</option>
+            <option value="cat:Clothing">Returning, looked at clothing (30 days)</option><option value="cat:Fragrances">Returning, looked at fragrances (30 days)</option><option value="cat:Footwear">Returning, looked at footwear (30 days)</option>
+          </select></div>
+          <div><label for="tDays">Run for (days, decided now, no peeking)</label><select id="tDays"><option>7</option><option selected>14</option><option>21</option><option>28</option></select></div>
+        </div>
+        <label>Version B: leave a box empty to keep today's text</label>
+        <div class="two">
+          <div><input type="text" id="bH1" maxlength="60" placeholder="Headline, line 1 (now: World brands.)"></div>
+          <div><input type="text" id="bH2" maxlength="60" placeholder="Headline, line 2 (now: One destination.)"></div>
+        </div>
+        <label for="bLede">Intro line</label><textarea id="bLede" maxlength="220" placeholder="Now: Original surplus from the labels you know…"></textarea>
+        <div class="two">
+          <div><label for="bCta">Button text</label><input type="text" id="bCta" maxlength="30" placeholder="Now: Shop new in"></div>
+          <div><label for="bJump">Button opens</label><select id="bJump"><option value="">New in (as now)</option><option>Clothing</option><option>Fragrances</option><option>Footwear</option></select></div>
+        </div>
+        <p class="err" id="tErr"></p>
+        <button class="btn">Save as draft</button>
+      </form>
+    </div>
+    <div id="testList"></div>
+  </section>
+
+  <section class="view" id="v-rec">
+    <div class="card">
+      <h2>Recordings</h2>
+      <p class="lead" id="recLead">Visits replayed as they happened. Everything typed is hidden, and names, numbers and addresses in checkout are blanked. Kept 14 days.</p>
+      <div class="chips" id="recFilter"><button data-f="" class="on">All</button><button data-f="left">Left checkout</button><button data-f="rage">Angry taps</button><button data-f="dead">Taps that did nothing</button><button data-f="error">Errors</button><button data-f="checkout">Started an order</button><button data-f="paid">Paid</button></div>
+      <div id="recWrap" class="hide">
+        <div id="player"><div id="stage"></div></div>
+        <div class="ctl"><button class="btn small" id="pp">Pause</button><input type="range" id="seek" min="0" max="1000" value="0" aria-label="Position"><span class="m" id="ptime">0:00</span>
+          <select id="speed" aria-label="Speed"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option></select><button class="btn small line" id="pclose">Close</button></div>
+        <p class="lead" id="pinfo"></p>
+      </div>
+      <div class="scroll" id="recList"></div>
+    </div>
+  </section>
+</main>
+<script src="/owner/replay.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } } };
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const pct = (x) => `${(x * 100).toFixed(1)}%`;
+  const dur = (ms) => { const s = Math.round((ms || 0) / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; };
+  const mmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+  const stamp = (t) => new Date(t).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  const u = new URL(location.href);
+  let KEY = u.searchParams.get("key") || store.get("vx-owner-key") || "";
+  if (u.searchParams.get("key")) { store.set("vx-owner-key", KEY); u.searchParams.delete("key"); history.replaceState(null, "", u.pathname); }
+  async function api(path, opts = {}) {
+    const r = await fetch(`/api/analytics/${path}`, { ...opts, cache: "no-store", headers: { "Content-Type": "application/json", "x-owner-key": KEY } });
+    if (r.status === 401) { $("lock").classList.remove("hide"); $("lockErr").textContent = KEY ? "That key didn't work." : ""; throw new Error("key"); }
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || "Failed"); return j;
+  }
+  $("lockForm").onsubmit = (e) => { e.preventDefault(); KEY = $("keyIn").value.trim(); store.set("vx-owner-key", KEY); $("lock").classList.add("hide"); loadTests(); loadRecs(); };
+  for (const b of document.querySelectorAll("nav.tabs button")) b.onclick = () => {
+    for (const x of document.querySelectorAll("nav.tabs button")) x.classList.toggle("on", x === b);
+    for (const s of document.querySelectorAll("section.view")) s.classList.toggle("on", s.id === `v-${b.dataset.v}`);
+  };
+
+  // ---------------- tests ----------------
+  const AUD = { "": "Everyone", new: "First-time visitors", returning: "Returning visitors" };
+  const audName = (a) => AUD[a] ?? `Looked at ${a.slice(4).toLowerCase()}`;
+  const showCopy = (c) => !c ? `<div class="copy">The page as it is today</div>` : `<div class="copy">${[c.headline && `<b>${esc(c.headline)}${c.headline2 ? ` / ${esc(c.headline2)}` : ""}</b>`, c.lede && esc(c.lede), c.cta && `Button: ${esc(c.cta)}${c.jump ? ` → ${esc(c.jump)}` : ""}`].filter(Boolean).join("<br>")}</div>`;
+  let metrics = {};
+  async function loadTests() {
+    const d = await api("tests"); metrics = d.metrics;
+    if (!$("tMetric").options.length) $("tMetric").innerHTML = Object.entries(metrics).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+    $("testList").innerHTML = d.tests.length ? d.tests.map(card).join("") : `<p class="empty">No tests yet. Write version B above, save it, then press Start.</p>`;
+  }
+  function card(t) {
+    const r = t.result, st = { draft: "Draft", running: "Running", stopped: "Stopped", kept: `Showing ${t.kept?.toUpperCase()} to everyone` }[t.status];
+    let res = "";
+    if (r) {
+      const max = Math.max(r.a.rate, r.b.rate, 0.0001);
+      res = `<div class="bars">
+        <span>A · current</span><span class="bar"><i style="width:${(r.a.rate / max) * 100}%"></i></span><span class="m">${pct(r.a.rate)} <small>(${r.a.c}/${r.a.n})</small></span>
+        <span>B · new</span><span class="bar"><i style="width:${(r.b.rate / max) * 100}%"></i></span><span class="m">${pct(r.b.rate)} <small>(${r.b.c}/${r.b.n})</small></span>
+      </div>
+      <p class="m">Chance B is better: <b>${pct(r.chance)}</b>${r.lift != null ? ` · B vs A: ${r.lift >= 0 ? "+" : ""}${(r.lift * 100).toFixed(0)}%` : ""} · ran ${r.ranDays.toFixed(1)} of ${t.days} days</p>
+      <p class="verdict ${r.call ? "win" : ""}">${esc(r.verdict)}</p>`;
+    }
+    const acts = {
+      draft: `<button class="btn small" data-a="start">Start</button><button class="btn small line" data-a="delete">Delete</button>`,
+      running: `<button class="btn small line" data-a="stop">Stop</button>${r?.call ? `<button class="btn small" data-a="keep" data-k="${r.call}">Keep ${r.call.toUpperCase()} for everyone</button>` : ""}`,
+      stopped: `<button class="btn small line" data-a="keep" data-k="a">Keep A</button><button class="btn small line" data-a="keep" data-k="b">Keep B</button><button class="btn small line" data-a="delete">Delete</button>`,
+      kept: `<button class="btn small line" data-a="delete">Delete (back to the normal page)</button>`,
+    }[t.status];
+    return `<div class="card" data-id="${t.id}">
+      <div class="row"><h2>${esc(t.name)}</h2><span class="tag ${t.status === "running" ? "run" : ""}">${esc(st)}</span></div>
+      <p class="lead">${esc(audName(t.audience))} · win = ${esc(metrics[t.metric] || t.metric)}</p>
+      <div class="two"><div><b>A</b>${showCopy(t.variants[0].content)}</div><div><b>B</b>${showCopy(t.variants[1].content)}</div></div>
+      ${res}<div class="row">${acts}</div><p class="err"></p></div>`;
+  }
+  $("testList").onclick = async (e) => {
+    const b = e.target.closest("button[data-a]"); if (!b) return;
+    const c = b.closest(".card"), a = b.dataset.a;
+    if (a === "delete" && !confirm("Delete this test and its results?")) return;
+    try { await api(`tests/${c.dataset.id}/${a}`, { method: "POST", body: JSON.stringify({ key: b.dataset.k }) }); loadTests(); }
+    catch (err) { c.querySelector(".err").textContent = err.message; }
+  };
+  $("newTest").onsubmit = async (e) => {
+    e.preventDefault(); $("tErr").textContent = "";
+    const body = { name: $("tName").value, metric: $("tMetric").value, audience: $("tAud").value, days: $("tDays").value,
+      b: { headline: $("bH1").value || ($("bH2").value ? "World brands." : ""), headline2: $("bH2").value, lede: $("bLede").value, cta: $("bCta").value, jump: $("bJump").value } };
+    try { await api("tests", { method: "POST", body: JSON.stringify(body) }); e.target.reset(); loadTests(); } catch (err) { $("tErr").textContent = err.message; }
+  };
+
+  // ---------------- recordings ----------------
+  let flag = "", player = null, timer = null, names = {};
+  fetch("/api/products").then((r) => r.json()).then((l) => { names = Object.fromEntries((Array.isArray(l) ? l : []).map((p) => [`/p/${p.id}`, p.name])); }).catch(() => {});
+  const pageName = (p) => p === "/" ? "Home" : names[p] || p;
+  const FL = { left: ["Left checkout", "bad"], rage: ["Angry taps", "bad"], dead: ["Dead taps", "bad"], error: ["Error", "bad"], checkout: ["Started order", "n"], paid: ["Paid", "good"] };
+  async function loadRecs() {
+    const d = await api(`recordings${flag ? `?flag=${flag}` : ""}`);
+    $("recLead").textContent = `Visits replayed as they happened: about ${d.rate}% of visits are recorded. Everything typed is hidden, and names, numbers and addresses in checkout are blanked. Kept 14 days.`;
+    $("recList").innerHTML = d.recordings.length ? `<table><thead><tr><th>When</th><th>Length</th><th>Device</th><th>Pages</th><th>What happened</th></tr></thead><tbody>${d.recordings.map((r) =>
+      `<tr class="pick" data-id="${r.id}"><td>${stamp(r.start)}</td><td class="m">${dur(r.length)}</td><td>${esc(r.dev || "")}${r.returning ? " · returning" : ""}</td><td>${esc(r.pages.slice(0, 4).map(pageName).join(" → "))}${r.pages.length > 4 ? " …" : ""}</td><td>${Object.keys(r.flags).filter((f) => FL[f]).map((f) => `<span class="flag ${FL[f][1]}">${FL[f][0]}</span>`).join("") || `<span class="empty">Browsed</span>`}</td></tr>`).join("")}</tbody></table>`
+      : `<p class="empty">No recordings${flag ? " like that" : ""} yet.</p>`;
+  }
+  $("recFilter").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; flag = b.dataset.f; for (const x of $("recFilter").children) x.classList.toggle("on", x === b); loadRecs(); };
+  $("recList").onclick = async (e) => {
+    const tr = e.target.closest("tr.pick"); if (!tr) return;
+    let d; try { d = await api(`recordings/${tr.dataset.id}`); } catch (err) { alert(err.message); return; }
+    if (!d.events || d.events.length < 2) { alert("This recording is too short to play."); return; }
+    closePlayer();
+    $("recWrap").classList.remove("hide"); $("stage").innerHTML = "";
+    player = new rrweb.Replayer(d.events, { root: $("stage"), skipInactive: true, showWarning: false, mouseTail: { strokeStyle: "#e2382c" }, speed: Number($("speed").value) });
+    const fit = (w, h) => { const box = $("player"); const k = Math.min(box.clientWidth / w, box.clientHeight / h); $("stage").style.transform = `scale(${k})`; $("stage").style.left = `${(box.clientWidth - w * k) / 2}px`; };
+    player.on("resize", (s) => fit(s.width, s.height));
+    const meta = d.events.find((x) => x.type === 4); if (meta) fit(meta.data.width, meta.data.height);
+    const total = player.getMetaData().totalTime;
+    player.play(); $("pp").textContent = "Pause";
+    timer = setInterval(() => { const t = player.getCurrentTime(); $("seek").value = Math.round((t / total) * 1000); $("ptime").textContent = `${mmss(t)} / ${mmss(total)}`; }, 250);
+    $("pinfo").textContent = `${stamp(d.start)} · ${d.dev || ""} · ${d.pages.map(pageName).join(" → ")}`;
+    $("recWrap").scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  function closePlayer() { if (player) { try { player.pause(); player.destroy?.(); } catch { /* gone */ } player = null; } clearInterval(timer); $("recWrap").classList.add("hide"); }
+  $("pclose").onclick = closePlayer;
+  $("pp").onclick = () => { if (!player) return; const playing = $("pp").textContent === "Pause"; if (playing) { player.pause(); $("pp").textContent = "Play"; } else { player.play(player.getCurrentTime()); $("pp").textContent = "Pause"; } };
+  $("seek").oninput = () => { if (!player) return; const t = (Number($("seek").value) / 1000) * player.getMetaData().totalTime; player.play(t); $("pp").textContent = "Pause"; };
+  $("speed").onchange = () => player?.setConfig({ speed: Number($("speed").value) });
+
+  loadTests().catch(() => {}); loadRecs().catch(() => {});
+  setInterval(() => { if (!document.hidden && $("v-tests").classList.contains("on")) loadTests().catch(() => {}); }, 60e3);
+})();
+</script>
+</body>
+</html>

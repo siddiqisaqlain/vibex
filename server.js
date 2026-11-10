@@ -182,7 +182,7 @@ function billsReply() {
 }
 
 const TYPES = {
-  ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript",
+  ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".cjs": "text/javascript",
   ".json": "application/json", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
 };
 
@@ -687,7 +687,7 @@ ${head}
 <nav class="nav"><a href="/#rack">New drops</a><a class="nav-ig" href="https://www.instagram.com/vibex.india/" target="_blank" rel="noopener">Instagram ↗</a></nav></div></header>
 <main class="wrap pdp" id="pdp" data-id="${escHtml(id)}"></main>
 <div class="toast" id="toast" role="status" hidden></div>
-<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/bag.js"></script><script src="/pdp.js"></script><script src="/salebar.js"></script><script src="/newtab.js"></script><script src="/track.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
+<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/bag.js"></script><script src="/pdp.js"></script><script src="/salebar.js"></script><script src="/newtab.js"></script><script src="/track.js"></script><script src="/lab.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
 </body></html>`;
 }
 
@@ -716,7 +716,7 @@ ${head}
 <nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a></nav></div>
 <p class="foot-note">© 2026 Vibe X · The Surplus Room, Srinagar, Kashmir</p></div></footer>
 <div class="toast" id="toast" role="status" hidden></div>
-<script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}<script src="/ui.js"></script><script src="/newtab.js"></script><script src="/track.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
+<script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}<script src="/ui.js"></script><script src="/newtab.js"></script><script src="/track.js"></script><script src="/lab.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
 </body></html>`;
 }
 
@@ -738,7 +738,7 @@ ${head}
 <footer class="foot"><div class="wrap"><div class="foot-mark">VIBE<span>X</span></div>
 <div class="foot-row mono"><span>© Vibe X · The Surplus Room</span><span>World brands, one destination</span></div>
 <nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a></nav></div></footer>
-${scripts.length ? `<div class="toast" id="toast" role="status" hidden></div><script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}` : ""}<script src="/newtab.js"></script><script src="/track.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
+${scripts.length ? `<div class="toast" id="toast" role="status" hidden></div><script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}` : ""}<script src="/newtab.js"></script><script src="/track.js"></script><script src="/lab.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
 </body></html>`;
 }
 
@@ -816,8 +816,12 @@ function isLastPiece(p, size) {
   const left = picked?.left ?? billing.stockOf(p);
   return left === 1;
 }
-const analytics = createAnalytics({ STORE, productName: (id) => load().find((p) => p.id === id)?.name || id, productNames: () => Object.fromEntries(load().map((p) => [p.id, p.name])) });
-process.on("SIGTERM", () => { analytics.close(); process.exit(0); });
+// A/B tests and screen recordings (lib/lab.js), fed by the same visitor events.
+const lab = require("./lib/lab")({ STORE });
+const REC_RATE = Math.max(0, Math.min(100, Number(process.env.REC_RATE ?? 25))); // % of visits recorded
+SHOP.recRate = REC_RATE; // for the privacy page
+const analytics = createAnalytics({ onEvent: (ev) => lab.see(ev), STORE, productName: (id) => load().find((p) => p.id === id)?.name || id, productNames: () => Object.fromEntries(load().map((p) => [p.id, p.name])) });
+process.on("SIGTERM", () => { analytics.close(); lab.close(); process.exit(0); });
 
 // ---- Customer accounts (lib/accounts.js): bag, wishlist, address, orders, coins ----
 const accounts = createAccounts({ STORE, coinsConfig: SHOP.coins || {} });
@@ -868,7 +872,7 @@ if (SHOP.youtube?.channelId) {
 }
 
 function sendConfig(res) {
-  const pub = { ...SHOP, accounts: { coins: { perRupees: SHOP.coins?.perRupees || 100, maxPct: SHOP.coins?.maxPct || 10 } }, pay: { ...SHOP.pay, window: PAY_WINDOW, closedText: payWindow.closedText(PAY_WINDOW) }, orderingOpen: ORDERING_OPEN, latestVideo: latestVideo.current() };
+  const pub = { ...SHOP, lab: { tests: lab.publicTests(), rec: REC_RATE }, accounts: { coins: { perRupees: SHOP.coins?.perRupees || 100, maxPct: SHOP.coins?.maxPct || 10 } }, pay: { ...SHOP.pay, window: PAY_WINDOW, closedText: payWindow.closedText(PAY_WINDOW) }, orderingOpen: ORDERING_OPEN, latestVideo: latestVideo.current() };
   res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" });
   return res.end(`window.SHOP = ${JSON.stringify(pub).replace(/</g, "\\u003c")};\n`);
 }
@@ -2049,6 +2053,16 @@ http
         const r = staff.login(b, req.socket.remoteAddress || "?");
         return r.error ? send(res, r.status, { error: r.error }) : send(res, 200, r);
       }
+      // Screen recordings from lib/lab-client.js: same rules as /api/t, bigger pieces.
+      if (req.method === "POST" && p === "/api/rec") {
+        const from = req.headers.origin;
+        if (from && new URL(from).host !== req.headers.host) return send(res, 403, { error: "Not allowed." });
+        const ua = req.headers["user-agent"] || "";
+        if (!ua || /bot|crawl|spider|headless|lighthouse/i.test(ua)) return send(res, 204, "");
+        let b; try { b = JSON.parse(await readBody(req, 700 * 1024)); } catch { return send(res, 400, { error: "Bad request." }); }
+        const r = lab.addChunk(b, { dev: /ipad|tablet/i.test(ua) ? "Tablet" : /mobi|android|iphone/i.test(ua) ? "Phone" : "Computer" });
+        return send(res, r.error ? 400 : 200, r.error ? { error: r.error } : { ok: true });
+      }
       // Visitors' browsers report here. It only ever answers "got it", and refuses other websites.
       if (req.method === "POST" && p === "/api/t") {
         const from = req.headers.origin;
@@ -2068,6 +2082,19 @@ http
           try { return send(res, 200, await analytics.report(from, to, url.searchParams.get("seg") || "")); } catch (e) { return send(res, 503, { error: e.message }); }
         }
         if (req.method === "GET" && route === "changes") return send(res, 200, await analytics.changeResults());
+        if (req.method === "GET" && route === "tests") return send(res, 200, { tests: lab.list(), metrics: lab.METRICS });
+        if (req.method === "POST" && route === "tests") {
+          let b; try { b = JSON.parse((await readBody(req, 8192)) || "{}"); } catch { return send(res, 400, { error: "Bad request." }); }
+          const r = lab.create(b); return send(res, r.error ? 400 : 200, r);
+        }
+        const tm = /^tests\/([a-f0-9]{10})\/(start|stop|keep|delete)$/.exec(route);
+        if (req.method === "POST" && tm) {
+          let b = {}; try { b = JSON.parse((await readBody(req, 1024)) || "{}"); } catch { /* no body */ }
+          const r = lab.act(tm[1], tm[2], b); return send(res, r.error ? 400 : 200, r);
+        }
+        if (req.method === "GET" && route === "recordings") return send(res, 200, { recordings: lab.recordings(url.searchParams.get("flag") || ""), rate: REC_RATE });
+        const rm = /^recordings\/([a-f0-9]{16})$/.exec(route);
+        if (req.method === "GET" && rm) { const r = lab.recording(rm[1]); return r ? send(res, 200, r) : send(res, 404, { error: "Gone (kept 14 days)." }); }
         if (req.method === "POST" && route === "changes") {
           let b; try { b = JSON.parse((await readBody(req, 4096)) || "{}"); } catch { return send(res, 400, { error: "Bad request." }); }
           const r = analytics.addChange(b);
@@ -2078,6 +2105,7 @@ http
         return send(res, 404, { error: "not found" });
       }
       if (p === "/analytics") return serveFile(res, path.join(ROOT, "owner"), "analytics.html");
+      if (p === "/analytics/lab") return serveFile(res, path.join(ROOT, "owner"), "lab.html");
       // Owner key, or a staff login limited to the counter (lib/staff.js).
       if (p.startsWith("/api/billing/")) {
         const route = p.slice("/api/billing/".length);
@@ -2142,6 +2170,10 @@ http
       if (p === "/config.js") return sendConfig(res);
       if (p === "/newtab.js") return serveFile(res, path.join(ROOT, "lib"), "newtab.js");
       if (p === "/track.js") return serveFile(res, path.join(ROOT, "lib"), "track.js");
+      if (p === "/lab.js") return serveFile(res, path.join(ROOT, "lib"), "lab-client.js");
+      if (p === "/rec.js") return serveFile(res, path.join(ROOT, "node_modules", "@rrweb", "record", "dist"), "record.umd.min.cjs", "public, max-age=86400");
+      if (p === "/owner/replay.js") return serveFile(res, path.join(ROOT, "node_modules", "rrweb", "dist"), "rrweb.umd.min.cjs", "public, max-age=86400");
+      if (p === "/owner/replay.css") return serveFile(res, path.join(ROOT, "node_modules", "rrweb", "dist"), "style.min.css", "public, max-age=86400");
       if (p === "/guide.js") return serveFile(res, path.join(ROOT, "lib"), "guide.js");
       if (p === "/rush.js") return serveFile(res, path.join(ROOT, "lib"), "rush.js");
       // The Drop Kit: Status cards for the owner, a short link for the card, and a line for anyone who arrives too late.
