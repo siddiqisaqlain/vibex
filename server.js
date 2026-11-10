@@ -656,6 +656,29 @@ function orderCommand(text) {
 }
 
 // ---- Owner key ----
+// The analytics in short: this period against the one before, where people drop off and why, and the A/B tests.
+async function analyticsDigest(days) {
+  const day = (ms) => new Date(ms + 5.5 * 3600e3).toISOString().slice(0, 10); // IST
+  const to = Date.now(), from = to - (days - 1) * 864e5;
+  const [r, prev] = await Promise.all([analytics.report(day(from), day(to)), analytics.report(day(from - days * 864e5), day(from - 864e5))]);
+  const top = (list, n, f) => (list || []).slice(0, n).map(f);
+  return {
+    generatedAt: new Date().toISOString(), days, from: r.from, to: r.to,
+    totals: r.totals, previous: prev.totals, funnel: r.funnel.map(({ label, n }) => ({ label, n })),
+    findings: (r.findings || []).map(({ tone, title, detail }) => ({ tone, title, detail })),
+    fixes: top(r.fixes, 8, ({ title, why, people, money, sure }) => ({ title, why, people, money, ...(sure ? { sure } : {}) })),
+    stops: top(r.stops, 6, ({ label, n }) => ({ label, n })),
+    leftCheckoutAt: r.abandonAt || {},
+    stuck: top(r.stuck, 8, ({ kind, where, label, visits }) => ({ kind, where, label, visits })),
+    products: top(r.products, 10, ({ name, views, clicks, checkout, paid, conv }) => ({ name, views, taps: clicks, checkout, paid, conv })),
+    sources: top(r.sources, 6, ({ key, n, paid, conv }) => ({ key, visits: n, paid, conv })),
+    devices: top(r.devices, 4, ({ key, n, paid, conv, frictionRate }) => ({ key, visits: n, paid, conv, frictionRate })),
+    delivery: r.delivery, payTabs: r.payTabs, speed: r.speed, ratings: r.ratings,
+    guide: r.guide ? { on: r.guide.on, off: r.guide.off, proven: r.guide.proven } : null,
+    tests: lab.list().slice(0, 8).map((t) => ({ name: t.name || t.id, status: t.status, metric: lab.METRICS[t.metric] || t.metric, kept: t.kept || null, verdict: t.result?.verdict || null, chance: t.result?.chance ?? null, a: t.result?.a ? { n: t.result.a.n, c: t.result.a.c } : null, b: t.result?.b ? { n: t.result.b.n, c: t.result.b.c } : null })),
+  };
+}
+
 // When OWNER_KEY is set (always set it on a public server), the owner-only parts need it:
 // the /demo control screen, posting products, the enquiry/order feed and reset.
 // Customers can still browse, order and enquire. With no key (local dev), all is open.
@@ -2071,6 +2094,17 @@ http
         let b; try { b = JSON.parse(await readBody(req, 32 * 1024)); } catch { return send(res, 400, { error: "Bad request." }); }
         analytics.ingest(b, { ua: req.headers["user-agent"] || "", ip: String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0] });
         res.writeHead(204); return res.end();
+      }
+      // Read-only summary for the nightly routine and the mind map. Its own key, not the owner key, so whoever holds
+      // it can read the numbers and nothing else. No names, phones, typed notes or single visits.
+      if (req.method === "GET" && p === "/api/analytics-digest") {
+        // Only the key's SHA-256 is in this public repo (DIGEST_KEY_SHA256 on the server overrides it).
+        const want = Buffer.from(process.env.DIGEST_KEY_SHA256 || "16f265c675910ff1d78de7c0de12f9cb6b9c84e4d33ef3bc978c46f55ba84791", "hex");
+        const given = String(req.headers["x-digest-key"] || url.searchParams.get("key") || "");
+        const got = crypto.createHash("sha256").update(given).digest();
+        if (!given || want.length !== 32 || !crypto.timingSafeEqual(got, want)) return send(res, 401, { error: "Digest key required." });
+        const days = Math.min(Math.max(Number(url.searchParams.get("days")) || 7, 1), 90);
+        try { return send(res, 200, await analyticsDigest(days)); } catch (e) { return send(res, 503, { error: e.message }); }
       }
       if (p.startsWith("/api/analytics/")) {
         if (!isOwner(req, url)) return send(res, 401, { error: "Owner key required." });
