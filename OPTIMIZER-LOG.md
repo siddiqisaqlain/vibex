@@ -16,3 +16,11 @@ Nightly SEO / GEO / AEO notes. Newest last. Hard rules: no checkout/payment/lega
   4. /llms.txt from shop.json.
   5. FAQ block + FAQPage schema from shipping/returns/payment policy in shop.json.
   6. Meta description quality; image alt text; heading order on home.
+
+## 2026-11-10 (night 2)
+- **Changed:** home page `/` is now served by `homePage()`: adds canonical link, Open Graph/Twitter tags and Store JSON-LD (name, legal name, phone, address, map link, Instagram/YouTube from shop.json). Email, hours, GSTIN left out (not in shop.json).
+- **Why:** backlog items 1 and 3 (home part).
+- **Files:** server.js, OPTIMIZER-LOG.md.
+- **Checks:** node --check server.js; local / and /sitemap.xml 200; JSON-LD parses; tests/domain.mjs 22/22. Needed `npm ci` in the sandbox first.
+- **Note:** live site still unreachable from the sandbox (proxy 403), judged from repo.
+- **Next:** Product JSON-LD + canonical on /p/<id> (productMeta); canonical/OG on legal pages; /llms.txt; FAQ + FAQPage; meta/alt/headings.

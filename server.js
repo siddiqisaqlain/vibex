@@ -1045,6 +1045,34 @@ function sitemapXml(req) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${escHtml(origin + u)}</loc></url>`).join("\n")}\n</urlset>\n`;
 }
 
+// Home page: the static file plus canonical, Open Graph and Store JSON-LD. Only facts from shop.json.
+function homeHead(req) {
+  const origin = siteOrigin(req);
+  const b = SHOP.business || {};
+  const title = "Vibe X · The Surplus Store, Srinagar";
+  const desc = "Original world-brand surplus clothing, footwear and fragrances. Srinagar, Kashmir. Pan-India shipping.";
+  const parts = String(b.address || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const pin = (String(b.address || "").match(/\b(\d{6})\s*$/) || [])[1];
+  const ld = {
+    "@context": "https://schema.org", "@type": "Store", "@id": origin + "/#store",
+    name: SHOP.name, url: origin + "/", description: desc, image: origin + "/logo.jpg",
+    ...(b.phone ? { telephone: b.phone } : {}),
+    ...(b.address ? { address: { "@type": "PostalAddress", streetAddress: parts.slice(0, -2).join(", ") || b.address, addressLocality: "Srinagar", addressRegion: "Jammu and Kashmir", ...(pin ? { postalCode: pin } : {}), addressCountry: "IN" } } : {}),
+    ...(b.legalName ? { legalName: b.legalName } : {}),
+    ...(b.email ? { email: b.email } : {}),
+    ...(SHOP.maps ? { hasMap: SHOP.maps } : {}),
+    sameAs: [SHOP.instagram, SHOP.youtube && SHOP.youtube.channel].filter(Boolean),
+  };
+  const og = [["og:type", "website"], ["og:site_name", SHOP.name], ["og:title", title], ["og:description", desc], ["og:url", origin + "/"], ["og:image", origin + "/logo.jpg"]]
+    .map(([k, v]) => `<meta property="${k}" content="${escHtml(v)}">`).join("\n");
+  return `<link rel="canonical" href="${escHtml(origin + "/")}">\n${og}\n<meta name="twitter:card" content="summary">\n<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, "\\u003c")}</script>\n`;
+}
+function homePage(req, res) {
+  let html = fs.readFileSync(path.join(PUBLIC, "index.html"), "utf8");
+  html = html.replace("</head>", () => homeHead(req) + "</head>");
+  send(res, 200, html, "text/html; charset=utf-8", "no-cache");
+}
+
 function productPage(req, res, id) {
   const { p, title, head } = productMeta(req, id);
   const html = SHELL === "v1"
@@ -2679,7 +2707,7 @@ async function handle(req, res) {
       if (pv) return previewRoute(req, res, pv[1], pv[2] || "");
       if (req.method === "GET" && p === "/robots.txt") return send(res, 200, robotsTxt(req), "text/plain; charset=utf-8", "public, max-age=3600");
       if (req.method === "GET" && p === "/sitemap.xml") return send(res, 200, sitemapXml(req), "application/xml; charset=utf-8", "public, max-age=900");
-      if (p === "/" ) return serveFile(res, PUBLIC, "index.html");
+      if (p === "/" ) return homePage(req, res);
       if (p === "/account" || p === "/bag") return accountPage(res, p.slice(1));
       if (p === "/demo") return serveFile(res, PUBLIC, "demo.html");
       if (p === "/wardrobe") return serveFile(res, PUBLIC, "wardrobe.html");
