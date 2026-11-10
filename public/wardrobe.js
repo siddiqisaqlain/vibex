@@ -282,7 +282,12 @@ function makeDoor(side) { // side -1 = left (hinge on the left), 1 = right
 makeDoor(-1); makeDoor(1);
 const DOOR_OPEN = 2.1; // swung well past square so they angle out and never cover the inside
 let doorsOpen = false;
+// furniture sounds (wardrobe-sound.js); silent until the visitor touches the page, or when muted
+const sfx = (name, o) => window.VXSfx?.play(name, o);
+const sfxPick = (it) => it.deco ? sfx(it.type === "bag" ? "bag" : "boxOpen") : garments.includes(it) ? sfx("pickJacket", { pan: it.x }) : sfx("pickBottle");
+const sfxPut = (it) => it.deco ? (it.type === "bag" ? null : sfx("boxClose")) : garments.includes(it) ? sfx("hangBack", { pan: it.x }) : sfx("setDown");
 function setDoors(open) {
+  if (open !== doorsOpen) sfx(open ? "doorOpen" : "doorClose", { delay: open ? 0 : 0.15 });
   doorsOpen = open;
   for (const d of doors) d.target = open ? DOOR_OPEN : 0;
   if (!open) { closeDrawers(); closePanel(); }
@@ -548,11 +553,18 @@ function makeDrawer(i, count) {
   box(0.012, bh, depth, oakDark, -bw / 2, bh / 2 + 0.01, bz, bx);
   box(0.012, bh, depth, oakDark, bw / 2, bh / 2 + 0.01, bz, bx);
   box(bw, bh, 0.012, oakDark, 0, bh / 2 + 0.01, bz - depth / 2, bx);
+  // the display tray: once the drawer is out it rises on a suede riser, so the pieces stand above
+  // the drawer front and can be seen from the front instead of from above
+  const tray = new THREE.Group(); g.add(tray);
+  box(bw - 0.06, 0.012, depth - 0.08, velvet, 0, 0.022, bz, tray);
+  box(bw - 0.06, 0.004, 0.006, brushedBrass, 0, 0.028, bz + (depth - 0.08) / 2, tray); // brass lip along its front
+  const riser = box(bw - 0.12, 1, depth - 0.14, velvet, 0, 0.02, bz, g); riser.scale.y = 0.001; riser.castShadow = false;
   g.traverse((o) => { if (o.isMesh && !o.userData.kind) o.userData.kind = "drawerbox"; o.userData.drawer = i; });
-  const dr = { i, g, open: 0, target: 0, y, floorY: 0.021, depth, bz, bottles: [], count };
+  const dr = { i, g, tray, riser, lift: 0, open: 0, target: 0, y, floorY: 0.033, depth, bz, bottles: [], count };
   drawers.push(dr); allDrawers.push(dr);
   return dr;
 }
+const TRAY_RISE = 0.2;
 const OPEN_DEPTH = 0.56; // full-extension runners: the whole tray comes clear of the shelf above
 // Fragrances stand in the drawer as boxes with the real photo on the front, leaning back like
 // records in a crate. (Perfume photos are often hand-held or on busy tables, so they aren't cut out.)
@@ -579,7 +591,7 @@ function photoFace(img) {
   };
   return { map: t, tone, glass: avg(150, 250, 234, 380), cap: avg(165, 120, 219, 190) };
 }
-const BOX_W = 0.13, BOX_H = 0.17, BOX_D = 0.05, LEAN = 0.42, LEAN_OUT = 0.7;
+const BOX_W = 0.13, BOX_H = 0.17, BOX_D = 0.05, LEAN = 0.16, LEAN_OUT = 0.7; // boxes stand nearly upright, facing you
 const hash = (str) => { let h = 2166136261; for (const ch of String(str)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; };
 // A glass bottle with liquid, a collar, a cap and a printed label. Its tint and cap colour come from the photo;
 // the shape is one of a few classic bottle forms (the photo can't tell us the real one).
@@ -652,7 +664,7 @@ function addBottle(dr, p, face, slot, slots) {
   bottle.group.position.set(0.075, 0, 0.045);
   bottle.group.rotation.y = -0.12 + (Math.random() - 0.5) * 0.08; // facing you, just off square
   holder.add(bottle.group);
-  dr.g.add(holder);
+  dr.tray.add(holder);
   const it = { p, mesh: m, holder, boxPivot, bottle: bottle.group, home: holder.position.clone(), homeRy: holder.rotation.y, lift: 0, hover: 0, out: 0, dr, box: true, face };
   m.userData = { kind: "bottle", item: it };
   bottle.group.traverse((o) => { if (o.isMesh) o.userData = { kind: "bottle", item: it }; });
@@ -670,14 +682,17 @@ let openDrawer = -1;
 function toggleDrawer(i) {
   if (!doorsOpen) return setDoors(true);
   closePanel();
+  const was = openDrawer;
   openDrawer = openDrawer === i ? -1 : i;
+  if (was >= 0) sfx("drawerClose");
+  if (openDrawer >= 0) sfx("drawerOpen", { delay: was >= 0 ? 0.55 : 0 });
   allDrawers.forEach((d) => { d.target = d.i === openDrawer ? 1 : 0; });
   view = openDrawer >= 0 ? `drawer${openDrawer}` : "all";
   paintDock();
   if (openDrawer >= 0 && !allDrawers.find((d) => d.i === openDrawer).bottles.length) return flashHint("This drawer is being curated");
   if (openDrawer >= 0 && camera.aspect < 0.8) flashHint("← Swipe along the drawer →");
 }
-function closeDrawers() { openDrawer = -1; allDrawers.forEach((d) => { d.target = 0; }); if (view.startsWith("drawer")) view = "all"; }
+function closeDrawers() { if (openDrawer >= 0) sfx("drawerClose"); openDrawer = -1; allDrawers.forEach((d) => { d.target = 0; }); if (view.startsWith("drawer")) view = "all"; }
 
 // ---------- shelf: anything that isn't clothing or a fragrance ----------
 const shelfItems = [];
@@ -834,7 +849,7 @@ const VIEWS = {
   rail: { target: [0, 1.55, 0.05], size: [2.0, 1.25], phoneW: 1.0, dir: [0, 0.02, 1] },
   top: { target: [0, 2.21, 0.12], size: [1.9, 0.5], phoneW: 0.8, dir: [0, -0.05, 1] },
 };
-for (let i = 0; i < DRAWERS_MAX; i++) VIEWS[`drawer${i}`] = { target: [0, PLINTH + T + i * DRAWER_H + 0.1, OPEN_DEPTH + 0.02], size: [1.75, 0.62], phoneW: 0.85, dir: [0, 0.85, 1], drawer: i }; // looking in at about 40°, like standing at the drawer
+for (let i = 0; i < DRAWERS_MAX; i++) VIEWS[`drawer${i}`] = { target: [0, PLINTH + T + i * DRAWER_H + TRAY_RISE + 0.12, OPEN_DEPTH + 0.02], size: [1.7, 0.5], phoneW: 0.85, dir: [0, 0.3, 1], drawer: i }; // the tray has risen: look at it from the front, a little above, like a shop counter
 let view = "all";
 const camPos = new THREE.Vector3(0, 1.4, 9), camLook = new THREE.Vector3(0, 1.2, 0);
 const parallax = { x: 0, y: 0, tx: 0, ty: 0 };
@@ -859,6 +874,7 @@ let selected = null;
 const panel = $("panel");
 async function openInfo(it) {
   if (selected && selected !== it) selected.out = 0;
+  if (selected !== it) sfxPick(it);
   selected = it; it.out = 1;
   if (it.type === "bag") it.av = (it.av || 0) + 1.6; // a little swing as it's picked up
   const card = await it.info();
@@ -897,6 +913,7 @@ function openPanel(it) {
   $("list").hidden = true;
   $("photos").hidden = false; panel.classList.remove("info");
   if (selected && selected !== it) selected.out = 0;
+  if (selected !== it) sfxPick(it);
   selected = it;
   it.out = 1;
   const p = it.p;
@@ -932,7 +949,7 @@ function openPanel(it) {
 }
 function closePanel() {
   panel.style.transform = "";
-  if (selected) selected.out = 0;
+  if (selected) { selected.out = 0; sfxPut(selected); }
   selected = null;
   panel.classList.remove("open"); panel.setAttribute("aria-hidden", "true");
   document.body.classList.remove("has-panel");
@@ -973,7 +990,7 @@ function paintDock() {
     if (cls) b.className = cls;
     if (aria) b.setAttribute("aria-label", aria);
     if (n != null) { const s = document.createElement("span"); s.className = "n"; s.textContent = n; b.appendChild(s); }
-    b.setAttribute("aria-pressed", pressed ? "true" : "false"); b.addEventListener("click", fn); dock.appendChild(b);
+    b.setAttribute("aria-pressed", pressed ? "true" : "false"); b.addEventListener("click", () => sfx("tap")); b.addEventListener("click", fn); dock.appendChild(b);
     return b;
   };
   const sep = () => { const i = document.createElement("i"); i.className = "sep"; dock.appendChild(i); };
@@ -1043,6 +1060,7 @@ el.addEventListener("pointermove", (e) => {
   if (hit && hit.kind === "garment" && !hit.item.out) {
     const it = hit.item;
     it.av += clamp(vx * (e.pointerType === "touch" ? 0.012 : 0.006), -0.6, 0.6);
+    if (Math.abs(vx) > 4) sfx("brush", { pan: it.x, v: Math.min(1, Math.abs(vx) / 30) }); // the hangers clink as you brush them
     it.bv += clamp(Math.abs(vx) * 0.002, 0, 0.2);
     if (e.pointerType === "mouse" && hovered !== it) { hovered = it; focusIdx = garments.indexOf(it); layoutRail(); }
   } else if (e.pointerType === "mouse" && hovered && !(hit && hit.kind === "garment")) { hovered = null; focusIdx = -1; layoutRail(); }
@@ -1137,9 +1155,14 @@ function frame() {
   // drawers: glide out on runners, slight bounce at the stop
   let litDrawer = null;
   for (const d of allDrawers) {
-    d.v = (d.v || 0) + ((d.target - d.open) * 70 - (d.v || 0) * 15) * dt;
+    // out first, then the tray rises; on closing the tray comes down before the drawer slides in
+    const goal = d.target === 0 && d.lift > 0.02 ? 1 : d.target;
+    d.v = (d.v || 0) + ((goal - d.open) * 70 - (d.v || 0) * 15) * dt;
     d.open += d.v * dt;
     d.g.position.z = d.open * OPEN_DEPTH;
+    d.lift = damp(d.lift, d.target && d.open > 0.85 ? TRAY_RISE : 0, 4, dt);
+    d.tray.position.y = d.lift;
+    d.riser.scale.y = Math.max(0.001, d.lift); d.riser.position.y = 0.02 + d.lift / 2;
     if (d.open > 0.3) litDrawer = d;
     for (const b of d.bottles) liftItem(b, dt, now);
   }
@@ -1162,7 +1185,7 @@ function frame() {
     }
   }
   if (litDrawer) {
-    drawerLight.position.set(0, litDrawer.y + 0.55, litDrawer.open * OPEN_DEPTH + 0.35);
+    drawerLight.position.set(0, litDrawer.y + 0.55 + litDrawer.lift, litDrawer.open * OPEN_DEPTH + 0.45);
     drawerLight.intensity = damp(drawerLight.intensity, 1.4, 6, dt);
   } else drawerLight.intensity = damp(drawerLight.intensity, 0, 6, dt);
 
@@ -1198,8 +1221,8 @@ function liftItem(b, dt, now) {
     // picked: the bottle and its box rise together clear of the drawer front, upright, tipped
     // slightly towards you, and the bottle turns gently in the light. Nothing tumbles or swells.
     b.holder.scale.setScalar(1 + b.outS * 0.3);
-    b.holder.position.set(b.home.x * (1 - b.outS), b.home.y + b.hoverS * 0.012 + b.outS * 0.24, b.home.z + b.outS * (0.2 - b.home.z));
-    b.holder.rotation.set(b.outS * 0.32, b.homeRy * (1 - b.outS), 0);
+    b.holder.position.set(b.home.x * (1 - b.outS), b.home.y + b.hoverS * 0.012 + b.outS * 0.09, b.home.z + b.outS * (0.2 - b.home.z));
+    b.holder.rotation.set(b.outS * 0.06, b.homeRy * (1 - b.outS), 0);
     b.boxPivot.rotation.x = -(LEAN * (1 - b.outS) + 0.12 * b.outS) + b.hoverS * 0.1;
     b.bottle.position.set(0.075, b.hoverS * 0.01, 0.045);
     b.bottleRy = b.bottleRy ?? b.bottle.rotation.y;
