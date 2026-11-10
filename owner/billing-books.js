@@ -19,6 +19,8 @@
   }
   function todos(d) {
     const a = d.attention, out = [];
+    // After the myBillBook import the cash book starts empty: old receipts are history, not cash in the drawer.
+    if (d.setOpening) out.push(["high", "Set today's cash in hand and bank balance", "Your myBillBook history is in. Cash & Bank counts from today", "Set", () => window.VX.go("cash")]);
     if (a.ordersToCheck) out.push(["high", `${a.ordersToCheck} website order${a.ordersToCheck === 1 ? "" : "s"} to check`, a.nextLapse ? `A held piece ${waitText(a.nextLapse)}` : "Match the payment, then confirm", "Check", () => window.VX.go("orders")]);
     if (d.topDues.length) out.push(["", `${inr(d.toCollect)} to collect`, `${d.topDues.length === 10 ? "10 or more" : d.topDues.length} customer${d.topDues.length === 1 ? "" : "s"} owe you`, "See who", () => window.VX.go("parties")]);
     if (a.itemsToCount) out.push(["", `${a.itemsToCount} item${a.itemsToCount === 1 ? "" : "s"} to recount`, "Sold with no stock showing", "Count", () => window.VX.setStockFilter("check")]);

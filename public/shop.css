@@ -1063,3 +1063,39 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .wdt-drawers { position: absolute; left: 0; right: 0; bottom: 0; height: 36%; display: grid; grid-template-rows: repeat(3, 1fr); gap: 3px; padding-top: 6px; background: #f1e6d4; border-top: 6px solid #e8dac3; }
 .wdt-drawers i { position: relative; background: #2b2a28; box-shadow: inset 0 0 0 4px #2b2a28, inset 0 0 0 5px rgba(200,161,101,.55); }
 .wdt-drawers i::after { content: ""; position: absolute; left: 50%; top: 50%; width: 22%; height: 4px; margin: -2px 0 0 -11%; border-radius: 2px; background: linear-gradient(90deg, #c8a165 0 6%, #8a5330 6% 94%, #c8a165 94%); box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+
+/* ---- Items with several photos ---- */
+/* Cards: a small camera + count; on a computer the second photo fades in under the mouse (art.js). */
+.pcount { position: absolute; top: 10px; right: 10px; z-index: 2; pointer-events: none; display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px 0 6px; border-radius: 999px; background: rgba(18, 18, 18, .62); color: #fff; font: 600 11px/1 var(--mono); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.pcount svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; }
+.sr-pic { position: relative; }
+.sr-pic .pcount { top: auto; right: 2px; bottom: 2px; height: 16px; padding: 0 4px; gap: 2px; font-size: 9.5px; }
+.sr-pic .pcount svg { width: 9px; height: 9px; }
+.alt-shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; pointer-events: none; transition: opacity .35s ease, transform .9s var(--ease); }
+@media (hover: hover) and (pointer: fine) {
+  [data-alt].alt-ready:hover .alt-shot { opacity: 1; }
+  .card:hover .media .alt-shot { transform: scale(1.04); }
+}
+.card.sold .media .alt-shot { filter: grayscale(1); opacity: 0 !important; }
+
+/* Product page gallery: one strip of every photo. pan-y + pinch-zoom: the page still scrolls and
+   pinches natively; sideways drags come to pdp.js. */
+.pdp-gal { touch-action: pan-y pinch-zoom; }
+.pdp-track { display: flex; width: 100%; height: 100%; will-change: transform; }
+.pdp-track.glide { transition: transform .32s var(--ease); }
+.pdp-track img { flex: 0 0 100%; width: 100%; height: 100%; object-fit: cover; display: block; user-select: none; -webkit-user-drag: none; }
+.pdp-count { position: absolute; right: 10px; bottom: 10px; z-index: 2; pointer-events: none; padding: 5px 9px; border-radius: 999px; background: rgba(18, 18, 18, .62); color: #fff; font: 600 11.5px/1 var(--mono); letter-spacing: .02em; }
+.pdp-dots { position: absolute; left: 50%; bottom: 14px; z-index: 2; transform: translateX(-50%); display: none; gap: 6px; pointer-events: none; }
+.pdp-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(18, 18, 18, .28); box-shadow: 0 0 0 1px rgba(255, 255, 255, .6); transition: background .2s, transform .2s; }
+.pdp-dots i.on { background: var(--ink); transform: scale(1.25); }
+.pdp-arrow { position: absolute; top: 50%; z-index: 2; width: 42px; height: 42px; margin-top: -21px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .92); color: #121212; font: 400 26px/1 var(--body); cursor: pointer; box-shadow: 0 2px 10px rgba(0, 0, 0, .12); opacity: 0; transition: opacity .2s; }
+.pdp-arrow.prev { left: 12px; } .pdp-arrow.next { right: 12px; }
+.pdp-gal:hover .pdp-arrow, .pdp-arrow:focus-visible { opacity: 1; }
+@media (max-width: 820px), (hover: none) {
+  .pdp-arrow { display: none; }
+  .pdp-dots { display: flex; }
+}
+@media (max-width: 820px) { .pdp-thumbs { display: none; } }
+.pdp-zoom .pdp-zcount { position: absolute; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); padding: 6px 11px; border-radius: 999px; background: rgba(255, 255, 255, .9); color: #121212; font: 600 12px/1 var(--mono); }
+.pdp-zoom .pdp-zstep { top: 50%; margin-top: -22px; font-size: 28px; }
+.pdp-zoom .pdp-zstep.prev { left: 12px; right: auto; } .pdp-zoom .pdp-zstep.next { right: 12px; }

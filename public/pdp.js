@@ -9,6 +9,7 @@
   let products = [];
   let pick = null, needPick = false; // chosen size; true after "Order now" with none chosen
   let shot = 0; // which of the item's photos is showing
+  let drag = null, swiped = 0; // a swipe on the photos in progress; when the last one ended
 
   // A WhatsApp chat with the shop, the message already written. From the analytics (2026-11-09): people open a
   // jacket and leave within 5 seconds, so the page answers the doubts they'd otherwise have to ask about.
@@ -32,25 +33,49 @@
 
   const offPct = (p) => (p.mrp && p.price && p.mrp > p.price ? Math.round((1 - p.price / p.mrp) * 100) : 0);
 
-  function media(p) {
+  function media(p, extra = "") {
     const pic = p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}">` : window.productArt(p, hash(p.id));
-    return `<div class="media ${p.image ? "" : "art-bg"}">${pic}<span class="lot">${lot(p)}</span>
+    return `<div class="media ${p.image ? "" : "art-bg"}">${pic}<span class="lot">${lot(p)}</span>${extra}
       ${p.status === "sold" ? `<div class="sold-stamp"><span>SOLD</span></div>` : ""}
       ${p.status === "hold" ? `<div class="sold-stamp hold-stamp"><span>ON HOLD</span></div>` : ""}</div>`;
   }
 
-  // The big photo, with a row of small ones when the item has more than one.
-  const photosOf = (p) => [p.image, ...(p.images || [])].filter(Boolean);
+  // Every photo of the item in one strip: swipe on a phone (dots and 1/4), small photos and arrows
+  // on a computer, arrow keys, tap to zoom. Photos whose file is missing are left out.
+  const broken = new Set();
+  const photosOf = (p) => [p.image, ...(p.images || [])].filter((u) => u && !broken.has(u));
   function gallery(p) {
-    const list = photosOf(p);
-    if (list.length < 2) return media(p);
-    if (shot >= list.length) shot = 0;
-    return `${media({ ...p, image: list[shot] })}
-      <div class="pdp-thumbs" role="group" aria-label="More photos of ${esc(p.name)}">${list.map((u, i) => `<button type="button" data-shot="${i}" class="${i === shot ? "on" : ""}" aria-label="Photo ${i + 1} of ${list.length}" aria-pressed="${i === shot}"><img src="${esc(u)}" alt="" decoding="async"></button>`).join("")}</div>`;
+    const list = photosOf(p), n = list.length;
+    if (n < 2) return media({ ...p, image: list[0] || null });
+    if (shot >= n) shot = 0;
+    return `<div class="media pdp-gal" role="region" aria-roledescription="carousel" aria-label="Photos of ${esc(p.name)}">
+        <div class="pdp-track" style="transform:translateX(${-shot * 100}%)">${list.map((u, i) => `<img src="${esc(u)}" alt="${esc(p.name)}, photo ${i + 1} of ${n}" width="800" height="1000" decoding="async" draggable="false"${Math.abs(i - shot) <= 1 ? "" : ` loading="lazy"`}>`).join("")}</div>
+        <span class="lot">${lot(p)}</span>
+        ${p.status === "sold" ? `<div class="sold-stamp"><span>SOLD</span></div>` : ""}
+        ${p.status === "hold" ? `<div class="sold-stamp hold-stamp"><span>ON HOLD</span></div>` : ""}
+        <button type="button" class="pdp-arrow prev" data-step="-1" aria-label="Previous photo">‹</button><button type="button" class="pdp-arrow next" data-step="1" aria-label="Next photo">›</button>
+        <span class="pdp-count" aria-live="polite">${shot + 1}/${n}</span>
+        <span class="pdp-dots" aria-hidden="true">${list.map((_, i) => `<i class="${i === shot ? "on" : ""}"></i>`).join("")}</span>
+      </div>
+      <div class="pdp-thumbs" role="group" aria-label="More photos of ${esc(p.name)}">${list.map((u, i) => `<button type="button" data-shot="${i}" class="${i === shot ? "on" : ""}" aria-label="Photo ${i + 1} of ${n}" aria-pressed="${i === shot}"><img src="${esc(u)}" alt="" width="64" height="64" loading="lazy" decoding="async"></button>`).join("")}</div>`;
+  }
+  // Shows photo i without redrawing the page.
+  function go(i, glide = true) {
+    const gal = root.querySelector(".pdp-gal");
+    if (!gal) return;
+    const imgs = gal.querySelectorAll(".pdp-track img"), n = imgs.length;
+    shot = ((i % n) + n) % n;
+    const track = gal.querySelector(".pdp-track");
+    track.classList.toggle("glide", glide);
+    track.style.transform = `translateX(${-shot * 100}%)`;
+    for (const k of [shot - 1, shot, shot + 1]) imgs[(k + n) % n].removeAttribute("loading"); // the next ones load before they're needed
+    gal.querySelector(".pdp-count").textContent = `${shot + 1}/${n}`;
+    gal.querySelectorAll(".pdp-dots i").forEach((d, k) => d.classList.toggle("on", k === shot));
+    root.querySelectorAll(".pdp-thumbs [data-shot]").forEach((b, k) => { b.classList.toggle("on", k === shot); b.setAttribute("aria-pressed", String(k === shot)); });
   }
 
   function mini(p) {
-    return `<a class="mini" href="${BASE}/p/${encodeURIComponent(p.id)}">${media(p)}
+    return `<a class="mini" href="${BASE}/p/${encodeURIComponent(p.id)}"${window.VXPhotos?.alt(p) || ""}>${media(p, window.VXPhotos?.badge(p) || "")}
       <span class="brand">${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><span class="mono">${p.price ? rupees(p.price) : "Ask"}</span></a>`;
   }
 
@@ -165,6 +190,7 @@
 
   let lastJson = "";
   async function load() {
+    if (drag) return; // mid-swipe: the next refresh redraws
     try {
       const res = await fetch("/api/products", { cache: "no-store" });
       const json = await res.text();
@@ -176,22 +202,46 @@
   }
 
   // People kept tapping the photo: open it full screen, where a phone can pinch in on it.
-  function zoom(img) {
+  // With several photos the arrows, arrow keys or a swipe (when not pinched in) move through them all.
+  function zoom(start) {
+    const p = products.find((x) => x.id === id);
+    const list = p ? photosOf(p) : [], n = list.length;
+    if (!n) return;
+    let at = start;
     const box = document.createElement("dialog");
     box.className = "pdp-zoom";
-    box.innerHTML = `<img alt=""><button type="button" aria-label="Close photo">×</button>`;
-    box.querySelector("img").src = img.src; box.querySelector("img").alt = img.alt;
-    box.addEventListener("click", () => box.close());
-    box.addEventListener("close", () => box.remove());
+    box.innerHTML = `<img alt="">${n > 1 ? `<span class="pdp-zcount"></span><button type="button" class="pdp-zstep prev" data-z="-1" aria-label="Previous photo">‹</button><button type="button" class="pdp-zstep next" data-z="1" aria-label="Next photo">›</button>` : ""}<button type="button" class="pdp-zclose" aria-label="Close photo">×</button>`;
+    const img = box.querySelector("img");
+    const show = (i) => {
+      at = ((i % n) + n) % n;
+      img.src = list[at]; img.alt = `${p.name}, photo ${at + 1} of ${n}`;
+      if (n > 1) box.querySelector(".pdp-zcount").textContent = `${at + 1}/${n}`;
+    };
+    show(at);
+    box.addEventListener("click", (e) => { const b = e.target.closest("[data-z]"); if (b) return show(at + Number(b.dataset.z)); box.close(); });
+    box.addEventListener("keydown", (e) => { if (n > 1 && (e.key === "ArrowLeft" || e.key === "ArrowRight")) { e.preventDefault(); show(at + (e.key === "ArrowRight" ? 1 : -1)); } });
+    let zx = null;
+    box.addEventListener("touchstart", (e) => { zx = e.touches.length === 1 && (window.visualViewport?.scale || 1) <= 1.01 ? [e.touches[0].clientX, e.touches[0].clientY] : null; }, { passive: true });
+    box.addEventListener("touchend", (e) => {
+      if (!zx || n < 2) return;
+      const dx = e.changedTouches[0].clientX - zx[0], dy = e.changedTouches[0].clientY - zx[1];
+      zx = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) { swiped = Date.now(); show(at + (dx < 0 ? 1 : -1)); }
+    }, { passive: true });
+    box.addEventListener("click", (e) => { if (Date.now() - swiped < 400) e.stopImmediatePropagation(); }, { capture: true });
+    box.addEventListener("close", () => { box.remove(); if (n > 1) go(at, false); });
     document.body.append(box);
     box.showModal();
   }
 
   root.addEventListener("click", (e) => {
+    if (Date.now() - swiped < 400 && e.target.closest(".pdp-gal")) return; // the end of a swipe isn't a tap
     const thumb = e.target.closest("[data-shot]");
-    if (thumb) { shot = Number(thumb.dataset.shot); return render(); }
+    if (thumb) return go(Number(thumb.dataset.shot));
+    const arrow = e.target.closest(".pdp-gal [data-step]");
+    if (arrow) return go(shot + Number(arrow.dataset.step));
     const photo = e.target.closest(".pdp-media .media img");
-    if (photo) return zoom(photo);
+    if (photo) return zoom(root.querySelector(".pdp-gal") ? shot : 0);
     if (e.target.closest(".vx-promise a")) window.VXTrack?.("nudge_tap", { x: "promise" });
     if (e.target.closest("[data-promise]")) { window.VXTrack?.("nudge_tap", { x: "promise" }); root.querySelector(".vx-promise")?.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
     const b = e.target.closest("[data-pick]");
@@ -201,17 +251,50 @@
     render();
   });
 
-  // Swiping the big photo moves through the item's photos.
-  let swipeX = null;
-  root.addEventListener("touchstart", (e) => { swipeX = e.target.closest(".pdp-media .media") && e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
-  root.addEventListener("touchend", (e) => {
-    if (swipeX === null) return;
-    const moved = e.changedTouches[0].clientX - swipeX, p = products.find((x) => x.id === id), n = p ? photosOf(p).length : 0;
-    swipeX = null;
-    if (n < 2 || Math.abs(moved) < 40) return;
-    shot = (shot + (moved < 0 ? 1 : n - 1)) % n;
-    render();
+  // Swiping the big photo drags the strip with the finger. Up and down still scrolls the page, and
+  // two fingers are a pinch, never a swipe (the strip lets the browser handle both: see shop.css).
+  root.addEventListener("touchstart", (e) => {
+    const gal = e.target.closest(".pdp-gal");
+    drag = gal && e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, axis: null, w: gal.clientWidth, n: gal.querySelectorAll(".pdp-track img").length, track: gal.querySelector(".pdp-track") } : null;
   }, { passive: true });
+  root.addEventListener("touchmove", (e) => {
+    if (!drag) return;
+    if (e.touches.length !== 1) { const d = drag; drag = null; if (d.axis === "x") go(shot); return; }
+    const dx = e.touches[0].clientX - drag.x, dy = e.touches[0].clientY - drag.y;
+    if (!drag.axis && Math.hypot(dx, dy) > 8) drag.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    if (drag.axis !== "x") return;
+    const edge = (shot === 0 && dx > 0) || (shot === drag.n - 1 && dx < 0);
+    drag.dx = edge ? dx / 3 : dx; // past the first or last photo it only gives a little
+    drag.track.classList.remove("glide");
+    drag.track.style.transform = `translateX(calc(${-shot * 100}% + ${drag.dx}px))`;
+  }, { passive: true });
+  const endDrag = () => {
+    const d = drag;
+    drag = null;
+    if (!d || d.axis !== "x") return;
+    swiped = Date.now();
+    const far = Math.abs(d.dx) > Math.min(60, d.w * 0.18);
+    go(far ? Math.max(0, Math.min(d.n - 1, shot + (d.dx < 0 ? 1 : -1))) : shot);
+  };
+  root.addEventListener("touchend", endDrag, { passive: true });
+  root.addEventListener("touchcancel", endDrag, { passive: true });
+  // Left and right arrow keys move through the photos (not while typing, or with the bag open).
+  document.addEventListener("keydown", (e) => {
+    if ((e.key !== "ArrowLeft" && e.key !== "ArrowRight") || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (!root.querySelector(".pdp-gal") || document.querySelector("dialog[open]") || e.target.closest?.("input, textarea, select, [contenteditable]")) return;
+    e.preventDefault();
+    go(shot + (e.key === "ArrowRight" ? 1 : -1));
+  });
+  // A photo whose file is missing drops out of the gallery (or the page shows the drawing instead).
+  root.addEventListener("error", (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.closest(".pdp-media")) return;
+    const u = img.getAttribute("src");
+    const p = products.find((x) => x.id === id);
+    if (!u || broken.has(u) || !p || !photosOf(p).includes(u)) return;
+    broken.add(u);
+    render();
+  }, true);
 
   O.install((pid) => products.find((p) => p.id === pid), (pid) => {
     const p = products.find((x) => x.id === pid);

@@ -655,7 +655,7 @@
   $("cartBar").onclick = () => $("cart").scrollIntoView({ behavior: "smooth", block: "start" });
 
   // ---- Bills ----
-  const SRC = { counter: "Counter", whatsapp: "WhatsApp", website: "Website" };
+  const SRC = { counter: "Counter", whatsapp: "WhatsApp", website: "Website", mybillbook: "myBillBook" };
   const PAY = { cash: "Cash", upi: "UPI", card: "Card", credit: "Credit" };
   const dayOf = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   let billSort = "at", billDir = -1, billStatus = "", billShown = 50;
@@ -701,7 +701,7 @@
     const box = window.VX.drawer(`Bill ${x.number}`, `
       <p class="sub">${new Date(x.at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })} · ${SRC[x.source] || x.source}${x.by ? ` · by ${esc(x.by)}` : ""}</p>
       <div class="billHead"><div><b>${esc(x.customer.name || "Walk-in")}</b><div class="sub">${esc(phone || "")}</div></div>${off ? `<span class="pill out">Cancelled</span>` : x.due > 0 ? `<span class="pill out">${inr(x.due)} due</span>` : `<span class="pill">Paid${x.payment === "credit" ? "" : ` · ${PAY[x.payment] || ""}`}</span>`}</div>
-      <table class="mini"><tbody>${x.lines.map((l) => `<tr><td>${l.qty} × ${esc(l.name)}${l.size ? ` <span class="sub">${esc(l.size)}</span>` : ""}</td><td class="n">${inr(l.amount)}</td></tr>`).join("")}${(x.charges || []).map((c) => `<tr><td>${esc(c.label || "Charge")}</td><td class="n">${inr(c.amount)}</td></tr>`).join("")}<tr><td><b>Total</b></td><td class="n"><b>${inr(x.total)}</b></td></tr></tbody></table>
+      <table class="mini"><tbody>${x.lines.map((l) => `<tr><td>${l.qty} × ${esc(l.name)}${l.size ? ` <span class="sub">${esc(l.size)}</span>` : ""}</td><td class="n">${inr(l.amount)}</td></tr>`).join("")}${(x.charges || []).map((c) => `<tr><td>${esc(c.label || "Charge")}</td><td class="n">${c.amount < 0 ? `−${inr(-c.amount)}` : inr(c.amount)}</td></tr>`).join("")}<tr><td><b>Total</b></td><td class="n"><b>${inr(x.total)}</b></td></tr></tbody></table>
       <div class="actions">
         <button class="primary" id="bpPrint">Print</button><a class="tbtn" href="${url}?o" target="_blank" rel="noopener">Open bill</a>
         ${phone ? `<a class="tbtn wa" target="_blank" rel="noopener" href="https://wa.me/91${phone}?text=${encodeURIComponent(billText(x, url))}">WhatsApp</a>` : ""}

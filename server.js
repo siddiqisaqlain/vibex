@@ -177,6 +177,7 @@ const savePending = (list, touch = true) => {
 const billing = createBilling({ STORE, SHOP, load, save, logActivity });
 const invoicePage = require("./lib/invoice-page");
 const stockImport = require("./lib/import-mybillbook");
+const mbbImport = require("./lib/import-mbb");
 const books = require("./lib/books")({ STORE, SHOP, billing, load, save, logActivity });
 billing.hooks.partyFor = books.customerFor;
 const documents = require("./lib/documents")({ STORE, billing, books, load, save, logActivity, newCode });
@@ -588,6 +589,8 @@ _Faster:_ put it all in the caption, e.g. _Zara shirt 1499 M L_, and it's one ta
 *Today's bills:* _bills_
 *Running low:* _low_
 *Put an imported item on the website:* send its photo with the code as the caption, e.g. _4795_
+*Several photos at once:* I'll ask if they're one item or separate items
+*More photos of an item:* _photos 4795_, then send the photos (or caption them _photos 4795_). _main 4795_ with a photo makes it the main one
 *Sell:* _sold 4795_ (one) or _sold 4795 2_
 *More came in:* _add 4795 3_
 *Set stock:* _stock 4795 5_
@@ -1076,10 +1079,11 @@ async function ownerMessage(body) {
   if (unusable) {
     photos = photos.filter((x) => IMAGE_OK.test(String(x.image)));
     if (!photos.length) return { reply: PHOTO_ONLY };
-    const out = photos.length > 1 ? await batchMessage(photos) : await ownerMessage(photos[0]);
+    const out = await ownerMessage(photos.length > 1 ? { photos } : photos[0]);
     return { ...out, reply: `⚠️ ${unusable} of ${unusable + photos.length} weren't photos I can use (JPG/PNG only). Please send those again as photos.\n\n${out.reply || ""}` };
   }
-  if (photos.length > 1) return batchMessage(photos);
+  // An album: photos for an item in stock ("photos 4795"), or ask whether it's one item or several.
+  if (photos.length > 1) return routePhotos(photos) || albumMessage(photos);
   if (photos.length === 1) body = photos[0];
   if (body.unsupported || (body.image && !IMAGE_OK.test(String(body.image)))) return { reply: PHOTO_ONLY };
   // "bik gaya 4795" -> "sold 4795", "sold 2,342" -> "sold 2342" (only for command-looking text).
@@ -1088,9 +1092,14 @@ async function ownerMessage(body) {
 
   // A photo with an imported item's code: that item goes on the website.
   if (body.image) {
+    const routed = routePhotos([{ text: body.text, image: body.image }]);
+    if (routed) return routed;
     const live = photoForImported(text, body.image);
     if (live) return live;
+    if (smallState(ALBUM)) return albumMessage([{ text: body.text, image: body.image }]); // joins the album still waiting
   }
+  const asked = !body.image && askForPhotos(text);
+  if (asked) return asked;
   const items = load();
   const stockReply = stockCommand(text);
   if (stockReply) return { reply: stockReply };
@@ -1109,6 +1118,8 @@ async function ownerMessage(body) {
   if (/^(low|low stock|kam)$/i.test(text.trim())) return { reply: reports.lowText() };
   if (!body.image && /^(stock|stocks|inventory|maal)[.!?]*$/i.test(text.trim())) return { reply: stockSummary(items) };
   if (!body.image && /^(orders?|online orders?|website orders?)[.!?]*$/i.test(text.trim())) return { reply: ordersReply() };
+  const album = !body.image && (await albumReply(text));
+  if (album) return album;
   const cleared = !body.image && (clearCommand(text) || choiceReply(text));
   if (cleared) return cleared;
   const batched = !body.image && batchReply(text);
@@ -1188,6 +1199,160 @@ function photoForImported(text, image) {
   return { reply: `🎉 *“${p.name}” is on your website!*\n📲 Post it to your Status: ${siteUrl() || ""}/kit\n🔢 Code *${p.code}* · ${left > 0 ? `${left} in stock` : "shows as sold out: send *add " + p.code + " 1* when you have stock"}\n📈 ${win.postedToday} posted today · 🛍️ ${win.live} live` };
 }
 
+// ---- Several photos of one item ----
+// An album (2+ photos sent together) waits in wa-album.json while the bot asks: one item with all of
+// them, or separate items? "photos 4795" (or a photo captioned "photos 4795" / "+4795") adds photos to
+// an item already in stock instead; "main 4795" makes the photo its main one.
+const MAX_PHOTOS = billing.MAX_PHOTOS;
+const ALBUM = path.join(STORE, "wa-album.json");
+const ADD_TO = path.join(STORE, "wa-add-photos.json"); // after "photos 4795": where the next photos go
+const ADD_MS = 15 * 60e3;
+const smallState = (f) => { try { return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return null; } };
+const dropUpload = (u) => { if (u) try { fs.unlinkSync(path.join(UPLOADS, path.basename(u))); } catch { /* gone */ } };
+const uploadData = (u) => {
+  const ext = path.extname(u).slice(1).toLowerCase();
+  return `data:image/${ext === "jpg" ? "jpeg" : ext};base64,${fs.readFileSync(path.join(UPLOADS, path.basename(u))).toString("base64")}`;
+};
+const photoCount = (p) => [p.image, ...(p.images || [])].filter(Boolean).length;
+const byCode = (items, code) => items.find((x) => x.code === code) || items.find((x) => x.barcode === code);
+const WORD_PHOTOS = /^(?:add\s+)?(?:photos?|pics?|pictures?)\s+(?:to\s+|for\s+)?#?(\d{4,13})$/i;
+const PLUS_PHOTOS = /^\+\s*#?(\d{4,13})$/; // as a caption only: "+4795" on its own is "add 1 to stock"
+const MAIN_PHOTO = /^main(?:\s+photo)?\s+(?:for\s+)?#?(\d{4,13})$/i;
+function photoTarget(text, caption) {
+  const t = String(text || "").trim();
+  let m;
+  if ((m = WORD_PHOTOS.exec(t)) || (caption && (m = PLUS_PHOTOS.exec(t)))) return { code: m[1], main: false };
+  if ((m = MAIN_PHOTO.exec(t))) return { code: m[1], main: true };
+  return null;
+}
+// "photos 4795" with no photo: the next photos (within 15 minutes) go to that item.
+function askForPhotos(text) {
+  const t = photoTarget(text, false);
+  if (!t) return null;
+  const p = byCode(load(), t.code);
+  if (!p) return { reply: `I couldn't find item *${t.code}*. The code is the LOT number on the website (or the item's barcode).` };
+  const have = photoCount(p);
+  if (have >= MAX_PHOTOS) return { reply: `“${p.name}” (#${p.code}) already has ${MAX_PHOTOS} photos, the most an item can have. Remove some in /billing first.` };
+  writeJson(ADD_TO, { code: p.code, main: t.main, at: Date.now() });
+  return { reply: t.main
+    ? `📸 Send the new main photo for “${p.name}” (#${p.code}).`
+    : `📸 Send the photos of “${p.name}” (#${p.code}) now. All together is fine.\nIt has ${have} photo${have === 1 ? "" : "s"}, room for ${MAX_PHOTOS - have} more.` };
+}
+// Adds photos (data URLs) to an item. The main photo stays unless main is set.
+function addPhotos(code, images, { main = false } = {}) {
+  let p = byCode(load(), code);
+  if (!p) return { reply: `I couldn't find item *${code}*. The code is the LOT number on the website (or the item's barcode). Nothing was added.` };
+  const before = photoCount(p);
+  if (before >= MAX_PHOTOS) return { reply: `“${p.name}” (#${p.code}) already has ${MAX_PHOTOS} photos, the most an item can have. Remove some in /billing first, then send them again.` };
+  const take = images.slice(0, MAX_PHOTOS - before), left = images.length - take.length;
+  let added = 0, failed = 0, first = null;
+  for (const [i, img] of take.entries()) {
+    const r = billing.photos(p.id, { add: img }, (d) => saveImage(d, `${p.id}-${Date.now().toString(36)}${i}`));
+    if (r.error) { failed++; continue; }
+    p = r.product; added++;
+    if (!first) first = [p.image, ...(p.images || [])].filter(Boolean).at(-1);
+  }
+  if (!added) return { reply: "⚠️ I couldn't read those photos. Please send them again as photos." };
+  if (main && first && first !== p.image) { const r = billing.photos(p.id, { main: first }, () => null); if (!r.error) p = r.product; }
+  const now = photoCount(p);
+  const lines = [main
+    ? `📸 New main photo for “${p.name}” (now ${now} photo${now === 1 ? "" : "s"}).${added > 1 ? ` The other ${added - 1} went in after it.` : ""}`
+    : `📸 Added ${added} photo${added === 1 ? "" : "s"} to “${p.name}” (now ${now}). ${before ? "Main photo unchanged." : "The first one is its main photo."}`];
+  if (left) lines.push(`⚠️ ${left} left out: an item can have ${MAX_PHOTOS} photos at most.`);
+  if (failed) lines.push(`⚠️ ${failed} couldn't be read. Please send ${failed === 1 ? "it" : "them"} again.`);
+  if (p.hidden) lines.push("👁️ It isn't on the website yet. Tick *Show on website* in /billing when it's ready.");
+  return { reply: lines.join("\n") };
+}
+// Photos that belong to an item already in stock, or null when they're new products.
+// list: [{ text, image }]
+function routePhotos(list) {
+  const wait = smallState(ADD_TO);
+  if (wait) try { fs.unlinkSync(ADD_TO); } catch { /* gone */ } // used now, or stale
+  const target = list.map((x) => photoTarget(x.text, true)).find(Boolean) || (wait && Date.now() - wait.at < ADD_MS ? wait : null);
+  if (target) return addPhotos(target.code, list.map((x) => x.image), { main: target.main });
+  // An album with an imported item's code on one photo: that photo puts it on the website, the rest join it.
+  if (list.length > 1) {
+    const i = list.findIndex((x) => /^#?\d{4,13}$/.test(String(x.text || "").trim()));
+    const code = i >= 0 ? String(list[i].text).trim().replace(/^#/, "") : null;
+    if (code && load().some((x) => x.hidden && (x.code === code || x.barcode === code))) {
+      const live = photoForImported(code, list[i].image);
+      if (!live) return null;
+      const p = byCode(load(), code);
+      if (!p || p.hidden) return live; // no price or name yet: the reply says what's missing
+      const more = addPhotos(p.code, list.filter((_, k) => k !== i).map((x) => x.image));
+      return { ...live, reply: `${live.reply}\n\n${more.reply}` };
+    }
+  }
+  return null;
+}
+// 2+ photos together: save them and ask. Photos sent while the question waits join the album.
+function albumMessage(photos) {
+  const old = smallState(ALBUM);
+  const list = old?.photos || [];
+  const tag = crypto.randomBytes(4).toString("hex");
+  for (const [i, x] of photos.entries()) {
+    if (list.length >= 50) break;
+    const u = saveImage(x.image, `album-${tag}-${i}`);
+    if (u) list.push({ text: String(x.text || "").slice(0, 1000), image: u });
+  }
+  if (!list.length) return { reply: PHOTO_ONLY };
+  writeJson(ALBUM, { at: Date.now(), photos: list });
+  return albumQuestion(list, old ? `📸 Got ${photos.length} more, ${list.length} in all.\n\n` : "");
+}
+function albumQuestion(list, lead = "") {
+  const n = list.length, one = Math.min(n, MAX_PHOTOS);
+  return {
+    reply: `${lead}📸 Got ${n} photos together.\n\nIs it *one item, all ${n} photos* of it? Or are they *separate items*?${n > MAX_PHOTOS ? `\n\n(An item can have ${MAX_PHOTOS} photos, so as one item I'd keep the first ${MAX_PHOTOS}.)` : ""}`,
+    buttons: [`One item (${one} photos)`, "Separate items"],
+    photo: absolute(list[0].image),
+  };
+}
+// The answer to albumQuestion(). Returns null when no album is waiting, or the text is a command.
+async function albumReply(text) {
+  const a = smallState(ALBUM);
+  if (!a?.photos?.length) return null;
+  const t = text.trim().replace(/^[^\p{L}\p{N}]+/u, "").trim();
+  const drop = () => { for (const x of a.photos) dropUpload(x.image); try { fs.unlinkSync(ALBUM); } catch { /* gone */ } };
+  if (/^(one|1|single|same|ek)\b/i.test(t)) return albumOne(a);
+  if (/^(separate|separately|alag|different|each|2)\b/i.test(t)) {
+    const photos = a.photos.map((x) => ({ text: x.text, image: uploadData(x.image) }));
+    drop();
+    return batchMessage(photos);
+  }
+  if (/^(cancel|cancel all|clear|clear all|drop|discard|delete|start over)[.!]*$/i.test(t)) {
+    drop();
+    const rest = loadPending().length ? clearCommand("clear") : null;
+    return { reply: `🗑️ Dropped the ${a.photos.length} photos. Nothing went on the website.${rest ? `\n\n${rest.reply}` : ""}` };
+  }
+  if (parseMessage(text).type === "command") return null;
+  return albumQuestion(a.photos, `First, about the ${a.photos.length} photos you sent:\n\n`);
+}
+async function albumOne(a) {
+  try { fs.unlinkSync(ALBUM); } catch { /* gone */ }
+  const keep = a.photos.slice(0, MAX_PHOTOS), left = a.photos.length - keep.length;
+  for (const x of a.photos.slice(MAX_PHOTOS)) dropUpload(x.image);
+  const caption = a.photos.map((x) => x.text.trim()).find(Boolean) || "";
+  const item = await makeDraft(caption, uploadData(keep[0].image));
+  dropUpload(keep[0].image);
+  if (!item.image) { keep.slice(1).forEach((x) => dropUpload(x.image)); return { reply: PHOTO_ONLY }; }
+  // The rest are already on disk: they only get the draft's name.
+  item.images = keep.slice(1).map((x, i) => {
+    const name = `${item.id}-${i + 2}${path.extname(x.image)}`;
+    try { fs.renameSync(path.join(UPLOADS, path.basename(x.image)), path.join(UPLOADS, name)); return `/uploads/${name}`; } catch { return null; }
+  }).filter(Boolean);
+  if (!item.images.length) delete item.images;
+  const lead = left ? `⚠️ An item can have ${MAX_PHOTOS} photos, so I kept the first ${MAX_PHOTOS} and left out ${left}.\n\n` : "";
+  const queue = loadPending();
+  if (forgotten(queue)) { const out = askKeepOld(queue, [item]); return { ...out, reply: lead + out.reply }; }
+  const open = queue.find((x) => x.batch);
+  if (open) { item.batch = open.batch; queue.push(item); savePending(queue); return batchNext(queue, `${lead}📸 Added that one too.\n\n`); }
+  queue.push(item);
+  savePending(queue);
+  if (queue.length > 1) return { reply: `${lead}📸 Got it, one item with ${photoCount(item)} photos. I'll ask about it once “${queue[0].listing.name}” is done.` };
+  const out = step(queue[0], { fresh: true });
+  return { ...out, reply: lead + out.reply };
+}
+
 async function makeDraft(text, imageData, parsed = parseMessage(text)) {
   // "Gucci Flora 50ml 2999 100ml 4999": read the sizes first so they don't end up in the name.
   const pairs = sizePairs(text);
@@ -1228,7 +1393,7 @@ async function makeDraft(text, imageData, parsed = parseMessage(text)) {
 // reach us) shouldn't silently mix with new ones. If drafts have waited untouched for a while
 // when new photos come in, ask first: just the new ones, or keep both. "clear" drops them all.
 const STALE_MS = Number(process.env.DRAFT_STALE_MS) || 5 * 60e3;
-const dropDraftImage = (x) => { if (x.image) try { fs.unlinkSync(path.join(UPLOADS, path.basename(x.image))); } catch { /* gone */ } };
+const dropDraftImage = (x) => { for (const u of [x.image, ...(x.images || [])]) if (u) try { fs.unlinkSync(path.join(UPLOADS, path.basename(u))); } catch { /* gone */ } };
 const KEEP_BUTTONS = ["🆕 Just the new", "➕ Keep both"];
 function forgotten(queue) {
   if (queue.some((x) => x.waitChoice)) return true; // still waiting for that answer
@@ -1443,7 +1608,7 @@ function batchReply(text) {
   const raw = text.trim();
   const t = raw.replace(/^[^\p{L}\p{N}₹]+/u, "").trim();
   if (items.some((x) => x.groupAsk)) return parseMessage(raw).type === "product" ? groupAnswer(queue, items, t) : null;
-  const dropImage = (x) => { if (x.image) try { fs.unlinkSync(path.join(UPLOADS, path.basename(x.image))); } catch { /* gone */ } };
+  const dropImage = (x) => { for (const u of [x.image, ...(x.images || [])]) if (u) try { fs.unlinkSync(path.join(UPLOADS, path.basename(u))); } catch { /* gone */ } };
   const todo = items.filter((x) => batchMissing(x).length);
 
   if (/^cancel all$/i.test(t)) {
@@ -1453,7 +1618,7 @@ function batchReply(text) {
   }
   if (!todo.length) {
     if (/^post all$/i.test(t)) {
-      const live = items.filter((x) => x.image).map((x) => publish({ id: x.id, listing: x.listing, by: x.by, image: x.image }));
+      const live = items.filter((x) => x.image).map((x) => publish({ id: x.id, listing: x.listing, by: x.by, image: x.image, images: x.images }));
       savePending(queue.filter((x) => !x.batch || !x.image)); // one with no photo stays as a draft
       if (!live.length) return { reply: "📸 None of these has a photo, so nothing can go on the website. Send the photos again." };
       let win;
@@ -1612,6 +1777,7 @@ function preview(item, lead = "") {
     l.description ? `📝 ${l.description}` : null,
     `📦 ${l.quantity || 1} ${(l.quantity || 1) > 1 ? "pieces" : "piece"}`,
     `🗂️ ${section}`,
+    item.images?.length ? `📷 ${item.images.length + 1} photos` : null,
   ].filter(Boolean);
   item.ask = null;
   delete item.inMenu;
@@ -1714,14 +1880,14 @@ function draftReply(text, hasImage) {
     if (!item.image) return { reply: `📸 “${l.name}” has no photo, so it can't go on the website. Send its photo, or tap *Cancel*.`, buttons: ["❌ Cancel"] };
     queue.shift();
     savePending(queue);
-    const product = publish({ id: item.id, listing: l, by: item.by, image: item.image });
+    const product = publish({ id: item.id, listing: l, by: item.by, image: item.image, images: item.images });
     const win = celebrate(product);
     return { ...nextUp({ reply: liveReply(product, win) }), product, celebrate: win };
   }
   if (CANCEL.test(raw)) {
     queue.shift();
     savePending(queue);
-    if (item.image) { try { fs.unlinkSync(path.join(UPLOADS, path.basename(item.image))); } catch { /* already gone */ } }
+    dropDraftImage(item);
     return nextUp({ reply: `🗑️ Dropped “${l.name}”. Nothing went on the website.` });
   }
   if (CHANGE.test(raw)) { item.ask = null; item.inMenu = true; savePending(queue); return changeMenu(l); }
@@ -1773,12 +1939,12 @@ function draftReply(text, hasImage) {
   return out;
 }
 
-function publish({ id, listing, by, image }) {
+function publish({ id, listing, by, image, images }) {
   tidyListing(listing);
   const fresh = load(); // reload: another message may have landed meanwhile
   const product = {
     id, ...listing, code: newCode(fresh), quantity: listing.quantity || 1,
-    image, status: "available", createdAt: new Date().toISOString(), by,
+    image, ...(images?.length ? { images: images.slice(0, MAX_PHOTOS - 1) } : {}), status: "available", createdAt: new Date().toISOString(), by,
   };
   fresh.unshift(product);
   save(fresh);
@@ -2101,7 +2267,7 @@ async function billingRoute(req, res, route, url, who, body, reply, post, get) {
   im = /^items\/([\w-]{1,40})\/photos$/.exec(route);
   if (post && im) {
     let b; try { b = JSON.parse(await readBody(req, 8 * 1024 * 1024)); } catch { return send(res, 400, { error: "That photo is too large." }); }
-    return reply(billing.photos(im[1], b, (data) => saveImage(data, `${im[1]}-${Date.now().toString(36)}`)));
+    return reply(billing.photos(im[1], b, (data, key) => saveImage(data, `${im[1]}-${key || Date.now().toString(36)}`)));
   }
   if (post && route === "link") { const b = await body(); if (!b) return send(res, 400, { error: "Bad request." }); const r = documents.linkItem(b); pruneCopies(); return reply(r); }
   if (post && route === "unlink") { const b = await body(); if (!b) return send(res, 400, { error: "Bad request." }); const r = documents.unlinkItem(b); pruneCopies(); return reply(r); }
@@ -2138,6 +2304,16 @@ async function billingRoute(req, res, route, url, who, body, reply, post, get) {
   }
   im = /^parties\/([a-f0-9]{16})\/share$/.exec(route);
   if (post && im) { const b = await body(); return reply(books.shareLedger(im[1], b?.on !== false)); }
+  // The whole myBillBook export (items, parties, bills, payments): lib/import-mbb.js. Owner only.
+  // Preview unless apply=1. Apply copies every file it changes to backups/before-mbb-<time>/ first.
+  if (post && route === "import-mbb") {
+    if (who.role !== "owner") return send(res, 403, { error: "Only the owner can do that." });
+    let data;
+    try { data = JSON.parse(await readBody(req, 40 * 1024 * 1024)); } catch (e) { return send(res, e.message === "too large" ? 413 : 400, { error: e.message === "too large" ? "File too large (40 MB at most)." : "That file isn't a myBillBook export (not JSON)." }); }
+    const r = url.searchParams.get("apply") === "1" ? mbbImport.apply(data, STORE, SHOP) : mbbImport.preview(data, STORE, SHOP);
+    if (r.error) return send(res, 400, { error: r.error });
+    return send(res, 200, { ...r, text: mbbImport.text(r) });
+  }
   // Importing the myBillBook stock file. Preview unless apply=1; a copy is kept before applying.
   if (post && route === "import") {
     let csv;

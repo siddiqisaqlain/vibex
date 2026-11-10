@@ -101,16 +101,16 @@ try {
     ok((await post("items/a2/photos", { add: dot }, { "x-session": login.token })).status === 403, "staff can't change photos");
     ok((await post("items/a2", { onWebsite: true }, { "x-session": login.token })).status === 403, "staff can't change the website");
   } else ok(false, `staff login for the test failed: ${JSON.stringify(login)}`);
-  for (let i = 0; i < 6; i++) { await post("items/a2/photos", { add: dot }); await sleep(3); }
+  for (let i = 0; i < 10; i++) { await post("items/a2/photos", { add: dot }); await sleep(3); }
   const p6 = stored().find((p) => p.id === "a2");
-  ok(p6.image && p6.images.length === 5, "six photos fit");
-  ok((await post("items/a2/photos", { add: dot })).status === 409, "a seventh is refused");
+  ok(p6.image && p6.images.length === 9, "ten photos fit");
+  ok((await post("items/a2/photos", { add: dot })).status === 409, "an eleventh is refused");
   const second = p6.images[0];
   await post("items/a2/photos", { main: second });
   ok(stored().find((p) => p.id === "a2").image === second, "Make main moves a photo first");
   const swapped = await post("items/a2/photos", { add: dot, replace: second });
   const after = stored().find((p) => p.id === "a2");
-  ok(swapped.status === 200 && after.images.length === 5 && after.image !== second && !after.images.includes(second), "Change swaps a photo in its place, even at six");
+  ok(swapped.status === 200 && after.images.length === 9 && after.image !== second && !after.images.includes(second), "Change swaps a photo in its place, even at ten");
   ok((await post("items/a2/photos", { add: dot, replace: "/uploads/other.jpg" })).status === 409, "Change on a photo that's gone: refused");
   ok((await post("items/a2/photos", { remove: "/uploads/other.jpg" })).status === 409, "a photo that isn't on the item can't be removed");
   ok((await post("items/n1/photos", { add: dot })).status === 200 && (await post("items/n1", { onWebsite: true })).status === 409, "no selling price: refused");
@@ -203,11 +203,11 @@ try {
   // The product page shows both photos, and picking one doesn't open it full screen.
   await d.cdp("Page.navigate", { url: `${base}/p/a1` }); await d.until(`!!document.querySelector('.pdp-thumbs')`, 8000);
   ok(await d.js(`document.querySelectorAll('.pdp-thumbs button').length`) === 2, "product page shows a small photo for each");
-  const first = await d.js(`document.querySelector('.pdp-media .media img').getAttribute('src')`);
+  const first = await d.js(`document.querySelector('.pdp-count').textContent`);
   await d.tap(".pdp-thumbs button:nth-child(2)");
-  ok(await d.js(`document.querySelector('.pdp-media .media img').getAttribute('src')`) !== first, "clicking a small photo changes the big one");
+  ok(first === "1/2" && await d.until(`document.querySelector('.pdp-count').textContent==='2/2'`), "clicking a small photo changes the big one");
   ok(!(await d.js(`!!document.querySelector('.pdp-zoom')`)), "and doesn't open the zoom");
-  await d.tap(".pdp-media .media img");
+  await d.tap(".pdp-gal");
   ok(await d.until(`!!document.querySelector('.pdp-zoom')`), "clicking the big photo still zooms");
   ok(d.errors.length === 0, `desktop: no page errors ${d.errors.join(" | ").slice(0, 300)}`);
   d.close();
@@ -217,29 +217,29 @@ try {
   await m.nav(`${base}/billing?key=k`);
   await m.nav(`${base}/billing#/stock`);
   await m.tap("[data-photos=a2]");
-  ok(await m.until(`document.querySelectorAll('.photoTile').length===6`), "phone: Photos opens the panel");
-  ok(await m.js(`document.getElementById('phAdd').disabled`), "phone: Add is off at six photos");
+  ok(await m.until(`document.querySelectorAll('.photoTile').length===10`), "phone: Photos opens the panel");
+  ok(await m.js(`document.getElementById('phAdd').disabled`), "phone: Add is off at ten photos");
   await m.tap(".photoTile:nth-child(2) [data-del]");
   ok(await m.until(`document.querySelector('.photoTile:nth-child(2) [data-del]')?.classList.contains('sure')`), "phone: Remove asks for a second tap");
   await m.tap(".photoTile:nth-child(2) [data-del]");
-  ok(await m.until(`document.querySelectorAll('.photoTile').length===5`), "phone: second tap removes it");
+  ok(await m.until(`document.querySelectorAll('.photoTile').length===9`), "phone: second tap removes it");
   await m.tap("#phWeb");
   ok(await m.until(`document.getElementById('phWeb')?.textContent==='Take off website'`), "phone: puts it on the website");
   await m.js(`window.VX.closeDrawer()`); await m.sleep(300);
   ok(await m.js(`document.documentElement.scrollWidth-innerWidth`) <= 0, "phone: page fits the screen");
   await sleep(7500);
   await m.cdp("Page.captureScreenshot").then((s) => fs.writeFileSync(path.join(process.env.SHOTS || dir, "items-phone.png"), Buffer.from(s.data, "base64")));
-  await m.cdp("Page.navigate", { url: `${base}/p/a2` }); await m.until(`!!document.querySelector('.pdp-thumbs')`, 8000);
-  const was = await m.js(`document.querySelector('.pdp-media .media img').getAttribute('src')`);
+  await m.cdp("Page.navigate", { url: `${base}/p/a2` }); await m.until(`!!document.querySelector('.pdp-gal')`, 8000);
+  const was = await m.js(`document.querySelector('.pdp-count').textContent`);
   const at = await m.js(`(()=>{const r=document.querySelector('.pdp-media .media').getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2}})()`);
   await m.cdp("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: at.x + 90, y: at.y }] });
   await m.cdp("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: at.x - 90, y: at.y }] });
   await m.cdp("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await m.sleep(250);
-  ok(await m.js(`document.querySelector('.pdp-media .media img').getAttribute('src')`) !== was, "phone: swiping changes the photo");
+  ok(was === "1/9" && await m.until(`document.querySelector('.pdp-count').textContent==='2/9'`), "phone: swiping changes the photo");
   ok(!(await m.js(`!!document.querySelector('.pdp-zoom')`)), "phone: swiping doesn't open the zoom");
-  await m.tap(".pdp-thumbs button:nth-child(3)");
-  ok(await m.js(`document.querySelector('.pdp-thumbs button:nth-child(3)').classList.contains('on')`), "phone: tapping a small photo works");
+  // Phones get dots instead of the row of small photos (decided 2026-11-10).
+  ok(await m.js(`getComputedStyle(document.querySelector('.pdp-thumbs')).display==='none'&&document.querySelectorAll('.pdp-dots i').length===9&&document.querySelector('.pdp-dots i:nth-child(2)').classList.contains('on')`), "phone: dots show which photo, instead of small photos");
   ok(await m.js(`document.documentElement.scrollWidth-innerWidth`) <= 0, "phone: product page fits");
   await m.cdp("Page.captureScreenshot").then((s) => fs.writeFileSync(path.join(process.env.SHOTS || dir, "pdp-phone.png"), Buffer.from(s.data, "base64")));
   ok(m.errors.length === 0, `phone: no page errors ${m.errors.join(" | ").slice(0, 300)}`);

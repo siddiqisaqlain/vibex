@@ -36,8 +36,9 @@
       $("it-photos").innerHTML = `<input type="file" id="phFile" accept="image/*,.heic,.heif" multiple hidden><button class="tbtn photoAdd" id="phAdd">Add photos</button><p class="sub" id="phBusy"></p>`;
       $("phAdd").onclick = () => $("phFile").click();
       $("phFile").onchange = (e) => {
-        waiting = [...e.target.files].slice(0, MAX_PHOTOS);
-        $("phBusy").textContent = waiting.length ? `${waiting.length === 1 ? "1 photo" : `${waiting.length} photos`} ready. They go up when you press Save.` : "";
+        const picked = [...e.target.files];
+        waiting = picked.slice(0, MAX_PHOTOS);
+        $("phBusy").textContent = waiting.length ? `${waiting.length === 1 ? "1 photo" : `${waiting.length} photos`} ready. They go up when you press Save.${picked.length > MAX_PHOTOS ? ` ${picked.length - MAX_PHOTOS} left out: an item can have ${MAX_PHOTOS} photos at most.` : ""}` : "";
       };
     }
     // A stock box for each size, redrawn as the Sizes field changes. Blank boxes keep one shared count.
@@ -82,7 +83,7 @@
   window.VX.itemForm = itemForm;
 
   // ---- Photos and the website, for one item ----
-  const MAX_PHOTOS = 6;
+  const MAX_PHOTOS = 10;
   // A phone photo can be 10 MB. 1600px is plenty for the shop and keeps the disk and the page light.
   const toJpeg = (blob) => new Promise((done, fail) => {
     const url = URL.createObjectURL(blob), img = new Image();
@@ -122,21 +123,27 @@
 
   // The photos of one item, used in the Photos panel and in the Edit form. Every change saves at once.
   function photoEditor(host, item, onChange, first) {
-    let cur = item, msg = "", bad = false, swapping = null;
+    let cur = item, msg = "", bad = false, swapping = null, retry = [];
     const list = () => [cur.image, ...(cur.images || [])].filter(Boolean);
     const q = (s) => host.querySelector(s);
     const after = async (next, text) => { cur = next; msg = text || ""; bad = false; draw(); onChange?.(cur); await window.VX.reload(); };
-    async function upload(files, replace) {
+    // Each photo carries its own key, so trying a failed one again can't add it twice
+    // (the server may have saved it before the connection dropped).
+    const keyOf = () => Array.from(crypto.getRandomValues(new Uint8Array(9)), (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
+    async function upload(files, replace, again) {
       const room = replace ? 1 : MAX_PHOTOS - list().length;
-      const take = files.slice(0, room), left = files.length - take.length;
+      const jobs = again || files.map((f) => ({ f, key: keyOf(), replace }));
+      const take = jobs.slice(0, Math.max(0, room)), left = jobs.length - take.length;
       let added = 0, failed = "";
-      q("#phAdd").disabled = true; host.querySelectorAll(".photoBtns button").forEach((b) => (b.disabled = true));
-      for (const f of take) {
-        q("#phBusy").textContent = take.length > 1 ? `Adding photo ${added + 1} of ${take.length}…` : "Adding photo…";
-        try { cur = (await photoCall(cur, { add: await shrink(f), ...(replace ? { replace } : {}) })).product; added++; }
-        catch (e) { failed = e.message; }
+      retry = [];
+      q("#phAdd").disabled = true; host.querySelectorAll(".photoBtns button, #phRetry").forEach((b) => (b.disabled = true));
+      for (const [i, j] of take.entries()) {
+        q("#phBusy").textContent = take.length > 1 ? `Uploading ${i + 1} of ${take.length}…` : "Uploading photo…";
+        try { cur = (await photoCall(cur, { add: await shrink(j.f), key: j.key, ...(j.replace ? { replace: j.replace } : {}) })).product; added++; }
+        catch (e) { failed = e.message; if (!/couldn't be read|at most/.test(e.message)) retry.push(j); }
       }
-      const note = [failed, left > 0 ? `${left} left out: an item can have ${MAX_PHOTOS} photos at most.` : ""].filter(Boolean).join(" ");
+      const lost = retry.length ? `${retry.length === 1 ? "1 photo" : `${retry.length} photos`} didn't upload.` : failed;
+      const note = [lost, left > 0 ? `${left} left out: an item can have ${MAX_PHOTOS} photos at most.` : ""].filter(Boolean).join(" ");
       msg = note || (added ? (replace ? "Photo changed." : added > 1 ? `${added} photos added.` : "Photo added.") : ""); bad = !!note;
       draw(); onChange?.(cur);
       if (note) toast(note, { bad: true });
@@ -144,14 +151,22 @@
     }
     function draw() {
       const all = list(), full = all.length >= MAX_PHOTOS;
-      host.innerHTML = `${all.length ? `<div class="photoGrid">${all.map((u, i) => `<div class="photoTile"><img src="${esc(u)}" alt="Photo ${i + 1} of ${esc(cur.name)}">
-          ${i ? "" : `<span class="pill photoMain">Main photo</span>`}
-          <div class="photoBtns"><button class="tbtn" data-swap="${esc(u)}">Change</button>${i ? `<button class="tbtn" data-main="${esc(u)}">Make main</button>` : ""}<button class="tbtn danger" data-del="${esc(u)}">Remove</button></div></div>`).join("")}</div>` : `<p class="sub">No photos yet.</p>`}
+      host.innerHTML = `${all.length ? `<p class="sub photoCount">${all.length} of ${MAX_PHOTOS} photos${all.length > 1 ? " · the first is the main photo, shown on the website's cards" : ""}</p><div class="photoGrid">${all.map((u, i) => `<div class="photoTile"><img src="${esc(u)}" alt="Photo ${i + 1} of ${esc(cur.name)}">
+          ${i ? `<span class="pill photoMain">${i + 1}</span>` : `<span class="pill photoMain">Main photo</span>`}
+          <div class="photoBtns">${all.length > 1 ? `<button class="tbtn" data-move="${i}" data-by="-1" ${i ? "" : "disabled"} aria-label="Move photo ${i + 1} earlier">◀</button><button class="tbtn" data-move="${i}" data-by="1" ${i < all.length - 1 ? "" : "disabled"} aria-label="Move photo ${i + 1} later">▶</button>` : ""}<button class="tbtn" data-swap="${esc(u)}">Change</button>${i ? `<button class="tbtn" data-main="${esc(u)}">Make main</button>` : ""}<button class="tbtn danger" data-del="${esc(u)}">Remove</button></div></div>`).join("")}</div>` : `<p class="sub">No photos yet.</p>`}
         <input type="file" id="phFile" accept="image/*,.heic,.heif" multiple hidden>
         <input type="file" id="phOne" accept="image/*,.heic,.heif" hidden>
         <button class="tbtn photoAdd" id="phAdd" ${full ? "disabled" : ""}>${full ? `${MAX_PHOTOS} photos is the most an item can have` : all.length ? "Add more photos" : "Add photos"}</button>
-        <p class="sub ${bad ? "photoBad" : ""}" id="phBusy" role="status">${esc(msg)}</p>`;
+        <p class="sub ${bad ? "photoBad" : ""}" id="phBusy" role="status">${esc(msg)}</p>
+        ${retry.length ? `<button class="tbtn" id="phRetry">Try ${retry.length === 1 ? "it" : `those ${retry.length}`} again</button>` : ""}`;
       q("#phAdd").onclick = () => q("#phFile").click();
+      if (q("#phRetry")) q("#phRetry").onclick = () => upload([], null, retry);
+      host.querySelectorAll("[data-move]").forEach((b) => (b.onclick = async () => {
+        const order = list(), i = Number(b.dataset.move), j = i + Number(b.dataset.by);
+        if (j < 0 || j >= order.length) return;
+        [order[i], order[j]] = [order[j], order[i]];
+        try { await after((await photoCall(cur, { order })).product, i === 0 || j === 0 ? "Main photo changed." : "Order changed."); } catch (e) { toast(e.message, { bad: true }); }
+      }));
       q("#phFile").onchange = (e) => upload([...e.target.files]);
       q("#phOne").onchange = (e) => { if (e.target.files[0]) upload([e.target.files[0]], swapping); };
       host.querySelectorAll("[data-swap]").forEach((b) => (b.onclick = () => { swapping = b.dataset.swap; q("#phOne").click(); }));
@@ -293,6 +308,11 @@
       <div class="form"><b>Backup</b>
         <p class="sub">Download everything: items, bills, parties, payments, purchases, expenses, returns and orders. Keep a copy somewhere safe, away from the server.</p>
         <button class="tbtn" id="backupGo">Download backup</button></div>
+      ${window.VX.data().role === "staff" ? "" : `<div class="form"><b>Import from myBillBook</b>
+        <p class="sub">Pick the myBillBook export file. You'll see what it would change first. Nothing is saved until you press Apply, and a copy of everything is kept before.</p>
+        <input type="file" id="mbbFile" accept=".json,application/json"><div class="err" id="mbbErr"></div>
+        <pre id="mbbReport" class="sub hide" style="white-space:pre-wrap;max-height:50vh;overflow:auto;font-size:12px"></pre>
+        <button class="big hide" id="mbbApply">Apply import</button></div>`}
       <div class="form onlyKeysBlock"><b>Keyboard shortcuts</b>
         <table class="mini"><tbody><tr><td><kbd>F2</kbd></td><td>New bill</td></tr><tr><td><kbd>Ctrl K</kbd></td><td>Search everything</td></tr><tr><td><kbd>↑ ↓</kbd> <kbd>Enter</kbd></td><td>Pick an item while billing</td></tr><tr><td><kbd>Ctrl Enter</kbd></td><td>Create bill</td></tr><tr><td><kbd>Esc</kbd></td><td>Close a panel</td></tr></tbody></table></div>`;
     const store = window.VX.store;
@@ -300,6 +320,44 @@
     $("prAuto").checked = store.get("vx-print-auto") === "1";
     $("prSize").onchange = () => { store.set("vx-print-size", $("prSize").value); toast("Saved on this device."); };
     $("prAuto").onchange = () => { store.set("vx-print-auto", $("prAuto").checked ? "1" : "0"); toast("Saved on this device."); };
+    // myBillBook import (lib/import-mbb.js): the file goes up once for the preview and again for Apply.
+    if ($("mbbFile")) {
+      let mbbText = "", clashes = 0;
+      const run = async (apply) => {
+        const r = await api(`/api/billing/import-mbb${apply ? "?apply=1" : ""}`, { method: "POST", body: mbbText });
+        $("mbbReport").textContent = r.text; $("mbbReport").classList.remove("hide");
+        return r;
+      };
+      $("mbbFile").onchange = async () => {
+        const f = $("mbbFile").files[0];
+        $("mbbErr").textContent = ""; $("mbbApply").classList.add("hide"); $("mbbReport").classList.add("hide");
+        if (!f) return;
+        $("mbbReport").textContent = "Reading the file…"; $("mbbReport").classList.remove("hide");
+        try { mbbText = await f.text(); const r = await run(false); clashes = r.report.bills.numberClashWithOurs.length; if (r.changed.length) $("mbbApply").classList.remove("hide"); else toast("Nothing new to import."); }
+        catch (e) { $("mbbReport").classList.add("hide"); $("mbbErr").textContent = e.message; }
+      };
+      // Two taps to import; three when some of our bill numbers are also used in myBillBook.
+      const b = $("mbbApply"), first = b.textContent;
+      let taps = 0, timer;
+      b.onclick = async () => {
+        const need = clashes ? 3 : 2;
+        taps++; clearTimeout(timer);
+        if (taps < need) {
+          b.classList.add("sure");
+          b.textContent = taps === 1 ? "Tap again to import" : `${clashes} bill number${clashes === 1 ? "" : "s"} clash (see the top). Tap once more to import anyway`;
+          timer = setTimeout(() => { taps = 0; b.classList.remove("sure"); b.textContent = first; }, 5000);
+          return;
+        }
+        taps = 0; b.disabled = true; b.textContent = "Importing…";
+        try {
+          await run(true);
+          b.classList.add("hide");
+          toast("Imported. A copy from before is in the backups folder.");
+          await window.VX.reload();
+        } catch (e) { toast(e.message, { bad: true }); }
+        finally { b.disabled = false; b.classList.remove("sure"); b.textContent = first; }
+      };
+    }
     $("backupGo").onclick = () => window.VX.download("/api/billing/backup", `vibex-backup-${window.VX.today()}.json`).catch((e) => toast(e.message, { bad: true }));
     $("sSave").onclick = window.VX.busy($("sSave"), async (requestId) => {
       const file = $("sLogo").files[0];

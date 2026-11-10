@@ -135,6 +135,10 @@ try {
   await new Promise((r) => setTimeout(r, 300));
   assert.equal(sent.length, 1, `one reply for the whole album, got ${sent.length}`);
   m = sent[0];
+  // An album first asks: one item with all the photos, or separate items?
+  assert.match(body(m), /one item, all 3 photos/);
+  assert.deepEqual(buttons(m), ["One item (3 photos)", "Separate items"]);
+  m = await tapButton("Separate items");
   assert.match(body(m), /Got 3 photos\. 2 ready, 1 needs/);
   assert.match(body(m), /Are they all \*\w+\*\?/);
   assert.equal(buttons(m).length, 3);
@@ -173,6 +177,8 @@ try {
   for (let i = 0; i < 60 && !sent.length; i++) await new Promise((r) => setTimeout(r, 50));
   await new Promise((r) => setTimeout(r, 300));
   m = sent[0];
+  assert.match(body(m), /one item, all 2 photos/);
+  m = await tapButton("Separate items");
   assert.match(body(m), /2 new photos.*1 from before/s);
   assert.deepEqual(buttons(m), ["🆕 Just the new", "➕ Keep both"]);
   ok("new photos while an old one waits: the bot asks before mixing them");

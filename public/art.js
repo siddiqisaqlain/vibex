@@ -51,3 +51,39 @@ window.productArt = (() => {
     return `<svg class="art" viewBox="0 0 200 240" role="img" aria-label="${pick(p)} illustration">${SHAPES[pick(p)](tint)}</svg>`;
   };
 })();
+
+// Items with several photos. Cards show the main photo with a small count; on a computer the second
+// photo fades in under the mouse, fetched only on that first hover. Phones just show the main photo,
+// so scrolling the rack stays smooth; a tap opens the product page and its gallery.
+window.VXPhotos = (() => {
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const list = (p) => [p.image, ...(p.images || [])].filter(Boolean);
+  const CAM = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg>`;
+  const badge = (p) => { const n = list(p).length; return n > 1 ? `<span class="pcount" role="img" aria-label="${n} photos">${CAM}${n}</span>` : ""; };
+  const alt = (p) => { const l = list(p); return l.length > 1 ? ` data-alt="${esc(l[1])}"` : ""; };
+  const mouse = matchMedia("(hover: hover) and (pointer: fine)");
+  document.addEventListener("pointerover", (e) => {
+    if (e.pointerType !== "mouse" || !mouse.matches) return;
+    const box = e.target.closest?.("[data-alt]");
+    if (!box || box.querySelector("img.alt-shot")) return;
+    const main = box.querySelector("img");
+    if (!main) return;
+    const im = new Image();
+    im.className = "alt-shot"; im.alt = ""; im.decoding = "async";
+    im.onload = () => box.classList.add("alt-ready");
+    im.onerror = () => { im.remove(); box.removeAttribute("data-alt"); };
+    im.src = box.dataset.alt;
+    main.after(im);
+  });
+  // A photo file that's gone: a card falls back to the item's second photo, or shows its plain
+  // background instead of a broken-image icon. The product page handles its own gallery.
+  document.addEventListener("error", (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || img.classList.contains("alt-shot") || img.closest(".pdp-media")) return;
+    if (!img.closest(".media, .feat-pic, .look, .sr-pic, .hl-post")) return;
+    const box = img.closest("[data-alt]");
+    if (box && !img.dataset.fellBack) { img.dataset.fellBack = "1"; img.src = box.dataset.alt; box.removeAttribute("data-alt"); return; }
+    img.style.visibility = "hidden";
+  }, true);
+  return { list, badge, alt };
+})();

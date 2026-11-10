@@ -56,7 +56,7 @@
     }
     out.innerHTML = `<ul class="sr-list">${hits.slice(0, MAX).map((p) => `
       <li><a class="sr-item" href="${BASE}/p/${encodeURIComponent(p.id)}">
-        <span class="sr-pic">${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy" decoding="async">` : ""}</span>
+        <span class="sr-pic">${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy" decoding="async">${window.VXPhotos?.badge(p) || ""}` : ""}</span>
         <span class="sr-text"><b>${esc(p.name)}</b><em>${esc([p.brand && p.brand !== p.name ? p.brand : p.category, p.sizes].filter(Boolean).join(" · "))}</em></span>
         <span class="sr-price">${p.status === "sold" ? "Sold" : p.status === "hold" ? "On hold" : p.price ? rupees(p.price) : ""}</span>
       </a></li>`).join("")}</ul>

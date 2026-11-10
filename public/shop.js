@@ -272,9 +272,9 @@
     const off = offPct(p);
     const meta = [p.sizes, p.status === "sold" && soldAt(p) ? `Sold ${agoAt(soldAt(p))}` : null].filter(Boolean).map(esc).join(" · ");
     return `
-      <article class="card${p.status === "sold" ? " sold" : ""}" data-id="${esc(p.id)}">
+      <article class="card${p.status === "sold" ? " sold" : ""}" data-id="${esc(p.id)}"${window.VXPhotos.alt(p)}>
         <div class="media ${p.image ? "" : "art-bg"}">${pic(p, eager)}<a class="cover" href="${pdp(p)}" aria-label="${esc(p.name)}"></a>
-          ${badges(p)}
+          ${badges(p)}${window.VXPhotos.badge(p)}
           ${p.status === "sold" ? `<div class="sold-stamp"><span>Sold out</span></div>` : ""}
           ${p.status === "hold" ? `<div class="sold-stamp hold-stamp"><span>On hold</span></div>` : ""}
         </div>
@@ -335,14 +335,14 @@
     }
     const list = picks.slice(0, FEATURED);
     box.hidden = !list.length;
-    const key = list.map((p) => `${p.id}:${p.price}`).join();
+    const key = list.map((p) => `${p.id}:${p.price}:${window.VXPhotos.list(p).join("|")}`).join();
     if (key === featKey) return; // this runs on every stock change: don't throw the customer back to slide 1
     featKey = key;
     const track = $("feat-track"), count = $("feat-count");
     const many = list.length > 1;
     track.innerHTML = list.map((p, i) => `
-      <a class="feat-slide" href="${pdp(p)}" aria-label="${esc(p.name)}, ${i + 1} of ${list.length}">
-        <span class="feat-pic"><img src="${esc(p.image)}" alt="" loading="lazy" decoding="async">${hasOffer(p) ? `<span class="feat-off">${offBadge(p)}</span>` : ""}</span>
+      <a class="feat-slide" href="${pdp(p)}" aria-label="${esc(p.name)}, ${i + 1} of ${list.length}"${window.VXPhotos.alt(p)}>
+        <span class="feat-pic"><img src="${esc(p.image)}" alt="" loading="lazy" decoding="async">${hasOffer(p) ? `<span class="feat-off">${offBadge(p)}</span>` : ""}${window.VXPhotos.badge(p)}</span>
         <span class="feat-cap"><span>${esc(p.brand && p.brand !== p.name ? p.brand : p.category)}</span><b>${esc(p.name)}</b><em>${p.price ? `${manyPrices(p) ? "From " : ""}${rupees(p.price)}` : "Price on request"}${wasPrice(p)}</em></span>
       </a>`).join("");
     $("feat-prev").hidden = $("feat-next").hidden = !many;
@@ -390,7 +390,7 @@
     const list = products.filter((p) => p.image && p.status === "available").sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 7);
     $("looks-sec").hidden = list.length < 4;
     if (list.length < 4) return;
-    const tile = (p, big) => `<a class="look${big ? " big" : ""}" href="${pdp(p)}"><img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" decoding="async">
+    const tile = (p, big) => `<a class="look${big ? " big" : ""}" href="${pdp(p)}"${window.VXPhotos.alt(p)}><img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" decoding="async">${window.VXPhotos.badge(p)}
       <span><b>${esc(p.name)}</b>${p.price ? rupees(p.price) : ""}</span></a>`;
     $("looks").innerHTML = tile(list[0], true) + `<div class="looks-small">${list.slice(1).map((p) => tile(p)).join("")}</div>`;
     // store photo: four pieces from the rack
