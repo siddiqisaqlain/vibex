@@ -621,6 +621,12 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .co-qr p { margin: 0; font-size: 14px; color: var(--ink-2); }
 @media (max-width: 400px) { .co-qr { grid-template-columns: 1fr; justify-items: center; text-align: center; } .co-qr svg, .co-qr img { width: 180px; height: 180px; } }
 .co-upi { width: 100%; }
+.co-upi-apps { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.co-upi-apps .btn { min-width: 0; padding-inline: 6px; text-align: center; justify-content: center; }
+.co-qr-more { border-top: 1px solid var(--line); padding-top: 10px; }
+.co-qr-more summary { cursor: pointer; font-size: 13px; color: var(--muted); text-decoration: underline; }
+.co-qr-more[open] summary { margin-bottom: 10px; }
+.co-qr-more .co-field { margin-top: 10px; }
 .co-field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; padding: 10px 12px; border: 1.5px solid var(--ink); background: #fffdf7; }
 .co-field span { grid-column: 1; font: 600 10.5px/1.2 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
 .co-field b { grid-column: 1; font-size: 15.5px; word-break: break-all; }

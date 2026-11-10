@@ -7,6 +7,11 @@ window.VXCheckout = (() => {
   const O = () => window.VXOrder;
   const isPhone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+  // A phone can't scan its own screen, so phones get a button per app. upi:// alone opens only the
+  // default app (iOS has no picker at all), so each app gets its own link with the same amount and note.
+  const UPI_APPS = [["GPay", isIOS ? "gpay://upi/pay" : "tez://upi/pay"], ["PhonePe", "phonepe://pay"], ["Paytm", "paytmmp://pay"]];
 
   let dlg = null, state = null, poll = null, clock = null, closing = null, fx = null;
 
@@ -16,6 +21,12 @@ window.VXCheckout = (() => {
     // A bank merchant ID wants the name and terminal printed in its own QR (shop.json: upiName, upiRef).
     const q = new URLSearchParams({ pa: PAY.upiId, pn: PAY.upiName || PAY.payee, ...(PAY.upiRef ? { tr: PAY.upiRef } : {}), am: String(amount), cu: "INR", tn: note });
     return `upi://pay?${q.toString().replace(/\+/g, "%20")}`;
+  }
+
+  function upiButtons(link) {
+    const { esc } = O();
+    const query = link.slice(link.indexOf("?"));
+    return `<div class="co-upi-apps">${UPI_APPS.map(([name, base]) => `<a class="btn btn-ink" href="${esc(base + query)}" data-upi="${name}">${name}</a>`).join("")}<a class="btn btn-line" href="${esc(link)}" data-upi="other">Other UPI app</a></div>`;
   }
 
   function qrSvg(text) {
@@ -62,7 +73,7 @@ window.VXCheckout = (() => {
     const { esc } = O();
     const f = state.form, goods = state.goods;
     const C = S.policy?.courier;
-    const shipNote = C?.perKg ? `Courier ${O().rupees(C.perKg)}/kg outside Kashmir, shown before you pay.` : PAY.shippingFee == null ? "Courier charge depends on your location. We'll tell you the exact amount on WhatsApp before dispatch; if you don't want to pay it, cancel for a full refund." : PAY.shippingFee === 0 ? "Free shipping." : `Shipping: ${O().rupees(PAY.shippingFee)}.`;
+    const shipNote = C?.perKg ? `${C.insideKashmir ? `${O().rupees(C.insideKashmir)} inside Kashmir, ` : ""}${O().rupees(C.perKg)}/kg outside Kashmir, shown before you pay.` : PAY.shippingFee == null ? "Courier charge depends on your location. We'll tell you the exact amount on WhatsApp before dispatch; if you don't want to pay it, cancel for a full refund." : PAY.shippingFee === 0 ? "Free shipping." : `Shipping: ${O().rupees(PAY.shippingFee)}.`;
     const coinBox = state.coinsUsable > 0
       ? `<label class="co-hide co-coins"><input type="checkbox" name="useCoins" value="1" ${f.useCoins !== "" ? "checked" : ""}><span>Use <b>${state.coinsUsable}</b> coins: ${O().rupees(state.coinsUsable)} off</span></label>`
       : state.coinsBalance > 0 ? `<p class="co-small co-coins">🪙 You have ${state.coinsBalance} coins. You can spend them when Vibe X opens coin offers.</p>` : "";
@@ -106,7 +117,7 @@ window.VXCheckout = (() => {
       if (form.elements.delivery.value === "ship" && /^[1-9]\d{5}$/.test(pin)) {
         const r = await fetch("/api/account/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lines: state.bag, delivery: "ship", pin, holdToken: window.VXVisit?.s }) }).then((x) => x.json()).catch(() => null);
         if (mine !== asked) return;
-        if (r?.shipping) { fee = r.shipping; text = `Courier to ${pin}: ${rupees(fee)} for ${r.kg} kg. You pay ${rupees(goods - coinsOff() + fee)} in total.`; }
+        if (r?.shipping) { fee = r.shipping; text = `${r.inside ? `Delivery in Kashmir: ${rupees(fee)}` : `Courier to ${pin}: ${rupees(fee)} for ${r.kg} kg`}. You pay ${rupees(goods - coinsOff() + fee)} in total.`; }
         else if (r?.inside) text = "Inside Kashmir, we'll tell you the courier charge on WhatsApp before dispatch. If you don't want to pay it, cancel for a full refund.";
       }
       box.textContent = text; box.hidden = !text;
@@ -167,9 +178,11 @@ window.VXCheckout = (() => {
     if (tab === "upi") {
       const link = upiLink(o.amount, note);
       const qr = PAY.qrImage ? `<img src="${esc(PAY.qrImage)}" alt="Vibe X payment QR">` : qrSvg(link);
-      body = `<div class="co-qr">${qr}<p>Scan with GPay, PhonePe, Paytm or any UPI app.${PAY.qrImage ? ` Enter <b>${rupees(o.amount)}</b>.` : " The amount fills in by itself."}</p></div>
-        ${isPhone ? `<a class="btn btn-ink co-upi" href="${esc(link)}">Open my UPI app</a>` : ""}
-        ${field("UPI ID", PAY.upiId)}`;
+      const qrBox = `<div class="co-qr">${qr}<p>Scan with GPay, PhonePe, Paytm or any UPI app.${PAY.qrImage ? ` Enter <b>${rupees(o.amount)}</b>.` : " The amount fills in by itself."}</p></div>`;
+      body = isPhone
+        ? `<p class="co-small co-upi-lead">Tap your app. The amount and note fill in by themselves.</p>${upiButtons(link)}
+          <details class="co-qr-more"><summary>Paying from another phone? Show the QR</summary>${qrBox}${field("UPI ID", PAY.upiId)}</details>`
+        : `${qrBox}${field("UPI ID", PAY.upiId)}`;
     } else if (tab === "bank") {
       body = field("Account name", PAY.bank.accountName, false) + field("Account number", PAY.bank.accountNumber) + field("IFSC", PAY.bank.ifsc) +
         `<p class="co-small">${esc(PAY.bank.bankName)}. IMPS, NEFT or UPI to account all work.</p>`;
@@ -181,7 +194,7 @@ window.VXCheckout = (() => {
       <p class="co-timer">Pay within <b data-clock></b></p>
       <div class="co-amount"><span>Pay exactly</span><b>${rupees(o.amount)}</b><button type="button" class="co-copy" data-copy="${o.amount}" aria-label="Copy amount">${COPY}<em>Copy</em></button></div>
       ${o.shipping || o.coinsUsed ? `<p class="co-small">${rupees(o.goods)} for ${state.lines.length > 1 ? `${state.lines.length} pieces` : "the piece"}${o.coinsUsed ? ` − ${rupees(o.coinsUsed)} coins` : ""}${o.shipping ? ` + ${rupees(o.shipping)} courier` : ""}.</p>` : ""}
-      <p class="co-small">Add <b class="mono">${esc(o.code)}</b> in the payment note so we can match it.</p>
+      <p class="co-small">${isPhone && tab === "upi" ? "Scanning the QR or typing the UPI ID? " : ""}Add <b class="mono">${esc(o.code)}</b> in the payment note so we can match it.</p>
       <div class="co-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === tab}">${l}</button>`).join("")}</div>
       <div class="co-pay">${body}</div>
       ${window.VXVisit?.arm === "off" ? "" : `<p class="co-small co-promise"><b>Real, or your money back.</b> Cancel any time before dispatch for a full refund.</p>`}
