@@ -420,10 +420,11 @@ function priceBag(bag, { pin = "", delivery = "pickup", holdToken = "" } = {}) {
 const smsSeen = new Map(); // hash of the SMS -> time: forwarder apps retry, and one payment must count once
 async function paySms(req, res, url) {
   if (!SMS_PAY()) return send(res, 404, { error: "not found" });
-  if (!smsPay.sameToken(url.searchParams.get("t") || req.headers["x-sms-token"], process.env.PAY_SMS_TOKEN)) return send(res, 401, { error: "bad token" });
+  if (!smsPay.sameToken(url.searchParams.get("t") || req.headers["x-sms-token"], process.env.PAY_SMS_TOKEN)) { console.log(`Bank SMS: refused, wrong or missing key (got ${String(url.searchParams.get("t") || "").length} characters)`); return send(res, 401, { error: "bad token" }); }
   let raw = "";
   try { raw = await readBody(req, 16 * 1024); } catch { return send(res, 400, { error: "too big" }); }
   const { text, from } = smsPay.smsText(raw, req.headers["content-type"]);
+  console.log(`Bank SMS received (${req.headers["content-type"] || "no type"}, ${raw.length} bytes)${text ? "" : ": no text found in it, keys: " + Object.keys((() => { try { return JSON.parse(raw); } catch { return {}; } })()).join(",")}`);
   const h = crypto.createHash("sha256").update(text).digest("hex");
   for (const [k, t] of smsSeen) if (Date.now() - t > 864e5) smsSeen.delete(k);
   if (smsSeen.has(h)) return send(res, 200, { ok: true, matched: null, why: "seen before" });
