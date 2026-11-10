@@ -423,8 +423,12 @@ async function paySms(req, res, url) {
   if (!smsPay.sameToken(url.searchParams.get("t") || req.headers["x-sms-token"], process.env.PAY_SMS_TOKEN)) { console.log(`Bank SMS: refused, wrong or missing key (got ${String(url.searchParams.get("t") || "").length} characters)`); return send(res, 401, { error: "bad token" }); }
   let raw = "";
   try { raw = await readBody(req, 16 * 1024); } catch { return send(res, 400, { error: "too big" }); }
-  const { text, from } = smsPay.smsText(raw, req.headers["content-type"]);
-  console.log(`Bank SMS received (${req.headers["content-type"] || "no type"}, ${raw.length} bytes)${text ? "" : ": no text found in it, keys: " + Object.keys((() => { try { return JSON.parse(raw); } catch { return {}; } })()).join(",")}`);
+  let { text, from } = smsPay.smsText(raw, req.headers["content-type"]);
+  // Some forwarder apps put the SMS in the URL (?from=..&text=..) instead of the body.
+  const query = Object.fromEntries([...url.searchParams].filter(([k]) => k !== "t"));
+  if (!text && Object.keys(query).length) ({ text, from } = smsPay.smsText(JSON.stringify(query), "application/json"));
+  const extraHeaders = Object.keys(req.headers).filter((k) => !/^(host|user-agent|accept|accept-encoding|accept-language|connection|content-type|content-length|cdn-loop|cf-|true-client-ip|x-forwarded|x-real-ip|x-request-start|x-sms-token|rndr-|render-|traceparent|x-render)/i.test(k));
+  console.log(`Bank SMS received (${req.method}, ${req.headers["content-type"] || "no type"}, ${raw.length} bytes, url fields: ${Object.keys(query).join(",") || "none"}, other headers: ${extraHeaders.join(",") || "none"}, agent: ${String(req.headers["user-agent"] || "").slice(0, 60)})${text ? "" : ": no text found in it, keys: " + Object.keys((() => { try { return JSON.parse(raw); } catch { return {}; } })()).join(",")}`);
   const h = crypto.createHash("sha256").update(text).digest("hex");
   for (const [k, t] of smsSeen) if (Date.now() - t > 864e5) smsSeen.delete(k);
   if (smsSeen.has(h)) return send(res, 200, { ok: true, matched: null, why: "seen before" });
@@ -2088,7 +2092,7 @@ http
       if (p === "/webhook" && (req.method === "GET" || req.method === "POST")) return await whatsappWebhook(req, res, url);
       if (req.method === "POST" && p === "/api/enquiry") return await handleEnquiry(req, res);
       if (req.method === "POST" && p === "/api/orders") return await createOrder(req, res);
-      if (req.method === "POST" && p === "/api/pay/sms") return await paySms(req, res, url);
+      if ((req.method === "POST" || req.method === "GET") && p === "/api/pay/sms") return await paySms(req, res, url);
       if (p.startsWith("/api/account/")) return await accountApi(req, res, p.slice("/api/account/".length));
       const om = /^\/api\/orders\/([a-f0-9]{16})(\/paid|\/cancel)?$/.exec(p);
       if (om && req.method === "POST" && om[2] === "/paid") return refused(res);
