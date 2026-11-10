@@ -37,11 +37,21 @@
     "_photoNote": "Turn on only if the shop will really send a photo of every piece on WhatsApp before dispatch. It adds that line to the promise on product pages.",
     "photoBeforeDispatch": true,
     "courier": {
-      "_note": "Owner's rate (2026-11-06): Rs 130 per kg outside Kashmir. PINs starting 190-193 count as Kashmir, so Jammu and Ladakh pay the rate. kg is the packed weight charged for each piece: subcategory first, then category, then default. These weights are estimates; correct them here. insideKashmir: the flat fee inside Kashmir (Rs 100, owner via user 2026-11-09), or null to confirm it on WhatsApp before dispatch.",
+      "_note": "Rates: Rs 130 per kg outside Kashmir (owner, 2026-11-06), Rs 100 per kg inside Kashmir (2026-11-10; was a flat Rs 100). PINs starting 190-193 count as Kashmir, so Jammu and Ladakh pay the outside rate. The parcel's weights add up and are charged per started kg: 0.9 kg = 1 kg, 1.8 kg = 2 kg, 2.1 kg = 3 kg. insideKashmirPerKg: null means confirm the charge on WhatsApp before dispatch.",
       "perKg": 130,
       "kashmirPins": ["190", "191", "192", "193"],
-      "insideKashmir": 100,
-      "kg": { "default": 1, "Footwear": 2 }
+      "insideKashmirPerKg": 100,
+      "_kgNote": "Packed weight in kg for each kind of piece, pulled automatically: a weightKg set on the item wins, then the first word here found in its subcategory or name (a plural 's' also matches), then its category, then default. These are estimates; weigh a few real parcels and correct them here.",
+      "kg": {
+        "default": 1,
+        "Puffer": 1.2, "Parka": 1.3, "Coat": 1.2, "Jacket": 0.95, "Blazer": 0.9, "Fleece": 0.6, "Hoodie": 0.7, "Sweatshirt": 0.6,
+        "Sweater": 0.6, "Cardigan": 0.6, "Vest": 0.5, "Gilet": 0.5, "Shirt": 0.35, "T-shirt": 0.3, "Tee": 0.3, "Polo": 0.35, "Top": 0.3,
+        "Jeans": 0.7, "Trousers": 0.6, "Pants": 0.6, "Chinos": 0.6, "Joggers": 0.5, "Shorts": 0.35, "Tracksuit": 0.9, "Dress": 0.5,
+        "Perfume": 0.4, "Attar": 0.2, "Cologne": 0.4, "Deodorant": 0.3,
+        "Boots": 2, "Sneakers": 1.3, "Shoes": 1.5, "Loafers": 1.2, "Sandals": 0.8, "Slides": 0.6, "Slippers": 0.6,
+        "Bag": 0.9, "Backpack": 0.9, "Wallet": 0.25, "Belt": 0.4, "Watch": 0.4, "Cap": 0.3, "Sunglasses": 0.3, "Scarf": 0.3, "Gloves": 0.25,
+        "Clothing": 0.7, "Fragrances": 0.4, "Footwear": 1.5, "Accessories": 0.4
+      }
     }
   },
   "rush": {

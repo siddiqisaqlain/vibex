@@ -98,8 +98,16 @@ try {
   assert.equal(bill.lines[0].amount, 2799); assert.equal(bill.charges[0].amount, 130); assert.equal(bill.total, 2929); ok("the bill shows the selling price and the courier as separate lines");
   await wa(`cancel ${o.code}`);
   o = await post("/api/orders", { ...ship, pin: "190001" });
-  const flat = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../shop.json"), "utf8")).policy.courier.insideKashmir || 0;
-  assert.equal(o.shipping, flat); assert.equal(o.amount, 2799 + flat); ok("inside Kashmir: the flat fee from shop.json, never a per-kg guess");
+  const C = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../shop.json"), "utf8")).policy.courier;
+  const { feeFor, kgOf } = await import("../lib/courier.js").then((m) => m.default || m);
+  const inKashmir = feeFor(C, kgOf(C, await product("b2")), "190001").fee;
+  assert.equal(o.shipping, inKashmir); assert.equal(o.amount, 2799 + inKashmir); ok("inside Kashmir: per kg from shop.json, worked out by the server");
+  assert.equal(feeFor(C, 0.95, "190001").fee, 100); assert.equal(feeFor(C, 1.9, "190001").fee, 200); assert.equal(feeFor(C, 2.1, "190001").fee, 300);
+  assert.equal(feeFor(C, 0.4 * 2, "110001").fee, 130); ok("courier is charged per started kg: 0.95 kg = Rs 100, 1.9 kg = Rs 200, 2.1 kg = Rs 300");
+  assert.equal(kgOf(C, { name: "Nuptse Puffer Jacket", category: "Clothing", subcategory: null }), 1.2);
+  assert.equal(kgOf(C, { name: "Uspa Sweater", category: "Clothing", subcategory: null }), 0.6);
+  assert.equal(kgOf(C, { name: "Bleu", category: "Fragrances", subcategory: "Perfume" }), 0.4);
+  assert.equal(kgOf(C, { name: "Odd thing", category: "Clothing", subcategory: null, weightKg: 2.5 }), 2.5); ok("each piece's weight comes from its own weight, then its name/kind, then its category");
 
   // 8. Ten tills at once on 1 piece: exactly one bill
   await post("/api/billing/stock", { productId: "a1", quantity: 1 });

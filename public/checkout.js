@@ -73,7 +73,7 @@ window.VXCheckout = (() => {
     const { esc } = O();
     const f = state.form, goods = state.goods;
     const C = S.policy?.courier;
-    const shipNote = C?.perKg ? `${C.insideKashmir ? `${O().rupees(C.insideKashmir)} inside Kashmir, ` : ""}${O().rupees(C.perKg)}/kg outside Kashmir, shown before you pay.` : PAY.shippingFee == null ? "Courier charge depends on your location. We'll tell you the exact amount on WhatsApp before dispatch; if you don't want to pay it, cancel for a full refund." : PAY.shippingFee === 0 ? "Free shipping." : `Shipping: ${O().rupees(PAY.shippingFee)}.`;
+    const shipNote = C?.perKg ? `${C.insideKashmirPerKg ? `${O().rupees(C.insideKashmirPerKg)}/kg inside Kashmir, ` : ""}${O().rupees(C.perKg)}/kg outside Kashmir, shown before you pay.` : PAY.shippingFee == null ? "Courier charge depends on your location. We'll tell you the exact amount on WhatsApp before dispatch; if you don't want to pay it, cancel for a full refund." : PAY.shippingFee === 0 ? "Free shipping." : `Shipping: ${O().rupees(PAY.shippingFee)}.`;
     const coinBox = state.coinsUsable > 0
       ? `<label class="co-hide co-coins"><input type="checkbox" name="useCoins" value="1" ${f.useCoins !== "" ? "checked" : ""}><span>Use <b>${state.coinsUsable}</b> coins: ${O().rupees(state.coinsUsable)} off</span></label>`
       : state.coinsBalance > 0 ? `<p class="co-small co-coins">🪙 You have ${state.coinsBalance} coins. You can spend them when Vibe X opens coin offers.</p>` : "";
@@ -117,7 +117,7 @@ window.VXCheckout = (() => {
       if (form.elements.delivery.value === "ship" && /^[1-9]\d{5}$/.test(pin)) {
         const r = await fetch("/api/account/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lines: state.bag, delivery: "ship", pin, holdToken: window.VXVisit?.s }) }).then((x) => x.json()).catch(() => null);
         if (mine !== asked) return;
-        if (r?.shipping) { fee = r.shipping; text = `${r.inside ? `Delivery in Kashmir: ${rupees(fee)}` : `Courier to ${pin}: ${rupees(fee)} for ${r.kg} kg`}. You pay ${rupees(goods - coinsOff() + fee)} in total.`; }
+        if (r?.shipping) { fee = r.shipping; text = `${r.inside ? `Delivery in Kashmir: ${rupees(fee)}` : `Courier to ${pin}: ${rupees(fee)}`} for ${r.kg} kg. You pay ${rupees(goods - coinsOff() + fee)} in total.`; }
         else if (r?.inside) text = "Inside Kashmir, we'll tell you the courier charge on WhatsApp before dispatch. If you don't want to pay it, cancel for a full refund.";
       }
       box.textContent = text; box.hidden = !text;

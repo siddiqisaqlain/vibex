@@ -357,7 +357,7 @@ function newOrderCode(orders) {
   }
 }
 
-const { courierFor } = require("./lib/courier");
+const { courierFor, feeFor, kgOf } = require("./lib/courier");
 const payWindow = require("./lib/paywindow");
 const PAY_WINDOW = payWindow.read(SHOP.pay?.window, process.env.ORDER_HOURS);
 const ORDER_WINDOW_MS = Number(process.env.ORDER_WINDOW_MS) || PAY_WINDOW.minutes * 60e3;
@@ -390,14 +390,15 @@ function priceBag(bag, { pin = "", delivery = "pickup", holdToken = "" } = {}) {
     lines.push({ productId: p.id, productName: p.name, lot: lotOf(p), ...(picked?.size ? { size: picked.size } : {}), qty, price: picked?.price ?? p.price, image: p.image || null, _p: p });
   }
   const goods = lines.reduce((n, l) => n + l.price * l.qty, 0);
-  let shipping = 0, kg = 0, inside = false;
+  let shipping = 0, kg = 0, chargedKg = 0, inside = false;
   if (delivery === "ship" && /^[1-9]\d{5}$/.test(pin)) {
     // One parcel: the weights add up, and the courier is charged on the total.
     const C = SHOP.policy?.courier;
-    for (const l of lines) { const c = courierFor(C, l._p, pin); kg += (c.kg || 0) * l.qty; inside = c.inside; }
-    if (C?.perKg) shipping = inside ? C.insideKashmir || 0 : Math.ceil(kg * C.perKg);
+    for (const l of lines) kg += kgOf(C, l._p) * l.qty;
+    const f = feeFor(C, kg, pin);
+    shipping = f.fee || 0; inside = f.inside; chargedKg = f.chargedKg || 0;
   }
-  return { lines, goods, shipping, kg: Math.round(kg * 100) / 100, inside, problems };
+  return { lines, goods, shipping, kg: Math.round(kg * 100) / 100, chargedKg, inside, problems };
 }
 
 async function createOrder(req, res) {
@@ -439,7 +440,7 @@ async function createOrder(req, res) {
     lines, productId: lines[0].productId, productName: lines.length === 1 ? lines[0].productName : `${lines[0].productName} + ${lines.length - 1} more`,
     lot: lines[0].lot, ...(lines.length === 1 && lines[0].size ? { size: lines[0].size } : {}),
     goods: q.goods, ...(coinsUsed ? { coinsUsed } : {}), amount: q.goods - coinsUsed + q.shipping,
-    ...(q.shipping ? { shipping: q.shipping, kg: q.kg } : {}),
+    ...(q.shipping ? { shipping: q.shipping, kg: q.chargedKg } : {}),
     name, phone, delivery, address, city, pin, ...(b.hideName ? { hideName: true } : {}),
     status: "awaiting_payment", createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + ORDER_WINDOW_MS).toISOString(),
   };
@@ -854,7 +855,7 @@ async function accountApi(req, res, route) {
     const q = priceBag(b.lines || [], { pin: String(b.pin || ""), delivery: b.delivery === "ship" ? "ship" : "pickup", holdToken: String(b.holdToken || "") });
     if (q.error) return send(res, 200, { lines: [], goods: 0, shipping: 0, problems: [], empty: true });
     const coins = me ? accounts.usable(me, q.goods) : 0;
-    return send(res, 200, { lines: q.lines.map(({ _p, ...l }) => l), goods: q.goods, shipping: q.shipping, kg: q.kg, inside: q.inside, problems: q.problems, coinsUsable: coins, coinsBalance: me ? accounts.balance(me) : 0, redeemOn: accounts.redeemOn() });
+    return send(res, 200, { lines: q.lines.map(({ _p, ...l }) => l), goods: q.goods, shipping: q.shipping, kg: q.chargedKg, weightKg: q.kg, inside: q.inside, problems: q.problems, coinsUsable: coins, coinsBalance: me ? accounts.balance(me) : 0, redeemOn: accounts.redeemOn() });
   }
   // Before a phone's first order there's no account: its bag and wishlist stay in the browser.
   if (!me) return send(res, 200, { signedIn: false });

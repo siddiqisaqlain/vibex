@@ -149,7 +149,7 @@
             ${p.sizes && (optionsOf(p).length < 2 || p.status !== "available") ? `<div><dt>Size</dt><dd>${esc(p.sizes)}</dd></div>` : ""}
             <div><dt>Condition</dt><dd>Original</dd></div>
             <div><dt>In stock</dt><dd>${p.status === "sold" ? "Sold out" : p.status === "hold" ? "On hold for a buyer" : p.quantity > 1 ? `${p.quantity} pieces` : "Last one"}</dd></div>
-            <div><dt>Get it</dt><dd>Pick up in Srinagar or ship anywhere in India${P.courier?.perKg ? `. Courier is ${rupees(P.courier.perKg)} per kg outside Kashmir` : ""}</dd></div>
+            <div><dt>Get it</dt><dd>Pick up in Srinagar or ship anywhere in India${P.courier?.perKg ? `. Courier is ${P.courier.insideKashmirPerKg ? `${rupees(P.courier.insideKashmirPerKg)} per kg in Kashmir, ` : ""}${rupees(P.courier.perKg)} per kg outside` : ""}</dd></div>
           </dl>
           ${O.button(p, true)}
           ${promise(p)}
