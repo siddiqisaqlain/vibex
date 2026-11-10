@@ -8,7 +8,7 @@
   const modePick = (name, chosen = "cash") => `<div class="pay">${[["cash", "Cash"], ["upi", "UPI"], ["card", "Card"], ["bank", "Bank"]].map(([v, l]) => `<label><input type="radio" name="${name}" value="${v}" ${v === chosen ? "checked" : ""}><span>${l}</span></label>`).join("")}</div>`;
   const modeOf = (name) => document.querySelector(`input[name=${name}]:checked`).value;
   const bal = (n) => (n > 0 ? `<b class="owed-in">${inr(n)}</b> <span class="sub">to collect</span>` : n < 0 ? `<b class="owed-out">${inr(-n)}</b> <span class="sub">to pay</span>` : `<span class="sub">Settled</span>`);
-  const { twoTap } = window.VX;
+  const { twoTap, busy } = window.VX;
 
   // ---- Home: what happened today, what needs doing, then the same numbers as before ----
   const SINCE = { cash: "Cash", upi: "UPI", card: "Card", credit: "Credit" };
@@ -23,6 +23,8 @@
     if (d.topDues.length) out.push(["", `${inr(d.toCollect)} to collect`, `${d.topDues.length === 10 ? "10 or more" : d.topDues.length} customer${d.topDues.length === 1 ? "" : "s"} owe you`, "See who", () => window.VX.go("parties")]);
     if (a.itemsToCount) out.push(["", `${a.itemsToCount} item${a.itemsToCount === 1 ? "" : "s"} to recount`, "Sold with no stock showing", "Count", () => window.VX.setStockFilter("check")]);
     if (a.lowStock) out.push(["", `${a.lowStock} item${a.lowStock === 1 ? "" : "s"} running low`, "At or below the alert level", "View", () => window.VX.setStockFilter("low")]);
+    const failed = window.VX.data().alertFailures?.length || 0;
+    if (failed) out.push(["high", `WhatsApp alerts failed to send ${failed} time${failed === 1 ? "" : "s"}`, "Last 7 days. Check Online Orders so none is missed", "Check", () => window.VX.go("orders")]);
     if (a.noPrice) out.push(["", `${a.noPrice} item${a.noPrice === 1 ? "" : "s"} missing a name or price`, "These can't be billed yet", "Fix", () => window.VX.setStockFilter("check")]);
     return out;
   }
@@ -129,8 +131,8 @@
       </div>
       <details class="form"><summary>Create Party</summary>
         <div class="row2"><input id="pName" placeholder="Name"><input id="pPhone" type="tel" placeholder="Mobile"></div>
-        <div class="row2"><input id="pGst" placeholder="GSTIN (optional)"><input id="pOpen" type="number" placeholder="${partyType === "customer" ? "Already owes you ₹" : "You already owe ₹"}"></div>
-        <div class="row2"><input id="pAddr" placeholder="Address"><input id="pLimit" type="number" placeholder="Credit limit ₹ (optional)"></div>
+        <div class="row2"><input id="pGst" placeholder="GSTIN (optional)"><input id="pOpen" type="number" inputmode="decimal" placeholder="${partyType === "customer" ? "Already owes you ₹" : "You already owe ₹"}"></div>
+        <div class="row2"><input id="pAddr" placeholder="Address"><input id="pLimit" type="number" inputmode="decimal" placeholder="Credit limit ₹ (optional)"></div>
         <button class="big" id="pSave">Save</button><div class="err" id="pErr"></div>
       </details></div>
       <div class="chips"><button class="chip ${partyView ? "" : "on"}" data-pv="">All ${of.length}</button><button class="chip ${partyView ? "on" : ""}" data-pv="owes">${partyType === "customer" ? "Owe you" : "You owe"} ${owes.length} · ${inr(sum)}</button></div>
@@ -140,14 +142,12 @@
     document.querySelectorAll("input[name=ptype]").forEach((i) => (i.onchange = () => { partyType = i.value; partyView = ""; parties(); }));
     document.querySelectorAll("[data-pv]").forEach((b) => (b.onclick = () => { partyView = b.dataset.pv; parties(); }));
     $("psearch").oninput = (e) => { partySearch = e.target.value.toLowerCase(); paintParties(); };
-    $("pSave").onclick = async () => {
+    $("pSave").onclick = busy($("pSave"), async (requestId) => {
       // "Already owes" is entered as a positive number; a supplier's opening is what the shop owes.
       const o = Number($("pOpen").value) || 0;
-      try {
-        await api("/api/billing/parties", { method: "POST", body: JSON.stringify({ type: partyType, name: $("pName").value, phone: $("pPhone").value, gstin: $("pGst").value, address: $("pAddr").value, opening: partyType === "customer" ? o : -o, creditLimit: Number($("pLimit").value) || 0 }) });
-        toast("Saved."); parties();
-      } catch (e) { $("pErr").textContent = e.message; }
-    };
+      await api("/api/billing/parties", { method: "POST", requestId, body: JSON.stringify({ type: partyType, name: $("pName").value, phone: $("pPhone").value, gstin: $("pGst").value, address: $("pAddr").value, opening: partyType === "customer" ? o : -o, creditLimit: Number($("pLimit").value) || 0 }) });
+      toast("Saved."); parties().catch((e) => toast(e.message, { bad: true }));
+    }, "pErr");
   }
   function paintParties() {
     const shown = partyCache.filter((x) => x.type === partyType && (!partyView || (partyType === "customer" ? x.balance > 0 : x.balance < 0)) && (!partySearch || `${x.name} ${x.phone}`.toLowerCase().includes(partySearch))).sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance) || a.name.localeCompare(b.name));
@@ -178,20 +178,18 @@
         <td class="n">${/^Payment/.test(r.kind) ? `<button class="tbtn danger" data-paycancel="${r.id}">Cancel</button>` : r.kind === "Sale" ? `<a class="tbtn" href="/bill/${r.id}?o" target="_blank" rel="noopener">View</a>` : ""}</td></tr>`).join("") : `<tr><td colspan="5" class="empty">No entries yet.</td></tr>`}
       </tbody></table></div>`;
     $("back").onclick = () => window.VX.go("parties");
-    $("shareLedger").onclick = async () => { await api(`/api/billing/parties/${id}/share`, { method: "POST", body: JSON.stringify({ on: !p.shareToken }) }); ledger(id); };
+    $("shareLedger").onclick = busy($("shareLedger"), async () => { await api(`/api/billing/parties/${id}/share`, { method: "POST", body: JSON.stringify({ on: !p.shareToken }) }); await ledger(id); });
     $("payNow").onclick = () => window.VX.collect(id);
     $("editParty").onclick = () => {
       window.VX.drawer("Edit party", `<label class="sub">Name<input id="epName" value="${esc(p.name)}"></label>
         <div class="row2"><label class="sub">Mobile<input id="epPhone" type="tel" value="${esc(p.phone)}"></label><label class="sub">GSTIN<input id="epGst" value="${esc(p.gstin)}"></label></div>
         <label class="sub">Address<input id="epAddr" value="${esc(p.address)}"></label>
-        <label class="sub">Credit limit ₹<input id="epLimit" type="number" value="${esc(p.creditLimit || "")}"></label>
+        <label class="sub">Credit limit ₹<input id="epLimit" type="number" inputmode="decimal" value="${esc(p.creditLimit || "")}"></label>
         <button class="big" id="epSave">Save</button><div class="err" id="epErr"></div>`);
-      $("epSave").onclick = async () => {
-        try {
-          await api(`/api/billing/parties/${id}`, { method: "POST", body: JSON.stringify({ ...p, name: $("epName").value, phone: $("epPhone").value, gstin: $("epGst").value, address: $("epAddr").value, creditLimit: Number($("epLimit").value) || 0 }) });
-          window.VX.closeDrawer(); toast("Saved."); await window.VX.reload(); ledger(id);
-        } catch (e) { $("epErr").textContent = e.message; }
-      };
+      $("epSave").onclick = busy($("epSave"), async () => {
+        await api(`/api/billing/parties/${id}`, { method: "POST", body: JSON.stringify({ ...p, name: $("epName").value, phone: $("epPhone").value, gstin: $("epGst").value, address: $("epAddr").value, creditLimit: Number($("epLimit").value) || 0 }) });
+        window.VX.closeDrawer(); toast("Saved."); await window.VX.reload(); ledger(id);
+      }, "epErr");
     };
     document.querySelectorAll("[data-paycancel]").forEach((b) => twoTap(b, "Tap again to cancel", async () => { await api(`/api/billing/payments/${b.dataset.paycancel}/cancel`, { method: "POST", body: "{}" }); toast("Payment cancelled."); await window.VX.reload(); ledger(id); }));
   }
@@ -214,7 +212,7 @@
         <div class="results" id="buyHits" style="max-height:200px"></div>
         <div id="buyLines"></div>
         <div class="tot"><span>Total</span><span id="buyTotal">₹0</span></div>
-        <div class="row2"><input id="buyPaid" type="number" min="0" placeholder="Paid now ₹ (blank = on credit)"><div></div></div>
+        <div class="row2"><input id="buyPaid" type="number" inputmode="decimal" min="0" placeholder="Paid now ₹ (blank = on credit)"><div></div></div>
         ${modePick("buyMode")}
         <button class="big" id="buySave">Save purchase and add stock</button><div class="err" id="buyErr"></div>
       </details>
@@ -245,12 +243,10 @@
         $("buyQ").value = ""; $("buyHits").innerHTML = ""; paintBuy();
       }));
     };
-    $("buySave").onclick = async () => {
-      try {
-        await api("/api/billing/purchases", { method: "POST", body: JSON.stringify({ partyId: $("buySup").value, supplierBill: $("buyBill").value, day: $("buyDay").value, lines: buy, paid: $("buyPaid").value, mode: modeOf("buyMode") }) });
-        buy.length = 0; toast("Saved. Stock added on the website too."); purchases();
-      } catch (e) { $("buyErr").textContent = e.message; }
-    };
+    $("buySave").onclick = busy($("buySave"), async (requestId) => {
+      await api("/api/billing/purchases", { method: "POST", requestId, body: JSON.stringify({ partyId: $("buySup").value, supplierBill: $("buyBill").value, day: $("buyDay").value, lines: buy, paid: $("buyPaid").value, mode: modeOf("buyMode") }) });
+      buy.length = 0; toast("Saved. Stock added on the website too."); purchases().catch((e) => toast(e.message, { bad: true }));
+    }, "buyErr");
     document.querySelectorAll("[data-pucancel]").forEach((b) => twoTap(b, "Tap again: remove stock and its payment", async () => { await api(`/api/billing/purchases/${b.dataset.pucancel}/cancel`, { method: "POST", body: "{}" }); toast("Purchase cancelled."); purchases(); }));
   }
   function paintBuy() {
@@ -262,7 +258,7 @@
     };
     $("buyLines").innerHTML = buy.map((l, i) => {
       return `<div class="line"><div class="grow"><div class="name">${esc(l.name)}</div><button class="x" data-brm="${i}">remove</button></div><div class="price" data-amt="${i}"></div>
-        <div class="row3"><label class="sub">Qty<input type="number" min="1" value="${esc(l.qty)}" data-b="qty" data-i="${i}"></label><label class="sub">Cost ₹<input type="number" min="0" value="${esc(l.cost)}" data-b="cost" data-i="${i}"></label><label class="sub">GST on bill %<input type="number" min="0" value="${esc(l.gstRate)}" data-b="gstRate" data-i="${i}"></label></div></div>`;
+        <div class="row3"><label class="sub">Qty<input type="number" inputmode="numeric" min="1" value="${esc(l.qty)}" data-b="qty" data-i="${i}"></label><label class="sub">Cost ₹<input type="number" inputmode="decimal" min="0" value="${esc(l.cost)}" data-b="cost" data-i="${i}"></label><label class="sub">GST on bill %<input type="number" inputmode="decimal" min="0" value="${esc(l.gstRate)}" data-b="gstRate" data-i="${i}"></label></div></div>`;
     }).join("");
     sums();
     document.querySelectorAll("[data-brm]").forEach((b) => (b.onclick = () => { buy.splice(+b.dataset.brm, 1); paintBuy(); }));
@@ -274,7 +270,7 @@
     const { list, types } = await api("/api/billing/expenses");
     $("tab-expenses").innerHTML = `
       <details class="form"><summary>Create Expense</summary>
-        <div class="row2"><select id="exType" aria-label="Type">${types.map((t) => `<option>${esc(t)}</option>`).join("")}</select><input id="exAmt" type="number" min="1" placeholder="Amount ₹"></div>
+        <div class="row2"><select id="exType" aria-label="Type">${types.map((t) => `<option>${esc(t)}</option>`).join("")}</select><input id="exAmt" type="number" inputmode="decimal" min="1" placeholder="Amount ₹"></div>
         <div class="row2"><input id="exDay" type="date" value="${today()}" max="${today()}"><input id="exNote" placeholder="Note (optional)"></div>
         ${modePick("exMode")}
         <button class="big" id="exSave">Save expense</button><div class="err" id="exErr"></div>
@@ -282,12 +278,10 @@
       <div class="scroll"><table><thead><tr><th>Date</th><th>Type</th><th class="n">Amount</th><th></th></tr></thead><tbody>
       ${list.length ? list.map((x) => `<tr class="${x.status}"><td>${dayText(x.day)}</td><td>${esc(x.type)}<div class="sub">${esc(x.note)}</div></td><td class="n"><b>${inr(x.amount)}</b></td><td class="n">${x.status === "cancelled" ? `<span class="sub">Cancelled</span>` : `<button class="tbtn danger" data-excancel="${x.id}">Cancel</button>`}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">No expenses yet.</td></tr>`}
       </tbody></table></div>`;
-    $("exSave").onclick = async () => {
-      try {
-        await api("/api/billing/expenses", { method: "POST", body: JSON.stringify({ type: $("exType").value, amount: $("exAmt").value, day: $("exDay").value, note: $("exNote").value, mode: modeOf("exMode") }) });
-        toast("Saved."); expenses();
-      } catch (e) { $("exErr").textContent = e.message; }
-    };
+    $("exSave").onclick = busy($("exSave"), async (requestId) => {
+      await api("/api/billing/expenses", { method: "POST", requestId, body: JSON.stringify({ type: $("exType").value, amount: $("exAmt").value, day: $("exDay").value, note: $("exNote").value, mode: modeOf("exMode") }) });
+      toast("Saved."); expenses().catch((e) => toast(e.message, { bad: true }));
+    }, "exErr");
     document.querySelectorAll("[data-excancel]").forEach((b) => twoTap(b, "Tap again to cancel", async () => { await api(`/api/billing/expenses/${b.dataset.excancel}/cancel`, { method: "POST", body: "{}" }); toast("Expense cancelled."); expenses(); }));
   }
 
@@ -298,16 +292,16 @@
       <div class="summary"><div>Cash in hand<b>${inr(c.cash)}</b></div><div>Bank and UPI<b>${inr(c.bank)}</b></div></div>
       <details class="form"><summary>Starting balances</summary>
         <p class="sub">What was in the till and the bank on the day you started using this.</p>
-        <div class="row2"><input id="opCash" type="number" value="${c.openingCash}" aria-label="Opening cash"><input id="opBank" type="number" value="${c.openingBank}" aria-label="Opening bank"></div>
+        <div class="row2"><input id="opCash" type="number" inputmode="decimal" value="${c.openingCash}" aria-label="Opening cash"><input id="opBank" type="number" inputmode="decimal" value="${c.openingBank}" aria-label="Opening bank"></div>
         <button class="big" id="opSave">Save</button><div class="err" id="opErr"></div>
       </details>
       <div class="scroll"><table><thead><tr><th>Date</th><th>Entry</th><th>Account</th><th class="n">Amount</th></tr></thead><tbody>
       ${c.rows.length ? c.rows.map((r) => `<tr><td>${dayText(r.day)}</td><td>${esc(r.kind)}<div class="sub">${esc(r.ref)}</div></td><td>${r.account === "cash" ? "Cash" : "Bank"}</td><td class="n"><b class="${r.amount > 0 ? "owed-in" : "owed-out"}">${r.amount > 0 ? "+" : "−"}${inr(Math.abs(r.amount))}</b></td></tr>`).join("") : `<tr><td colspan="4" class="empty">Nothing yet.</td></tr>`}
       </tbody></table></div>`;
-    $("opSave").onclick = async () => {
-      try { await api("/api/billing/cash/opening", { method: "POST", body: JSON.stringify({ openingCash: $("opCash").value, openingBank: $("opBank").value }) }); toast("Saved."); cash(); }
-      catch (e) { $("opErr").textContent = e.message; }
-    };
+    $("opSave").onclick = busy($("opSave"), async () => {
+      await api("/api/billing/cash/opening", { method: "POST", body: JSON.stringify({ openingCash: $("opCash").value, openingBank: $("opBank").value }) });
+      toast("Saved."); cash().catch((e) => toast(e.message, { bad: true }));
+    }, "opErr");
   }
 
   Object.assign(window.VX.tabs, { home, parties, purchases, expenses, cash });

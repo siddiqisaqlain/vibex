@@ -16,6 +16,24 @@
     };
   }
 
+  // One tap saves once. The button stays off while the save is on its way, and the form keeps one
+  // request id until it saves, so tapping again after a dropped connection can't save it twice.
+  // run(requestId) does the save; a failure shows in errBox (an id or element), or as a toast.
+  function busy(b, run, errBox) {
+    return async () => {
+      if (b.disabled || b.dataset.busy) return;
+      const was = b.innerHTML, err = typeof errBox === "string" ? $(errBox) : errBox;
+      b.dataset.rid ||= window.VX.newId();
+      b.dataset.busy = "1"; b.disabled = true; b.setAttribute("aria-busy", "true"); b.textContent = "Saving…";
+      if (err) err.textContent = "";
+      try { await run(b.dataset.rid); delete b.dataset.rid; }
+      catch (x) {
+        if (x.answered) delete b.dataset.rid; // the server said no: nothing was saved, so the next try is a fresh one
+        if (x.message !== "key") { if (err) err.textContent = x.message; else toast(x.message, { bad: true }); }
+      } finally { delete b.dataset.busy; b.disabled = false; b.removeAttribute("aria-busy"); b.innerHTML = was; }
+    };
+  }
+
   // ---- Side panels. Every "Create…" form on every page opens as one. ----
   const openPanels = () => [...document.querySelectorAll("details.form[open]")];
   const paintVeil = () => $("veil").classList.toggle("hide", !openPanels().length);
@@ -66,7 +84,12 @@
   }
   const tidy = () => { labelBoxes(document.body); tableLabels(document.body); paintVeil(); };
   let queued = false;
-  new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; tidy(); }); }).observe(document.body, { childList: true, subtree: true });
+  // Only the page and its panels are watched: the clock in the "Live · Synced" label changes every second.
+  const watch = new MutationObserver((list) => {
+    if (queued || list.every((m) => m.target.closest?.("#sync") || m.target.parentElement?.closest("#sync"))) return;
+    queued = true; requestAnimationFrame(() => { queued = false; tidy(); });
+  });
+  for (const el of document.querySelectorAll("main, #drawerHost")) watch.observe(el, { childList: true, subtree: true });
 
   // ---- Taking a payment, from anywhere it is owed ----
   async function collect(partyId, amount, ref) {
@@ -76,22 +99,19 @@
     const inward = p.type !== "supplier" && p.balance >= 0, owed = Math.abs(p.balance);
     const box = drawer(inward ? "Payment In" : "Payment Out", `
       <div class="billHead"><div><b>${esc(p.name)}</b><div class="sub">${esc(p.phone || "")}${ref ? ` · ${esc(ref)}` : ""}</div></div><div class="n"><span class="sub">${inward ? "Owes you" : "You owe"}</span><br><b>${inr(owed)}</b></div></div>
-      <label class="sub">Amount ₹<input id="cAmt" type="number" min="1" value="${esc(amount || owed || "")}"></label>
+      <label class="sub">Amount ₹<input id="cAmt" type="number" inputmode="decimal" enterkeyhint="done" min="1" value="${esc(amount || owed || "")}"></label>
       <div class="quick">${amount && amount !== owed ? `<button class="tbtn" data-amt="${amount}">This bill ${inr(amount)}</button>` : ""}${owed ? `<button class="tbtn" data-amt="${owed}">Full ${inr(owed)}</button>` : ""}</div>
       <div class="pay">${[["cash", "Cash"], ["upi", "UPI"], ["card", "Card"], ["bank", "Bank"]].map(([v, l], i) => `<label><input type="radio" name="cMode" value="${v}" ${i ? "" : "checked"}><span>${l}</span></label>`).join("")}</div>
       <div class="row2"><label class="sub">Date<input id="cDay" type="date" value="${today()}" max="${today()}"></label><label class="sub">Note<input id="cNote" value="${esc(ref || "")}"></label></div>
       <button class="big" id="cSave">Save payment</button><div class="err" id="cErr"></div>`);
     box.querySelectorAll("[data-amt]").forEach((b) => (b.onclick = () => ($("cAmt").value = b.dataset.amt)));
     $("cAmt").select();
-    $("cSave").onclick = async () => {
-      $("cSave").disabled = true;
-      try {
-        await api("/api/billing/payments", { method: "POST", body: JSON.stringify({ direction: inward ? "in" : "out", partyId, amount: $("cAmt").value, day: $("cDay").value, mode: box.querySelector("input[name=cMode]:checked").value, note: $("cNote").value }) });
-        const paid = Number($("cAmt").value); closeDrawer(); toast(`${inr(paid)} payment saved.`);
-        await window.VX.reload();
-        await window.VX.reloadTab();
-      } catch (e) { $("cSave").disabled = false; $("cErr").textContent = e.message; }
-    };
+    $("cSave").onclick = busy($("cSave"), async (requestId) => {
+      await api("/api/billing/payments", { method: "POST", requestId, body: JSON.stringify({ direction: inward ? "in" : "out", partyId, amount: $("cAmt").value, day: $("cDay").value, mode: box.querySelector("input[name=cMode]:checked").value, note: $("cNote").value }) });
+      const paid = Number($("cAmt").value); closeDrawer(); toast(`${inr(paid)} payment saved.`);
+      await window.VX.reload();
+      await window.VX.reloadTab();
+    }, $("cErr"));
   }
 
   // A WhatsApp nudge. The UPI ID comes from the shop's details, so it never goes stale.
@@ -145,5 +165,5 @@
     if (e.key === "/" && !typing) { e.preventDefault(); $("findAll").focus(); }
   });
 
-  Object.assign(window.VX, { twoTap, drawer, closeDrawer, collect, reminder, today });
+  Object.assign(window.VX, { twoTap, busy, drawer, closeDrawer, collect, reminder, today });
 })();

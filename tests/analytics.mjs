@@ -212,7 +212,9 @@ await check("the promise only repeats the shop's policy, and the price stays out
 await check("courier: worked out on the server, kept apart from the selling price, and no codes", async () => {
   const { courierFor } = require("../lib/courier.js"), rate = { perKg: 130, kashmirPins: ["190"], kg: { default: 1, Footwear: 2, Puffer: 1.5 } };
   assert.equal(courierFor(rate, { category: "Footwear" }, "110001").fee, 260);
-  assert.equal(courierFor(rate, { category: "Clothing", subcategory: "Puffer" }, "110001").fee, 195, "subcategory first");
+  assert.equal(courierFor(rate, { category: "Clothing", subcategory: "Puffer" }, "110001").fee, 260, "subcategory first: 1.5 kg is charged as 2 started kg, not the 1 kg a plain Clothing piece gets");
+  assert.equal(courierFor(rate, { category: "Clothing" }, "110001").fee, 130, "the category weight (default 1 kg) when no subcategory matches");
+  assert.equal(courierFor({ ...rate, insideKashmirPerKg: 100 }, { category: "Footwear" }, "190001").fee, 200, "inside Kashmir pays its own rate per kg");
   assert.equal(courierFor(rate, { category: "Clothing" }, "190001").fee, null, "inside Kashmir has no charge set");
   const piece = (await (await fetch(`${base}/api/products`)).json()).find((x) => x.status === "available" && x.price && (x.options || []).length <= 1);
   assert.equal((await (await fetch(`${base}/api/courier?id=${piece.id}&pin=110001`)).json()).fee, 130 * (piece.category === "Footwear" ? 2 : 1));

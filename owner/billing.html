@@ -194,19 +194,33 @@
   const u = new URL(location.href);
   let KEY = u.searchParams.get("key") || store.get("vx-owner-key") || "";
   let SESSION = store.get("vx-session") || "", ROLE = "owner", ME = {};
-  if (u.searchParams.get("key")) { store.set("vx-owner-key", KEY); u.searchParams.delete("key"); history.replaceState(null, "", u.pathname + u.search + u.hash); }
+  // The key leaves the address at once. It is remembered only after the server has accepted it (see start).
+  if (u.searchParams.get("key")) { u.searchParams.delete("key"); history.replaceState(null, "", u.pathname + u.search + u.hash); }
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const inr = (n) => (n < 0 ? "−" : "") + "₹" + Math.abs(Number(n || 0)).toLocaleString("en-IN", { maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : 2 });
   const hasKeys = matchMedia("(pointer:fine)").matches; // a real keyboard: safe to put the cursor in boxes
+  // One id per form being saved. Sent again on a retry, so the server keeps only one copy.
+  const newId = () => { try { return crypto.randomUUID(); } catch { return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 14); } };
+  const UNSURE = "Connection dropped — not sure it saved. Tap again: it won't be saved twice.";
+  const unsure = () => Object.assign(new Error(UNSURE), { unsure: true });
   const api = async (path, opts = {}) => {
+    const write = (opts.method || "GET").toUpperCase() !== "GET";
+    let { body, requestId, ...rest } = opts;
+    if (write && requestId) { let b = {}; try { b = JSON.parse(body || "{}"); } catch {} body = JSON.stringify({ ...b, requestId }); }
     let r;
-    try { r = await fetch(path, { ...opts, cache: "no-store", headers: { "Content-Type": "application/json", "x-owner-key": KEY, "x-session": SESSION, ...(opts.headers || {}) } }); }
-    catch { throw new Error("No internet. Nothing was saved. Try again."); }
-    const j = await r.json().catch(() => ({}));
-    if (r.status === 401) { showLock("That key didn't work."); throw new Error("key"); }
-    if (!r.ok) throw new Error(j.error || "Something went wrong.");
+    try { r = await fetch(path, { ...rest, ...(body !== undefined ? { body } : {}), cache: "no-store", headers: { "Content-Type": "application/json", "x-owner-key": KEY, "x-session": SESSION, ...(opts.headers || {}) } }); }
+    catch { if (write) throw unsure(); throw new Error("No internet. Try again."); }
+    // A gateway error or a reply cut off half way: the save may or may not have happened.
+    if (write && [502, 503, 504].includes(r.status)) throw unsure();
+    let j = null;
+    try { j = await r.json(); } catch { if (write && r.ok) throw unsure(); }
+    j ||= {};
+    // Too many wrong keys from this address: the server refuses for a while. Polling stops until the next login.
+    if (r.status === 429) { showLock("Too many tries. Wait a few minutes, then try again."); throw new Error("key"); }
+    if (r.status === 401) { showLock(KEY ? "That key didn't work." : SESSION ? "Please log in again." : ""); throw new Error("key"); }
+    if (!r.ok) throw Object.assign(new Error(j.error || "Something went wrong."), { answered: write });
     return j;
   };
   // A message that goes away by itself, with an optional button such as Undo.
@@ -219,20 +233,25 @@
     setTimeout(() => t.remove(), opt.action ? 7000 : 3600);
   };
 
-  function showLock(msg) { $("app").classList.add("hide"); $("lock").classList.remove("hide"); $("keyErr").textContent = msg || ""; }
+  // Locked: the 3-second check stops, so it can't stack up again after the next login.
+  function showLock(msg) { stopTicks(); $("app").classList.add("hide"); $("lock").classList.remove("hide"); $("keyErr").textContent = msg || ""; }
   $("staffForm").onsubmit = async (e) => {
     e.preventDefault();
     $("keyErr").textContent = "";
-    const r = await fetch("/api/billing/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: $("staffName").value, pin: $("staffPin").value }) });
-    const j = await r.json().catch(() => ({}));
+    let r, j;
+    try {
+      r = await fetch("/api/billing/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: $("staffName").value, pin: $("staffPin").value }) });
+      j = await r.json().catch(() => ({}));
+    } catch { $("keyErr").textContent = "No internet. Try again."; return; }
+    if (r.status === 429) { $("keyErr").textContent = "Too many tries. Wait a few minutes, then try again."; return; }
     if (!r.ok) { $("keyErr").textContent = j.error || "Couldn't log in."; return; }
     SESSION = j.token; KEY = ""; store.set("vx-session", SESSION); store.set("vx-owner-key", ""); $("staffPin").value = "";
     $("lock").classList.add("hide"); start();
   };
-  $("keyForm").onsubmit = (e) => { e.preventDefault(); KEY = $("keyIn").value.trim(); store.set("vx-owner-key", KEY); $("lock").classList.add("hide"); start(); };
+  $("keyForm").onsubmit = (e) => { e.preventDefault(); KEY = $("keyIn").value.trim(); $("lock").classList.add("hide"); start(); };
 
   // ---- Live data: the same products.json the website and WhatsApp use ----
-  let products = [], invoices = [], invoiceTotal = 0, today = null, lastSync = 0, online = true, parties = [], stamp = "", waitingOrders = null, allBills = false;
+  let alertFailures = [], products = [], invoices = [], invoiceTotal = 0, today = null, lastSync = 0, online = true, parties = [], stamp = "", waitingOrders = null, allBills = false;
   const stockOf = (p) => (p.quantity != null ? p.quantity : p.status === "sold" ? 0 : 1);
   const byId = () => new Map(products.map((p) => [p.id, p]));
 
@@ -245,12 +264,16 @@
   }
   // Ask "has anything changed?" and fetch the data only when it has. Stops while the tab is in the background.
   async function refresh() {
-    if (document.hidden) return;
+    if (document.hidden || !$("lock").classList.contains("hide")) return;
     try {
       const p = await api("/api/billing/pulse");
       lastSync = Date.now(); online = true;
       if (waitingOrders !== null && p.orders > waitingOrders) toast("New website order to check.", { action: "Open", run: () => go("orders") });
       waitingOrders = p.orders; paintBadges(p.orders);
+      // WhatsApp alerts that failed lately: Home shows a warning. Redrawn when the count changes.
+      const failedNow = (p.alertFailures || []).length, failedWas = alertFailures.length;
+      alertFailures = p.alertFailures || [];
+      if (failedNow !== failedWas && current === "home") liveTab();
       window.VX.orderAlert?.(p.pending || []);
       if (p.v !== stamp) { const first = !stamp; stamp = p.v; if (!first) { await loadAll(); liveTab(); } }
     } catch (e) { if (e.message !== "key") online = false; }
@@ -399,12 +422,12 @@
   const subTotal = () => cart.reduce((n, l) => n + lineAmt(l), 0);
   const chargeTotal = () => charges.reduce((n, c) => n + (Number(c.amount) || 0), 0);
   const grandTotal = () => subTotal() + chargeTotal() - Math.min(subTotal(), money(billDisc, subTotal()));
-  let blocked = false;
+  let blocked = false, saving = false; // saving: a bill is on its way to the server
   function paintTotals() {
     const total = grandTotal(), off = Math.min(subTotal(), money(billDisc, subTotal()));
     $("total").textContent = inr(total);
     $("savedLine").textContent = off ? `Includes ${inr(off)} off the bill` : "";
-    $("make").disabled = !cart.length || blocked || !online;
+    $("make").disabled = saving || !cart.length || blocked || !online;
     const count = cart.reduce((n, l) => n + l.qty, 0);
     $("cartBar").classList.toggle("hide", !cart.length || !$("done").classList.contains("hide"));
     $("cartBar").innerHTML = `<span>${count} item${count === 1 ? "" : "s"}</span><b>${inr(total)}</b><span>View bill ↓</span>`;
@@ -436,16 +459,16 @@
         <div class="sub">#${esc(p ? p.code : "")}${p && list !== Number(l.price) ? ` · list price ${inr(list)}` : ""}</div>
         ${opts.length ? `<select data-size="${i}" aria-label="Size">${opts.map((o) => `<option value="${esc(o.size)}" ${o.size === l.size ? "selected" : ""}>${esc(o.size)} · ${inr(o.price)}${o.left === null ? "" : ` · ${o.left} left`}</option>`).join("")}</select>` : ""}
         <div class="lineNums">
-          <label class="sub">Qty<span class="qty"><button data-dec="${i}" aria-label="Less">−</button><input class="rate qtyIn" type="number" min="1" value="${l.qty}" data-q="${i}" aria-label="Quantity"><button data-inc="${i}" aria-label="More">+</button></span></label>
-          <label class="sub">Rate ₹<input class="rate" type="number" min="0" step="1" value="${esc(l.price)}" data-rate="${i}"></label>
-          <label class="sub">Disc ₹/%<input class="rate" type="text" value="${l.disc ? esc(l.disc) : ""}" placeholder="0" data-disc="${i}"></label>
+          <label class="sub">Qty<span class="qty"><button data-dec="${i}" aria-label="Less">−</button><input class="rate qtyIn" type="number" inputmode="numeric" enterkeyhint="done" min="1" value="${l.qty}" data-q="${i}" aria-label="Quantity"><button data-inc="${i}" aria-label="More">+</button></span></label>
+          <label class="sub">Rate ₹<input class="rate" type="number" inputmode="decimal" enterkeyhint="done" min="0" step="1" value="${esc(l.price)}" data-rate="${i}"></label>
+          <label class="sub">Disc ₹/%<input class="rate" type="text" enterkeyhint="done" value="${l.disc ? esc(l.disc) : ""}" placeholder="0" data-disc="${i}"></label>
           <div class="lineAmt sub">Amount<b data-amt="${i}">${inr(lineAmt(l))}</b></div>
         </div>
         ${warn ? `<div class="warn">⚠ ${esc(warn)}</div>` : ""}
         ${note ? `<div class="warn" style="color:var(--amber)">⚠ ${esc(note)}</div>` : ""}
       </div>`;
     }).join("") : `<div class="empty">Search an item and tap it to add.</div>`;
-    $("chargeList").innerHTML = charges.map((c, i) => `<div class="row2"><input value="${esc(c.label)}" placeholder="Charge, e.g. Courier" data-cl="${i}" aria-label="Charge name"><div class="qty"><input class="rate" type="number" min="0" value="${esc(c.amount)}" placeholder="₹" data-ca="${i}" aria-label="Charge amount"><button data-crm="${i}" aria-label="Remove charge">×</button></div></div>`).join("");
+    $("chargeList").innerHTML = charges.map((c, i) => `<div class="row2"><input value="${esc(c.label)}" placeholder="Charge, e.g. Courier" data-cl="${i}" aria-label="Charge name"><div class="qty"><input class="rate" type="number" inputmode="decimal" enterkeyhint="done" min="0" value="${esc(c.amount)}" placeholder="₹" data-ca="${i}" aria-label="Charge amount"><button data-crm="${i}" aria-label="Remove charge">×</button></div></div>`).join("");
     $("chargeList").querySelectorAll("[data-cl]").forEach((i) => (i.oninput = () => { charges[+i.dataset.cl].label = i.value; saveDraft(); }));
     $("chargeList").querySelectorAll("[data-ca]").forEach((i) => (i.oninput = () => { charges[+i.dataset.ca].amount = i.value; paintTotals(); saveDraft(); }));
     $("chargeList").querySelectorAll("[data-crm]").forEach((b) => (b.onclick = () => { charges.splice(+b.dataset.crm, 1); renderCart(); }));
@@ -489,11 +512,12 @@
   };
 
   // The bill being made survives a refresh, a dropped connection or a closed tab.
-  const draft = () => ({ cart, charges, billDisc, name: $("cName").value, phone: $("cPhone").value, pay: payNow() });
+  let billRid = ""; // one id per bill being made, so a retry after a dropped connection can't bill twice
+  const draft = () => ({ cart, charges, billDisc, name: $("cName").value, phone: $("cPhone").value, pay: payNow(), rid: billRid });
   let draftReady = false; // nothing is saved until the last draft has been read back
   function saveDraft() { if (!draftReady) return; const d = draft(); store.set("vx-draft", cart.length || charges.length ? JSON.stringify(d) : ""); }
   function loadDraft(d) {
-    cart = d.cart || []; charges = d.charges || []; billDisc = d.billDisc || "";
+    cart = d.cart || []; charges = d.charges || []; billDisc = d.billDisc || ""; billRid = d.rid || "";
     $("cName").value = d.name || ""; $("cPhone").value = d.phone || "";
     $("billDisc").value = billDisc; $("discRow").classList.toggle("hide", !billDisc);
     const r = document.querySelector(`input[name=pay][value=${d.pay || "cash"}]`); if (r) r.checked = true;
@@ -588,8 +612,8 @@
     });
   };
   async function makeBill() {
-    if ($("make").disabled) return;
-    $("make").disabled = true; $("err").textContent = "";
+    if ($("make").disabled || saving) return;
+    saving = true; $("make").disabled = true; $("err").textContent = "";
     const pay = payNow();
     try {
       const phone = $("cPhone").value.replace(/\D/g, "").slice(-10);
@@ -597,7 +621,8 @@
       if (pay === "credit" && phone.length !== 10) { $("cPhone").focus(); throw new Error("A credit bill needs the customer's mobile, so it can go in their ledger."); }
       if (pay === "credit" && !$("cName").value.trim()) { $("cName").focus(); throw new Error("A credit bill needs the customer's name."); }
       const gaveBack = pay === "cash" ? Math.max(0, (Number($("gave").value) || 0) - grandTotal()) : 0;
-      const r = await api("/api/billing/invoices", { method: "POST", body: JSON.stringify({
+      if (!billRid) { billRid = newId(); saveDraft(); }
+      const r = await api("/api/billing/invoices", { method: "POST", requestId: billRid, body: JSON.stringify({
         lines: spreadDisc(),
         charges: charges.map((c) => ({ label: c.label, amount: Number(c.amount) })),
         customer: { name: $("cName").value, phone },
@@ -610,17 +635,21 @@
       }) });
       overLimit = false; $("make").firstChild.textContent = "Create bill ";
       const inv = r.invoice;
+      saving = false;
       emptyBill();
       $("showName").checked = false; // asked afresh for every buyer
       billDone(inv, r.url, gaveBack);
       await loadAll();
     } catch (e) {
+      saving = false;
+      // The server said no: nothing was saved, so the next try gets a new id. Any other failure keeps it.
+      if (e.answered) billRid = "";
       if (e.message === "key") return;
       $("err").textContent = e.message;
       if (/credit limit/.test(e.message)) { overLimit = true; $("make").firstChild.textContent = "Bill anyway "; }
       if (online) await loadAll().catch(() => {});
-      renderCart();
-    }
+      renderCart(); // the bill stays as it was, ready to try again
+    } finally { saving = false; }
   }
   $("make").onclick = makeBill;
   $("cartBar").onclick = () => $("cart").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -696,7 +725,8 @@
     renderBills();
   };
   document.querySelectorAll("#tab-bills th[data-sort]").forEach((th) => (th.onclick = () => { if (billSort === th.dataset.sort) billDir = -billDir; else { billSort = th.dataset.sort; billDir = -1; } renderBills(); }));
-  const csvCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  // Excel must never run a cell as a formula. Plain numbers such as -250 stay numbers.
+  const csvCell = (v) => { let s = String(v ?? ""); if (typeof v !== "number" && (/^[\t\r]/.test(s) || (/^[=+\-@]/.test(s) && !/^[-+]?\d+(\.\d+)?$/.test(s)))) s = "'" + s; return `"${s.replace(/"/g, '""')}"`; };
   const saveCsv = (name, rows) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + rows.map((r) => r.map(csvCell).join(",")).join("\n")], { type: "text/csv" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); };
   $("billCsv").onclick = () => saveCsv(`vibex-bills-${dayOf(Date.now())}.csv`, [["Date", "Bill", "Customer", "Mobile", "Items", "Payment", "Total", "Still due", "Status"], ...billList().map((x) => [dayOf(x.at), x.number, x.customer.name || "Walk-in", x.customer.phone, x.lines.map((l) => `${l.qty} x ${l.name}`).join("; "), PAY[x.payment] || x.payment, x.total, x.due || 0, billState(x)])]);
 
@@ -731,8 +761,8 @@
       <td><input type="checkbox" data-pick="${esc(p.id)}" ${picks.has(p.id) ? "checked" : ""} aria-label="Pick ${esc(p.name)}"></td>
       <td><div class="itemCell">${itemPic(p)}<div class="grow"><div class="name">${esc(p.name)}</div><div class="sub">#${esc(p.code)} ${stockPill(p)}${p.hidden ? ` <span class="pill low">Not on website</span>` : ""}${p.needsCount ? ` <span class="pill out">Count this</span>` : ""}${p.needsName ? ` <span class="pill out">Needs a name</span>` : ""}</div></div></div></td>
       <td>${esc(p.barcode || "-")}</td>
-      <td>${p.sizeStock ? `<b>${stockOf(p)}</b><div class="sub">${Object.entries(p.sizeStock).map(([s, n]) => `${esc(s)}: ${n}`).join(" · ")}</div>` : `<div class="stockQty"><button class="tbtn" data-step="-1" data-id="${esc(p.id)}" aria-label="One less">−</button><input type="number" min="0" value="${stockOf(p)}" data-qty="${esc(p.id)}" aria-label="Stock of ${esc(p.name)}"><button class="tbtn" data-step="1" data-id="${esc(p.id)}" aria-label="One more">+</button></div>`}</td>
-      <td class="n"><input type="number" class="rate" min="1" value="${esc(p.price || "")}" data-price="${esc(p.id)}" aria-label="Selling price of ${esc(p.name)}"></td>
+      <td>${p.sizeStock ? `<b>${stockOf(p)}</b><div class="sub">${Object.entries(p.sizeStock).map(([s, n]) => `${esc(s)}: ${n}`).join(" · ")}</div>` : `<div class="stockQty"><button class="tbtn" data-step="-1" data-id="${esc(p.id)}" aria-label="One less">−</button><input type="number" inputmode="numeric" enterkeyhint="done" min="0" value="${stockOf(p)}" data-qty="${esc(p.id)}" aria-label="Stock of ${esc(p.name)}"><button class="tbtn" data-step="1" data-id="${esc(p.id)}" aria-label="One more">+</button></div>`}</td>
+      <td class="n"><input type="number" inputmode="decimal" enterkeyhint="done" class="rate" min="1" value="${esc(p.price || "")}" data-price="${esc(p.id)}" aria-label="Selling price of ${esc(p.name)}"></td>
       <td class="n costCol">${p.cost ? inr(p.cost) : "-"}</td>
       <td class="n">${p.mrp ? inr(p.mrp) : "-"}</td>
       <td class="n">${staff ? "" : `<div class="rowBtns"><button class="tbtn ${p.hidden ? "webOn" : ""}" data-web="${esc(p.id)}">${p.hidden ? "Put on website" : "Take off website"}</button><button class="tbtn" data-edit="${esc(p.id)}">Edit</button></div>`}</td>
@@ -761,8 +791,10 @@
       editing = null; await loadAll();
     };
     $("stockRows").querySelectorAll("[data-step]").forEach((b) => b.onclick = () => { const p = byId().get(b.dataset.id), was = stockOf(p); push(b.dataset.id, { quantity: Math.max(0, was + Number(b.dataset.step)) }, { quantity: was }); });
-    $("stockRows").querySelectorAll("[data-qty]").forEach((i) => { i.onfocus = () => (editing = i.dataset.qty); i.onchange = () => push(i.dataset.qty, { quantity: i.value }, { quantity: stockOf(byId().get(i.dataset.qty)) }); });
-    $("stockRows").querySelectorAll("[data-price]").forEach((i) => { i.onfocus = () => (editing = i.dataset.price); i.onchange = () => push(i.dataset.price, { price: i.value }, { price: byId().get(i.dataset.price).price }); });
+    // Leaving a box without changing it frees the table to update again.
+    const done = (id) => () => { if (editing === id) editing = null; };
+    $("stockRows").querySelectorAll("[data-qty]").forEach((i) => { i.onfocus = () => (editing = i.dataset.qty); i.onblur = done(i.dataset.qty); i.onchange = () => push(i.dataset.qty, { quantity: i.value }, { quantity: stockOf(byId().get(i.dataset.qty)) }); });
+    $("stockRows").querySelectorAll("[data-price]").forEach((i) => { i.onfocus = () => (editing = i.dataset.price); i.onblur = done(i.dataset.price); i.onchange = () => push(i.dataset.price, { price: i.value }, { price: byId().get(i.dataset.price).price }); });
     paintPicks();
   }
   // Ticked items: what can be done with them sits right above the list.
@@ -771,7 +803,7 @@
     $("pickBar").classList.toggle("hide", !n);
     if ($("pickBar").dataset.n === String(n)) return;
     $("pickBar").dataset.n = n;
-    $("pickBar").innerHTML = `<b>${n} ticked</b><label class="sub">Labels each <input type="number" id="lblCount" value="1" min="1" max="200"></label><button class="primary" id="pickPrint">Print labels</button><button class="x" id="pickClear">Clear</button>`;
+    $("pickBar").innerHTML = `<b>${n} ticked</b><label class="sub">Labels each <input type="number" inputmode="numeric" id="lblCount" value="1" min="1" max="200"></label><button class="primary" id="pickPrint">Print labels</button><button class="x" id="pickClear">Clear</button>`;
     if (!n) return;
     $("pickPrint").onclick = () => window.VX.printLabels([...picks]).catch((err) => toast(err.message));
     $("pickClear").onclick = () => { picks.clear(); renderStock(); };
@@ -792,7 +824,7 @@
     if (today && ROLE !== "staff") $("todayBox").innerHTML = `<span class="onlyWide">Today</span> <b>${inr(today.total)}</b> <span class="onlyWide">· ${today.bills} bill${today.bills === 1 ? "" : "s"}</span>`;
     renderResults();
     // Never redraw a box being typed in.
-    if (!document.activeElement?.closest?.("#lines,#chargeList")) renderCart();
+    if (!saving && !document.activeElement?.closest?.("#lines,#chargeList")) renderCart();
     renderBills();
     if (!editing) renderStock();
   }
@@ -804,8 +836,8 @@
     const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   };
-  window.VX = Object.assign(window.VX || {}, { api, esc, inr, toast, download, stockOf, go, store, addToCart, billPanel, tabs: {},
-    reload: loadAll, reloadTab: () => window.VX.tabs[current]?.(currentSub), data: () => ({ products, invoices, parties, role: ROLE, me: ME }),
+  window.VX = Object.assign(window.VX || {}, { api, newId, esc, inr, toast, download, stockOf, go, store, addToCart, billPanel, tabs: {},
+    reload: loadAll, reloadTab: () => window.VX.tabs[current]?.(currentSub), data: () => ({ products, invoices, parties, role: ROLE, me: ME, alertFailures }),
     makeBill: () => { if (current === "new") makeBill(); },
     setStockFilter: async (c) => { await go("stock"); setChip(c); } });
 
@@ -813,8 +845,21 @@
     $("who").innerHTML = `<button class="tbtn" id="logout">${ROLE === "staff" ? `${esc(ME.name)} · Log out` : "Lock"}</button>`;
     $("logout").onclick = () => { store.set("vx-session", ""); store.set("vx-owner-key", ""); store.set("vx-draft", ""); location.href = "/billing"; };
   }
+  let ticks = null, wired = false;
+  function stopTicks() { if (ticks) ticks.forEach(clearInterval); ticks = null; }
   async function start() {
-    try { ME = await api("/api/billing/me"); } catch { return; }
+    try { ME = await api("/api/billing/me"); }
+    catch (e) {
+      if (e.message === "key") return; // the lock screen already says why
+      // No signal on first open: say so and keep trying, instead of a blank screen.
+      showLock("No internet. Trying again…");
+      clearTimeout(start.retry);
+      start.retry = setTimeout(() => { if (!$("lock").classList.contains("hide") && $("keyErr").textContent.startsWith("No internet")) start(); }, 5000);
+      return;
+    }
+    clearTimeout(start.retry);
+    $("lock").classList.add("hide");
+    if (KEY) store.set("vx-owner-key", KEY); // only a key the server accepted is remembered
     ROLE = ME.role;
     if (ME.logo) $("brandLogo").innerHTML = `<img src="${esc(ME.logo)}" alt="">`;
     // Staff see the counter only. The server refuses the rest anyway.
@@ -834,10 +879,10 @@
     paintHeld(); paintPay();
     await fromAddress(); // a refresh stays on the same page; a fresh open is ready for the first scan
     await refresh();
-    setInterval(refresh, 3000);
-    setInterval(paintSync, 1000);
-    document.addEventListener("visibilitychange", refresh);
-    addEventListener("online", refresh);
+    // Once only, however many times the lock screen is passed.
+    stopTicks();
+    ticks = [setInterval(refresh, 3000), setInterval(paintSync, 1000)];
+    if (!wired) { wired = true; document.addEventListener("visibilitychange", refresh); addEventListener("online", refresh); }
   }
   document.addEventListener("DOMContentLoaded", start);
 })();

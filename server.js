@@ -11,7 +11,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 try { process.loadEnvFile(path.join(__dirname, ".env")); } catch { /* no .env: keyword rules only */ }
-const { parseMessage, categoryAnswer, findSubcategory } = require("./lib/parse");
+const { parseMessage, categoryAnswer, findSubcategory, normaliseCommand } = require("./lib/parse");
 const { classify, aiEnabled, MODEL, readPurchaseBill } = require("./lib/classify");
 const wa = require("./lib/whatsapp");
 const createBilling = require("./lib/billing");
@@ -46,6 +46,7 @@ const SEED = path.join(DATA, "seed.json");
 
 fs.mkdirSync(UPLOADS, { recursive: true });
 wa.setAlertsFile(path.join(STORE, "wa-alerts.json")); // alerts held while the owner is outside WhatsApp's 24 h window
+wa.setSeenFile(path.join(STORE, "wa-seen.json")); // message ids already handled, so Meta's retries after a restart do nothing
 // Seed items store "hoursAgo" so the demo always looks freshly stocked.
 // Photos dropped in data/seed-photos/ are given to the sample items in name order.
 const SEED_PHOTOS = path.join(DATA, "seed-photos");
@@ -58,11 +59,12 @@ function writeSeed() {
     image: photos[i] ? `/seed-photos/${encodeURIComponent(photos[i])}` : p.image,
     createdAt: new Date(now - hoursAgo * 3600e3).toISOString(),
   }));
-  fs.writeFileSync(DB, JSON.stringify(items, null, 2));
+  writeJson(DB, items);
 }
 if (!fs.existsSync(DB)) writeSeed();
 
-const load = () => JSON.parse(fs.readFileSync(DB, "utf8"));
+// A damaged products.json stops the server with a clear message (lib/jsonstore.js) instead of a raw JSON error.
+const load = () => readJson(DB, []);
 
 // Every product gets a unique 4-digit code: the LOT number on the website, and what the
 // owner types to change stock ("sold 4795 2"). Older items without one get the number
@@ -81,7 +83,7 @@ function ensureCodes() {
     p.code = used.has(hashLot(p.id)) ? newCode(items) : hashLot(p.id);
     changed = true;
   }
-  if (changed) fs.writeFileSync(DB, JSON.stringify(items, null, 2));
+  if (changed) writeJson(DB, items);
 }
 ensureCodes();
 // "Gucci Flora 100 mL" -> name "Gucci Flora", sizes "100 ml". Bottle sizes belong in the size
@@ -105,7 +107,7 @@ function tidyListing(l) {
   const items = load();
   let n = 0;
   for (const p of items) { const before = `${p.name}|${p.sizes}`; tidyListing(p); if (`${p.name}|${p.sizes}` !== before) n++; }
-  if (n) { fs.writeFileSync(DB, JSON.stringify(items, null, 2)); console.log(`Tidied ${n} product name(s): bottle size moved to the size field`); }
+  if (n) { writeJson(DB, items); console.log(`Tidied ${n} product name(s): bottle size moved to the size field`); }
 })();
 // Once at start-up: descriptions written for the stock already on the site. Never overwrites one.
 (() => {
@@ -113,7 +115,7 @@ function tidyListing(l) {
   const items = load();
   let n = 0;
   for (const p of items) if (!p.description && seed[p.id]) { p.description = seed[p.id]; n++; }
-  if (n) { fs.writeFileSync(DB, JSON.stringify(items, null, 2)); console.log(`Added ${n} product description(s)`); }
+  if (n) { writeJson(DB, items); console.log(`Added ${n} product description(s)`); }
 })();
 // Once at start-up: real names, read off the bottles, for items posted as just "Zara".
 // Only touches that exact name, so a name the owner sets later is never overwritten.
@@ -122,9 +124,31 @@ function tidyListing(l) {
   const items = load();
   let n = 0;
   for (const p of items) if (p.name === "Zara" && names[p.id]) { p.name = names[p.id]; p.brand = p.brand || "Zara"; n++; }
-  if (n) { fs.writeFileSync(DB, JSON.stringify(items, null, 2)); console.log(`Renamed ${n} product(s)`); }
+  if (n) { writeJson(DB, items); console.log(`Renamed ${n} product(s)`); }
 })();
 const save = (items) => { items.forEach(fitSizeStock); writeJson(DB, items); };
+// Files that may be rebuilt from nothing (inbox, activity): a damaged one is moved aside as
+// <file>.damaged-<time> and logged, so nothing is overwritten unseen and it can still be looked at.
+function readOrSetAside(file, fallback) {
+  let text;
+  try { text = fs.readFileSync(file, "utf8"); } catch (e) { if (e.code === "ENOENT") return fallback; throw e; }
+  try { return JSON.parse(text); } catch {
+    const aside = `${file}.damaged-${Date.now()}`;
+    try { fs.renameSync(file, aside); } catch { /* already moved by another call */ }
+    console.error(`${path.basename(file)} was damaged: moved to ${path.basename(aside)}, starting a new one.`);
+    return fallback;
+  }
+}
+// Copies made before an import / link / unlink: the newest 10 of each kind, so the disk doesn't fill up.
+function pruneCopies(keep = 10) {
+  let names; try { names = fs.readdirSync(STORE); } catch { return; }
+  for (const kind of ["import", "link", "unlink"]) {
+    const re = new RegExp(`^products-before-${kind}-(\\d+)\\.json$`);
+    const list = names.map((f) => [f, re.exec(f)]).filter(([, m]) => m).sort((a, b) => Number(b[1][1]) - Number(a[1][1]));
+    for (const [f] of list.slice(keep)) try { fs.unlinkSync(path.join(STORE, f)); } catch { /* gone */ }
+  }
+}
+pruneCopies();
 // What customers may see. Cost prices and the shop's own notes never leave the server, and
 // hidden items (imported, waiting for a photo) aren't on sale yet.
 const PRIVATE_FIELDS = ["cost", "purchasePrice", "supplierId", "hsn", "gstRate", "reorderAt", "barcode", "importKey", "linkUndo", "needsCount", "needsName"];
@@ -163,7 +187,9 @@ Object.assign(SHOP.billing, books.getSetting("billSettings") || {});
 if (books.getSetting("gstin")) SHOP.business.gstin = books.getSetting("gstin");
 billing.hooks.canCancel = (inv) => (documents.hasReturn("invoiceId", inv.id) ? `Bill ${inv.number} has a return against it. Cancel the return first.` : null);
 // The books get a dated copy every day, kept 30 days on the same disk.
-const BOOK_FILES = ["staff.json", "products.json", "invoices.json", "parties.json", "payments.json", "purchases.json", "expenses.json", "books.json", "orders.json", "returns.json", "docs.json"];
+// customers.json + coins.json are the website accounts and their coin balances (money owed to customers);
+// wa-alerts.json holds order alerts the owner hasn't seen yet.
+const BOOK_FILES = ["staff.json", "products.json", "invoices.json", "parties.json", "payments.json", "purchases.json", "expenses.json", "books.json", "orders.json", "returns.json", "docs.json", "customers.json", "coins.json", "wa-alerts.json"];
 if (LIVE) { dailyBackup(STORE, BOOK_FILES); setInterval(() => dailyBackup(STORE, BOOK_FILES), 3600e3).unref(); }
 // Bill links in WhatsApp replies. Locally there's no public address, so it's a path.
 const billUrl = (inv) => siteUrl() + `/bill/${inv.id}`;
@@ -187,6 +213,7 @@ const TYPES = {
 };
 
 function send(res, status, body, type = "application/json", cache = "no-store") {
+  if (res.onSend) { const f = res.onSend; res.onSend = null; f(status, body); } // requestId replies (billingApi)
   res.writeHead(status, { "Content-Type": type, "Cache-Control": cache });
   res.end(typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
@@ -222,21 +249,37 @@ function saveImage(dataUrl, id) {
   return `/uploads/${id}.${ext}`;
 }
 
-// Finds the product a command refers to: best word match, newest first; empty query = newest.
-function findTarget(items, query, wantStatus) {
+// Finds the product a command ("sold puffer", "remove 4795") refers to. Returns { p } or { reply } when
+// nothing should happen. It never guesses: these commands sell and hide real stock.
+//  - no words: ask which item (it used to take the newest one)
+//  - a bare number is a code: exactly 4 digits that exist, so "sold 149" can't match a ₹1499 caption
+//  - whole words only ("tee" doesn't match "Steel"); a tie lists the items and does nothing
+const wordsOf = (t) => String(t || "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+function findTarget(items, query, wantStatus, verb = "sold") {
   const pool = items.filter((p) => !wantStatus || p.status === wantStatus);
-  if (!pool.length) return null;
-  const byCode = /^(?:lot|code|#)?\s*#?(\d{4})$/i.exec(query.trim());
-  if (byCode) return pool.find((p) => p.code === byCode[1]) || null;
-  const words = query.toLowerCase().split(/\s+/).filter((w) => w.length > 1);
-  if (!words.length) return pool[0];
-  let best = null, bestScore = 0;
-  for (const p of pool) {
-    const hay = `${p.name} ${p.brand || ""} ${p.caption}`.toLowerCase();
-    const score = words.filter((w) => hay.includes(w)).length;
-    if (score > bestScore) { best = p; bestScore = score; }
+  const q = String(query || "").trim();
+  const which = `Which item? Send *${verb}* and its code, e.g. *${verb} 4795*. The 4-digit code is the LOT number on the website.`;
+  if (!q) return { reply: which };
+  const byCode = /^(?:lot|code|#)?\s*#?\s*(\d+)$/i.exec(q);
+  if (byCode) {
+    if (byCode[1].length !== 4) return { reply: `“${byCode[1]}” isn't a code. Codes are 4 digits (the LOT number on the website), e.g. *${verb} 4795*.` };
+    const p = pool.find((x) => x.code === byCode[1]);
+    return p ? { p } : { reply: `I couldn't find code ${byCode[1]}${wantStatus ? ` among the ${wantStatus === "sold" ? "sold-out" : "available"} items` : " on the website"}. The code is the LOT number on the website.` };
   }
-  return best;
+  const words = [...new Set(wordsOf(q).filter((w) => w.length > 1))];
+  if (!words.length) return { reply: which };
+  let bestScore = 0, top = [];
+  for (const p of pool) {
+    const hay = new Set(wordsOf(`${p.name} ${p.brand || ""} ${p.caption || ""}`));
+    const score = words.filter((w) => hay.has(w)).length;
+    if (score > bestScore) { bestScore = score; top = [p]; } else if (score && score === bestScore) top.push(p);
+  }
+  if (!top.length) return { reply: `I couldn't find that item on the website. Try a word from its name, like “${verb} puffer”, or its 4-digit code.` };
+  if (top.length > 1) {
+    const list = top.slice(0, 8).map((p) => `• *${p.code}* ${p.name}`).join("\n");
+    return { reply: `${top.length} items match “${q}”. Which one? Send *${verb}* with its code:\n${list}${top.length > 8 ? `\n…and ${top.length - 8} more` : ""}` };
+  }
+  return { p: top[0] };
 }
 
 // ---- Customer enquiries ("Ask about this piece") ----
@@ -244,8 +287,8 @@ function findTarget(items, query, wantStatus) {
 // number. In the demo it lands in the fake WhatsApp chat via /api/inbox. In version 2,
 // sendToOwner() also sends it to the owner's real WhatsApp through the Cloud API.
 const INBOX = path.join(STORE, "inbox.json");
-const loadInbox = () => { try { return JSON.parse(fs.readFileSync(INBOX, "utf8")); } catch { return []; } };
-const saveInbox = (m) => fs.writeFileSync(INBOX, JSON.stringify(m.slice(-200), null, 2));
+const loadInbox = () => readOrSetAside(INBOX, []);
+const saveInbox = (m) => writeJson(INBOX, m.slice(-200));
 
 // Indian mobile numbers: 10 digits starting 6–9, optionally with +91 / 0 in front.
 function normalisePhone(raw) {
@@ -256,14 +299,54 @@ function normalisePhone(raw) {
 }
 const prettyPhone = (d) => `+91 ${d.slice(0, 5)} ${d.slice(5)}`;
 
+// The visitor's real address. Requests come Cloudflare -> Render -> here: Cloudflare sets
+// cf-connecting-ip itself (overwriting anything the visitor sends), and Render appends the address
+// it saw to x-forwarded-for, so its LAST entry is the real peer. The first entry is whatever the
+// visitor typed, which is why it must never be used for limits.
+// Cloudflare's published edge ranges (cloudflare.com/ips). cf-connecting-ip is only believed when
+// the hop Render saw is one of these; anyone hitting *.onrender.com directly could type it themselves.
+const CF_EDGES = new (require("net").BlockList)();
+for (const r of ["173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13", "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22"]) { const [a, n] = r.split("/"); CF_EDGES.addSubnet(a, +n, "ipv4"); }
+for (const r of ["2400:cb00::/32", "2606:4700::/32", "2803:f800::/32", "2405:b500::/32", "2405:8100::/32", "2a06:98c0::/29", "2c0f:f248::/32"]) { const [a, n] = r.split("/"); CF_EDGES.addSubnet(a, +n, "ipv6"); }
+function fromCloudflare(ip) {
+  const s = String(ip || "").replace(/^::ffff:/, "");
+  try { return CF_EDGES.check(s, s.includes(":") ? "ipv6" : "ipv4"); } catch { return false; }
+}
+let ipChecks = 0;
+function clientIp(req) {
+  const xff = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const peer = xff.length ? xff[xff.length - 1] : req.socket.remoteAddress || "?"; // the last hop is added by Render
+  const cf = String(req.headers["cf-connecting-ip"] || "").trim();
+  // The first few after each start show in Render's logs that the hop really is a Cloudflare edge.
+  if (ipChecks < 3 && cf) { ipChecks++; console.log(`client ip check: hops=${xff.length} peerIsCloudflare=${fromCloudflare(peer)}`); }
+  return cf && fromCloudflare(peer) ? cf : peer;
+}
+
 const recent = new Map(); // ip -> timestamps, a simple flood guard
+const FLOOD_MS = 10 * 60e3;
 function tooMany(ip) {
   const now = Date.now();
-  const list = (recent.get(ip) || []).filter((t) => now - t < 10 * 60e3);
+  const list = (recent.get(ip) || []).filter((t) => now - t < FLOOD_MS);
   list.push(now);
   recent.set(ip, list);
   return list.length > 5;
 }
+// Wrong owner keys: 20 in 10 minutes from one address and it gets 429 until they age out.
+// The right key is never refused (it's checked before this).
+const wrongKeys = new Map(); // ip -> timestamps
+const WRONG_KEY_MAX = 20;
+function wrongKey(ip) {
+  const now = Date.now();
+  const list = (wrongKeys.get(ip) || []).filter((t) => now - t < FLOOD_MS);
+  list.push(now);
+  wrongKeys.set(ip, list);
+  return list.length > WRONG_KEY_MAX;
+}
+// Old entries go, or both maps grow with every address that ever visited.
+setInterval(() => {
+  const cut = Date.now() - FLOOD_MS;
+  for (const m of [recent, wrongKeys]) for (const [ip, list] of m) { const keep = list.filter((t) => t > cut); if (keep.length) m.set(ip, keep); else m.delete(ip); }
+}, 60e3).unref();
 
 // The site's public address, for every link we send out. Never the host's own address: customers
 // must only ever see the shop's domain, so on Render (which sets RENDER) it falls back to that.
@@ -315,7 +398,7 @@ async function handleEnquiry(req, res) {
   let body;
   try { body = JSON.parse(await readBody(req, 20 * 1024)); } catch { return send(res, 400, { error: "Something went wrong. Please try again." }); }
   if (body.website) return send(res, 200, { ok: true }); // hidden field only bots fill in
-  const ip = req.socket.remoteAddress || "?";
+  const ip = clientIp(req);
   if (tooMany(ip)) return send(res, 429, { error: "Too many messages. Please wait a few minutes." });
 
   const p = load().filter(isPublic).find((x) => x.id === String(body.productId || ""));
@@ -361,7 +444,6 @@ const { courierFor, feeFor, kgOf } = require("./lib/courier");
 const payWindow = require("./lib/paywindow");
 const PAY_WINDOW = payWindow.read(SHOP.pay?.window, process.env.ORDER_HOURS);
 const ORDER_WINDOW_MS = Number(process.env.ORDER_WINDOW_MS) || PAY_WINDOW.minutes * 60e3;
-const clientIp = (req) => String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0].trim();
 
 // Every line of an order. Orders from before the bag had one product, kept in top-level fields.
 const orderLines = (o) => o.lines || [{ productId: o.productId, productName: o.productName, lot: o.lot, size: o.size, qty: 1, price: o.amount - (o.shipping || 0) }];
@@ -515,7 +597,8 @@ _Faster:_ put it all in the caption, e.g. _Zara shirt 1499 M L_, and it's one ta
 *Stock of a size:* _stock 4795 100ml 3_ or _add 4795 100ml 2_
 *Description:* _desc 4795 your words_
 *Start over:* _clear_ drops every photo still waiting to be posted
-*Orders:* _confirm VX-1234_ or _cancel VX-1234_
+*Orders:* _orders_ lists the website orders waiting, then _confirm VX-1234_ or _cancel VX-1234_
+*Stock in short:* _stock_
 *Customer coins:* _coins_, _coins on_ or _coins off_
 The 4-digit code is the LOT number on the website, and I send it when you post.
 Tip: put *perfume*, *clothes*, *shoes* or *accessory* in the caption and I'll never have to ask which it is.`;
@@ -616,8 +699,17 @@ function orderCommand(text) {
   const hello = (msg) => `https://wa.me/91${o.phone}?text=${encodeURIComponent(msg)}`;
   if (/^(cancel|reject)/i.test(m[1])) {
     if (o.status === "cancelled") return `${o.code} is already cancelled.`;
-    // Already confirmed = already billed: cancelling the bill puts the piece back on sale.
-    if (o.invoice) { const r = billing.cancel(o.invoice, `Order ${o.code} cancelled`); if (!r.error) o.invoice = null; }
+    // Already confirmed = already billed: cancelling the bill puts the piece back on sale. If the bill
+    // can't be cancelled (e.g. a return is filed against it), the order stays as it is: a cancelled
+    // order with a live bill would hand back coins and stock the shop never got back.
+    if (o.invoice) {
+      const inv = billing.loadInvoices().find((x) => x.id === o.invoice);
+      if (inv && inv.status !== "cancelled") {
+        const r = billing.cancel(o.invoice, `Order ${o.code} cancelled`);
+        if (r.error) return `⚠️ Can't cancel ${o.code}: ${r.error}`;
+      }
+      o.invoice = null;
+    }
     const lapsed = o.status === "lapsed"; // its piece was released already, and may have sold since
     o.status = "cancelled";
     if (letGo(o, items)) save(items);
@@ -845,7 +937,7 @@ const lab = require("./lib/lab")({ STORE });
 const REC_RATE = Math.max(0, Math.min(100, Number(process.env.REC_RATE ?? 25))); // % of visits recorded
 SHOP.recRate = REC_RATE; // for the privacy page
 const analytics = createAnalytics({ onEvent: (ev) => lab.see(ev), STORE, productName: (id) => load().find((p) => p.id === id)?.name || id, productNames: () => Object.fromEntries(load().map((p) => [p.id, p.name])) });
-process.on("SIGTERM", () => { analytics.close(); lab.close(); process.exit(0); });
+// SIGTERM (a deploy or restart): see shutdown() next to the server below.
 
 // ---- Customer accounts (lib/accounts.js): bag, wishlist, address, orders, coins ----
 const accounts = createAccounts({ STORE, coinsConfig: SHOP.coins || {} });
@@ -943,6 +1035,28 @@ function productPage(req, res, id) {
 }
 
 const rupees = (n) => (n ? `₹${n.toLocaleString("en-IN")}` : "price on request");
+// What the website can show. saveImage() takes the same three.
+const IMAGE_OK = /^data:image\/(jpeg|png|webp);base64,./;
+const PHOTO_ONLY = "📷 I can only use photos (JPG/PNG). Please send it as a photo, not a file/video.";
+const NO_PHOTO_HELP = "📸 To post a product, send its *photo* (name and price in the caption if you like).\nTo sell: *sold 4795* · stock: *stock 4795 5* · orders: *orders*\nSend *help* for every command.";
+
+// "stock": the shop's stock in a few lines.
+function stockSummary(items = load()) {
+  const n = billing.stockOf;
+  const inStock = items.filter((p) => n(p) > 0);
+  const live = inStock.filter(isPublic).length;
+  const low = items.filter((p) => n(p) > 0 && n(p) <= (p.reorderAt ?? 1)).length;
+  const out = items.filter((p) => n(p) === 0 && isPublic(p)).length;
+  return `📦 *Stock:* ${inStock.length} item${inStock.length === 1 ? "" : "s"} in stock, ${inStock.reduce((t, p) => t + n(p), 0)} pieces · ${live} on the website\n${low ? `⚠️ ${low} running low: send *low* to see them\n` : ""}${out ? `${out} sold out on the website\n` : ""}\nTo change one: *stock 4795 5* (set the count) · *add 4795 2* · *sold 4795*`;
+}
+// "orders": website orders still waiting for the owner to confirm or cancel.
+function ordersReply() {
+  const open = loadOrders().filter(toConfirm);
+  if (!open.length) return "🛍️ No website orders waiting. New ones come here the moment a customer orders.";
+  const left = (o) => { const t = lapsesAt(o); return t ? ` · ${Math.max(0, Math.round((t - Date.now()) / 60e3))} min left` : ""; };
+  const lines = open.slice(-10).map((o) => `• *${o.code}* · ${inr(o.amount)} · ${o.name} · ${o.productName}${left(o)}`);
+  return `🛍️ *${open.length} website order${open.length === 1 ? "" : "s"} waiting*\n${lines.join("\n")}${open.length > 10 ? `\n…and ${open.length - 10} more in /billing` : ""}\n\nWhen the money is in your bank: *confirm ${open[0].code}* (or *cancel ${open[0].code}*)`;
+}
 
 // The demo screen's door into ownerMessage(). The real WhatsApp door is whatsappWebhook().
 async function handleMessage(req, res) {
@@ -956,10 +1070,20 @@ async function handleMessage(req, res) {
 // Both the /demo chat and the real WhatsApp webhook come through here.
 async function ownerMessage(body) {
   // Several photos sent together (a WhatsApp album, or many picked at once on /demo).
-  const photos = Array.isArray(body.photos) ? body.photos.filter((x) => x && x.image).slice(0, 50) : [];
+  let photos = Array.isArray(body.photos) ? body.photos.filter((x) => x && x.image).slice(0, 50) : [];
+  // Only JPG/PNG/WebP can go on the website. A video, GIF or iPhone HEIC file is never posted without a photo.
+  const unusable = photos.filter((x) => !IMAGE_OK.test(String(x.image))).length;
+  if (unusable) {
+    photos = photos.filter((x) => IMAGE_OK.test(String(x.image)));
+    if (!photos.length) return { reply: PHOTO_ONLY };
+    const out = photos.length > 1 ? await batchMessage(photos) : await ownerMessage(photos[0]);
+    return { ...out, reply: `⚠️ ${unusable} of ${unusable + photos.length} weren't photos I can use (JPG/PNG only). Please send those again as photos.\n\n${out.reply || ""}` };
+  }
   if (photos.length > 1) return batchMessage(photos);
   if (photos.length === 1) body = photos[0];
-  const text = String(body.text || "").slice(0, 1000);
+  if (body.unsupported || (body.image && !IMAGE_OK.test(String(body.image)))) return { reply: PHOTO_ONLY };
+  // "bik gaya 4795" -> "sold 4795", "sold 2,342" -> "sold 2342" (only for command-looking text).
+  const text = normaliseCommand(String(body.text || "").slice(0, 1000));
   if (!text.trim() && !body.image) return { status: 400, error: "empty message" };
 
   // A photo with an imported item's code: that item goes on the website.
@@ -983,19 +1107,26 @@ async function ownerMessage(body) {
   if (/^(stats|report|status|aaj|today)$/i.test(text.trim())) return { reply: statsReply() };
   if (/^(bills?|sales|hisab|hisaab)$/i.test(text.trim())) return { reply: billsReply() };
   if (/^(low|low stock|kam)$/i.test(text.trim())) return { reply: reports.lowText() };
+  if (!body.image && /^(stock|stocks|inventory|maal)[.!?]*$/i.test(text.trim())) return { reply: stockSummary(items) };
+  if (!body.image && /^(orders?|online orders?|website orders?)[.!?]*$/i.test(text.trim())) return { reply: ordersReply() };
   const cleared = !body.image && (clearCommand(text) || choiceReply(text));
   if (cleared) return cleared;
   const batched = !body.image && batchReply(text);
   if (batched) return batched;
-  const draft = draftReply(text, Boolean(body.image));
-  if (draft) return draft;
   const parsed = parseMessage(text);
+  // "sold puffer" / "remove 2342" are commands even while a draft waits for an answer (it used to take
+  // them as the item's name). A bare "delete" while a draft is open still means drop that draft.
+  const isCommand = parsed.type === "command" && !(CANCEL.test(text.trim()) && !parsed.query && loadPending().length);
+  const draft = !isCommand && draftReply(text, Boolean(body.image));
+  if (draft) return draft;
 
   if (parsed.type === "command") {
     const want = parsed.action === "restock" ? "sold" : parsed.action === "sold" ? "available" : null;
     // "remove" only takes things off the website, so it only looks at what's on the website.
-    const target = findTarget(parsed.action === "remove" ? items.filter(isPublic) : items, parsed.query, want);
-    if (!target) return { reply: "I couldn't find that item on the website. Try a word from its name, like “sold puffer”." };
+    const verb = parsed.action === "restock" ? "restock" : parsed.action;
+    const found = findTarget(parsed.action === "remove" ? items.filter(isPublic) : items, parsed.query, want, verb);
+    if (!found.p) return { reply: found.reply };
+    const target = found.p;
     if (parsed.action === "remove") {
       // This is his inventory too, so the item stays for billing and its bills stay whole.
       target.hidden = true;
@@ -1010,7 +1141,7 @@ async function ownerMessage(body) {
       const left = billing.stockOf(r.products.find((x) => x.id === target.id));
       const bill = `🧾 Bill ${r.invoice.number} · ${inr(r.invoice.total)}: ${billUrl(r.invoice)}`;
       return { reply: left > 0
-        ? `🏷️ One “${target.name}” sold. ${left} left on the website.\n${bill}\nReply *sold ${target.name.split(" ")[0].toLowerCase()}* again for the next one.`
+        ? `🏷️ One “${target.name}” sold. ${left} left on the website.\n${bill}\nReply *sold ${target.code}* again for the next one.`
         : `🏷️ Marked “${target.name}” as SOLD.\n${bill}` };
     }
     target.status = "available";
@@ -1019,7 +1150,10 @@ async function ownerMessage(body) {
     return { reply: `✅ “${target.name}” is back in stock.` };
   }
 
+  // Words with no photo never start a post: a product can't go live without its picture.
+  if (!body.image) return { reply: NO_PHOTO_HELP };
   const item = await makeDraft(text, body.image, parsed);
+  if (!item.image) return { reply: PHOTO_ONLY };
   const queue = loadPending();
   if (forgotten(queue)) return askKeepOld(queue, [item]);
   // A photo sent while a batch is open joins the batch.
@@ -1319,8 +1453,9 @@ function batchReply(text) {
   }
   if (!todo.length) {
     if (/^post all$/i.test(t)) {
-      const live = items.map((x) => publish({ id: x.id, listing: x.listing, by: x.by, image: x.image }));
-      savePending(queue.filter((x) => !x.batch));
+      const live = items.filter((x) => x.image).map((x) => publish({ id: x.id, listing: x.listing, by: x.by, image: x.image }));
+      savePending(queue.filter((x) => !x.batch || !x.image)); // one with no photo stays as a draft
+      if (!live.length) return { reply: "📸 None of these has a photo, so nothing can go on the website. Send the photos again." };
       let win;
       for (const p of live) win = celebrate(p);
       const codes = live.map((p) => `🔢 *${p.code}* ${p.name}`).join("\n");
@@ -1454,6 +1589,7 @@ const NAME_EG = { Clothing: "North Face Puffer Jacket", Fragrances: "Dior Sauvag
 function question(item, field, lead = "") {
   const f = FIELDS[field];
   item.ask = field;
+  delete item.inMenu;
   let ask = f.ask;
   if (field === "name") {
     const c = item.listing.category;
@@ -1478,6 +1614,7 @@ function preview(item, lead = "") {
     `🗂️ ${section}`,
   ].filter(Boolean);
   item.ask = null;
+  delete item.inMenu;
   return { reply: `${lead}👀 This is how it will look on your website:\n\n${lines.join("\n")}${item.note ? `\n\nℹ️ ${item.note}` : ""}\n\nPost it?`, buttons: PREVIEW_BUTTONS };
 }
 // Whatever comes next for this draft: the next question, or the preview.
@@ -1567,9 +1704,14 @@ function draftReply(text, hasImage) {
     return { ...n, reply: `${out.reply}\n\n—\n\n${n.reply}` };
   };
 
+  // "ok" / "haan" / "Post it" publish only from the preview (Post it / Change / Cancel). While a
+  // question or the Change menu is open, a bare "ok" is not an answer: ask the same thing again.
   if (DONE.test(raw)) {
     const need = missingField(item);
     if (need) { const out = step(item); return { ...out, reply: `Almost there! ${out.reply}` }; }
+    if (item.ask) { const out = question(item, item.ask); savePending(queue); return { ...out, reply: `First this one: ${out.reply}` }; }
+    if (item.inMenu) { savePending(queue); return { ...changeMenu(l), reply: `Pick what to change, or tap *Cancel*.\n\n${changeMenu(l).reply}` }; }
+    if (!item.image) return { reply: `📸 “${l.name}” has no photo, so it can't go on the website. Send its photo, or tap *Cancel*.`, buttons: ["❌ Cancel"] };
     queue.shift();
     savePending(queue);
     const product = publish({ id: item.id, listing: l, by: item.by, image: item.image });
@@ -1582,12 +1724,13 @@ function draftReply(text, hasImage) {
     if (item.image) { try { fs.unlinkSync(path.join(UPLOADS, path.basename(item.image))); } catch { /* already gone */ } }
     return nextUp({ reply: `🗑️ Dropped “${l.name}”. Nothing went on the website.` });
   }
-  if (CHANGE.test(raw)) { item.ask = null; savePending(queue); return changeMenu(l); }
+  if (CHANGE.test(raw)) { item.ask = null; item.inMenu = true; savePending(queue); return changeMenu(l); }
   // Picked a field from the Change menu (or typed just "price").
   const pick = FIELD_PICK[t.toLowerCase()];
   if (pick && !(item.ask === "name" || item.ask === "brand")) {
     const out = question(item, pick);
     item.fromChange = true;
+    delete item.inMenu;
     savePending(queue);
     return out;
   }
@@ -1620,13 +1763,10 @@ function draftReply(text, hasImage) {
   if ((m = /^sizes?\s*[:=\-]?\s+(.{1,100})$/i.exec(e))) { setSizes(l, m[1]); return step(item, { changed: true }); }
   if ((m = /^(?:desc|description|about)\s*[:=\-]?\s+([\s\S]{5,500})$/i.exec(e))) { l.description = m[1].trim(); return step(item, { changed: true }); }
   if (sizePairs(t).length) { setSizes(l, t); return step(item, { changed: true }); }
-  // Looks like a new product typed out (words and a price)? Queue it behind this one.
+  // Looks like a new product typed out (words and a price)? It needs its photo: words alone never make a post.
   const looks = parseMessage(t);
   if (!kind && looks.type === "product" && looks.product.price && looks.product.name !== "New arrival") {
-    const id = crypto.randomBytes(6).toString("hex");
-    queue.push({ id, listing: looks.product, note: null, by: "rules", image: null, sure: looks.sure, guess: looks.product.category });
-    savePending(queue);
-    return { reply: `📝 Got “${looks.product.name}” too. I'll ask about it after “${l.name}”.`, buttons: PREVIEW_BUTTONS };
+    return { reply: `📸 To post “${looks.product.name}” too, send its photo with that caption. I'll ask about it after “${l.name}”.`, buttons: PREVIEW_BUTTONS };
   }
   const out = preview(item, `🤔 I didn't get that. Tap a button below, or tap *Change* to fix something.\n\n`);
   savePending(queue);
@@ -1647,11 +1787,11 @@ function publish({ id, listing, by, image }) {
 
 // ---- Activity log: posts and sales, for streaks, "today" counts and the stats bar ----
 const ACTIVITY = path.join(STORE, "activity.json");
-const loadActivity = () => { try { return JSON.parse(fs.readFileSync(ACTIVITY, "utf8")); } catch { return []; } };
+const loadActivity = () => readOrSetAside(ACTIVITY, []);
 function logActivity(ev) {
   const list = loadActivity();
   list.push({ at: new Date().toISOString(), ...ev });
-  fs.writeFileSync(ACTIVITY, JSON.stringify(list.slice(-5000), null, 2));
+  writeJson(ACTIVITY, list.slice(-5000));
 }
 // Days are counted in shop time (Srinagar).
 const shopDay = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
@@ -1849,7 +1989,7 @@ const noCost = (p) => { const c = { ...p }; delete c.cost; delete c.supplierId; 
 const billForStaff = (x) => ({ ...x, lines: x.lines.map(({ cost, ...l }) => l) });
 const BILL_FIELDS = ["headerLine", "terms", "email", "youtube", "theme"];
 const PULSE_FILES = ["products.json", "invoices.json", "orders.json", "parties.json", "payments.json", "purchases.json", "expenses.json", "returns.json"];
-const BACKUP_FILES = ["products", "invoices", "parties", "payments", "purchases", "expenses", "returns", "docs", "books", "orders"];
+const BACKUP_FILES = ["products", "invoices", "parties", "payments", "purchases", "expenses", "returns", "docs", "books", "orders", "customers", "coins"];
 
 // When a paid website order lets go of its piece. Only last pieces are held, so most orders never lapse.
 const toConfirm = (o) => (o.status === "awaiting_payment" && o.expiresAt) || (o.status === "paid" && o.paidAt);
@@ -1874,10 +2014,60 @@ function attention() {
   };
 }
 
+// ---- One write per requestId ----
+// The portal sends a requestId (≤ 64 characters) with every bill, payment, purchase, expense,
+// return/note/quote, party and staff add. A tap that is sent twice (slow network, double tap,
+// a retry after a timeout) gets the first answer back with repeat: true, and nothing is written
+// twice. Kept 48 h on the disk, so a restart in between changes nothing. No requestId = as before.
+const REQUEST_IDS = path.join(STORE, "request-ids.json");
+const REQUEST_MS = 48 * 3600e3;
+const ONCE_ROUTES = /^(invoices|payments|purchases|expenses|returns|docs|dispatch|parties|parties\/[a-f0-9]{16}|staff|items|cash\/opening)$/;
+let requestIds = null;
+const inFlight = new Map(); // requestId -> promise, for a repeat that lands while the first still runs
+function requestStore() {
+  if (!requestIds) {
+    requestIds = readOrSetAside(REQUEST_IDS, {});
+    const cut = Date.now() - REQUEST_MS;
+    for (const [k, v] of Object.entries(requestIds)) if (!(v.at > cut)) delete requestIds[k];
+  }
+  return requestIds;
+}
+function rememberRequest(id, status, response) {
+  const all = requestStore(), cut = Date.now() - REQUEST_MS;
+  for (const [k, v] of Object.entries(all)) if (!(v.at > cut)) delete all[k];
+  all[id] = { at: Date.now(), status, response };
+  writeJson(REQUEST_IDS, all);
+}
+
 async function billingApi(req, res, route, url, who = { role: "owner" }) {
-  const body = async () => { try { return JSON.parse((await readBody(req, 64 * 1024)) || "{}"); } catch { return null; } };
+  // Read once: the requestId check below and the route both need the body.
+  let parsed;
+  const body = async () => {
+    if (parsed === undefined) { try { parsed = JSON.parse((await readBody(req, 64 * 1024)) || "{}"); } catch { parsed = null; } }
+    return parsed;
+  };
   const reply = (r) => (r.error ? send(res, 409, { error: r.error }) : send(res, 200, r));
   const post = req.method === "POST", get = req.method === "GET";
+  if (post && ONCE_ROUTES.test(route)) {
+    const b = await body();
+    const rid = b && typeof b.requestId === "string" && b.requestId.length <= 64 && b.requestId.trim() ? `${route}|${b.requestId}` : null;
+    if (b) delete b.requestId;
+    if (rid) {
+      if (inFlight.has(rid)) await inFlight.get(rid).catch(() => {});
+      const done = requestStore()[rid];
+      if (done) return send(res, done.status, done.response && typeof done.response === "object" ? { ...done.response, repeat: true } : done.response);
+      let finish;
+      inFlight.set(rid, new Promise((r) => (finish = r)));
+      // Whatever this request answers is what a repeat will get. 5xx isn't kept: that one may be tried again.
+      res.onSend = (status, out) => { if (status < 500) try { rememberRequest(rid, status, out); } catch (e) { console.error(`request-ids.json: ${e.message}`); } };
+      try { return await billingRoute(req, res, route, url, who, body, reply, post, get); }
+      finally { inFlight.delete(rid); finish(); }
+    }
+  }
+  return billingRoute(req, res, route, url, who, body, reply, post, get);
+}
+
+async function billingRoute(req, res, route, url, who, body, reply, post, get) {
   if (get && route === "me") return send(res, 200, { role: who.role, name: who.name, upi: SHOP.pay.upiId, phone: SHOP.pay.phone, logo: SHOP.billing.logo || "" });
   // A cheap "has anything changed?" so an open portal doesn't download the whole shop every few seconds.
   if (get && route === "pulse") {
@@ -1886,7 +2076,9 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
     const items = orders ? load() : [];
     // What the portal's big "confirm this order" pop-up needs, without a second request.
     const pending = open.filter((o) => o.status === "awaiting_payment").map((o) => ({ code: o.code, productName: o.productName, pieces: orderLines(o).length, size: o.size, amount: o.amount, shipping: o.shipping || 0, name: o.name, phone: o.phone, delivery: o.delivery, city: o.city, image: items.find((x) => x.id === o.productId)?.image || "", left: Math.max(0, Date.parse(o.expiresAt) - Date.now()) }));
-    return send(res, 200, { v: [...PULSE_FILES.map(stamp), orders, new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })].join("-"), orders, pending });
+    // alertFailures: WhatsApp alerts that couldn't be sent lately (time, kind, error), for the owner only.
+    const alertFailures = who.role === "owner" ? wa.alertFailures().filter((x) => Date.parse(x.at) > Date.now() - 7 * 864e5) : [];
+    return send(res, 200, { v: [...PULSE_FILES.map(stamp), orders, new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" })].join("-"), orders, pending, alertFailures });
   }
   // Everything the shop needs to start again, for keeping a copy off the server's disk.
   if (get && route === "backup") {
@@ -1911,8 +2103,8 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
     let b; try { b = JSON.parse(await readBody(req, 8 * 1024 * 1024)); } catch { return send(res, 400, { error: "That photo is too large." }); }
     return reply(billing.photos(im[1], b, (data) => saveImage(data, `${im[1]}-${Date.now().toString(36)}`)));
   }
-  if (post && route === "link") { const b = await body(); return b ? reply(documents.linkItem(b)) : send(res, 400, { error: "Bad request." }); }
-  if (post && route === "unlink") { const b = await body(); return b ? reply(documents.unlinkItem(b)) : send(res, 400, { error: "Bad request." }); }
+  if (post && route === "link") { const b = await body(); if (!b) return send(res, 400, { error: "Bad request." }); const r = documents.linkItem(b); pruneCopies(); return reply(r); }
+  if (post && route === "unlink") { const b = await body(); if (!b) return send(res, 400, { error: "Bad request." }); const r = documents.unlinkItem(b); pruneCopies(); return reply(r); }
   if (post && route === "barcodes") { const b = await body(); return b ? reply(billing.giveBarcodes(Array.isArray(b.ids) ? b.ids.slice(0, 500) : [])) : send(res, 400, { error: "Bad request." }); }
   if (get && route === "staff") return send(res, 200, staff.list());
   if (post && route === "staff") { const b = await body(); return b ? reply(staff.add(b)) : send(res, 400, { error: "Bad request." }); }
@@ -1955,6 +2147,7 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
     if (r.error) return send(res, 400, { error: r.error });
     if (url.searchParams.get("apply") !== "1") return send(res, 200, { preview: true, report: r.report });
     writeJson(path.join(STORE, `products-before-import-${Date.now()}.json`), before);
+    pruneCopies();
     save(r.items);
     return send(res, 200, { preview: false, report: r.report });
   }
@@ -2015,18 +2208,27 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
     const b = await body();
     if (!b) return send(res, 400, { error: "Bad request." });
     let partyId = b.partyId || null;
+    const staffSale = who.role === "staff";
+    // Staff bill at the counter within limits: stock must be there (no short sales) and no line below
+    // the listed price minus the most staff may give off (shop.json billing.staffMaxDiscountPct, else 20%).
+    // The owner key keeps full control.
+    const opts = { source: "counter", customer: b.customer, payment: b.payment, note: b.note, partyId, charges: b.charges, showName: b.showName === true, received: b.received, paidMode: b.paidMode,
+      allowShort: !staffSale && b.allowShort === true, by: staffSale ? who.name : undefined, ...(staffSale ? { floorPct: Number(SHOP.billing?.staffMaxDiscountPct ?? 20) } : {}) };
     if (b.payment === "credit") {
       // Credit needs someone to owe it: a saved party, or a bill with a mobile number.
       partyId = partyId || books.customerFor(b.customer || {});
       if (!partyId) return send(res, 409, { error: "A credit bill needs the customer's name and mobile, so it can go in their ledger." });
-      const total = (b.lines || []).reduce((n, l) => n + Number(l.price || 0) * Number(l.qty || 0) - Number(l.disc || 0), 0)
-        + (b.charges || []).reduce((n, c) => n + Number(c.amount || 0), 0);
+      opts.partyId = partyId;
+      // The limit is checked on the total sell() will really write (a line with no price uses the listed price).
+      const dry = billing.sell(b.lines, { ...opts, dryRun: true });
+      if (dry.error) return send(res, 409, { error: dry.error });
+      const total = dry.total;
       const received = Math.max(0, Number(b.received) || 0);
       if (received > total) return send(res, 409, { error: "Received can't be more than the bill." });
-      const over = (who.role === "staff" || !b.overLimit) && books.creditCheck(partyId, total - received);
+      const over = (staffSale || !b.overLimit) && books.creditCheck(partyId, total - received);
       if (over) return send(res, 409, { error: over, overLimit: true });
     }
-    const r = billing.sell(b.lines, { source: "counter", customer: b.customer, payment: b.payment, note: b.note, partyId, charges: b.charges, showName: b.showName === true, received: b.received, paidMode: b.paidMode, allowShort: b.allowShort === true, by: who.role === "staff" ? who.name : undefined });
+    const r = billing.sell(b.lines, opts);
     if (r.error) return send(res, 409, { error: r.error });
     return send(res, 200, { invoice: who.role === "staff" ? billForStaff(r.invoice) : r.invoice, url: `/bill/${r.invoice.id}` });
   }
@@ -2053,10 +2255,19 @@ async function billingApi(req, res, route, url, who = { role: "owner" }) {
   return send(res, 404, { error: "not found" });
 }
 
-http
-  .createServer(async (req, res) => {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const p = decodeURIComponent(url.pathname);
+// One request. A path or Host header that can't be read (GET /%E0%A4%A) is a 400; it used to throw
+// outside the try below and take the whole process down.
+async function handle(req, res) {
+    let url, p;
+    try {
+      url = new URL(req.url, `http://${req.headers.host}`);
+      p = decodeURIComponent(url.pathname);
+    } catch { return send(res, 400, { error: "Bad request." }); }
+    // Someone guessing the owner key: 20 wrong tries in 10 minutes from one address, then 429.
+    // The digest route's ?key is its own key, and a signed-in staff session isn't a guess.
+    const givenKey = req.headers["x-owner-key"] || url.searchParams.get("key");
+    if (process.env.OWNER_KEY && givenKey && p !== "/api/analytics-digest" && !isOwner(req, url) && !staff.who(req.headers["x-session"]) && wrongKey(clientIp(req)))
+      return send(res, 429, { error: "Too many wrong keys. Try again in 10 minutes." });
     try {
       if (toDomain(req, res, p, url)) return;
       if (req.method === "GET" && p === "/api/products") return send(res, 200, publicProducts());
@@ -2074,7 +2285,7 @@ http
       }
       if (req.method === "POST" && p === "/api/billing/login") {
         let b; try { b = JSON.parse(await readBody(req, 1024)); } catch { return send(res, 400, { error: "Bad request." }); }
-        const r = staff.login(b, req.socket.remoteAddress || "?");
+        const r = staff.login(b, clientIp(req));
         return r.error ? send(res, r.status, { error: r.error }) : send(res, 200, r);
       }
       // Screen recordings from lib/lab-client.js: same rules as /api/t, bigger pieces.
@@ -2092,7 +2303,7 @@ http
         const from = req.headers.origin;
         if (from && new URL(from).host !== req.headers.host) return send(res, 403, { error: "Not allowed." });
         let b; try { b = JSON.parse(await readBody(req, 32 * 1024)); } catch { return send(res, 400, { error: "Bad request." }); }
-        analytics.ingest(b, { ua: req.headers["user-agent"] || "", ip: String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0] });
+        analytics.ingest(b, { ua: req.headers["user-agent"] || "", ip: clientIp(req) });
         res.writeHead(204); return res.end();
       }
       // Read-only summary for the nightly routine and the mind map. Its own key, not the owner key, so whoever holds
@@ -2166,12 +2377,12 @@ http
         try { rb = JSON.parse((await readBody(req, 1024)) || "{}"); } catch { /* no body */ }
         if (LIVE && rb.confirm !== "DELETE ALL PRODUCTS AND ORDERS")
           return send(res, 403, { error: "Reset is switched off on the live shop, so real products and orders can't be wiped." });
-        if (LIVE) fs.writeFileSync(DB, "[]"); else writeSeed();
+        if (LIVE) writeJson(DB, []); else writeSeed();
         ensureCodes();
         saveInbox([]);
         saveOrders([]);
         savePending([]);
-        fs.writeFileSync(ACTIVITY, "[]");
+        writeJson(ACTIVITY, []);
         // The demo reset clears the books too. The live shop's accounts are never reset.
         if (!LIVE) for (const f of ["invoices", "parties", "payments", "purchases", "expenses", "books", "returns", "docs"]) fs.rmSync(path.join(STORE, `${f}.json`), { force: true });
         for (const f of fs.readdirSync(UPLOADS)) fs.unlinkSync(path.join(UPLOADS, f));
@@ -2230,7 +2441,7 @@ http
         return send(res, 200, { ok: true });
       }
       if (req.method === "POST" && p === "/api/next-in-line") {
-        if (tooMany(String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0])) return send(res, 429, { error: "Too many attempts. Please wait a few minutes." });
+        if (tooMany(clientIp(req))) return send(res, 429, { error: "Too many attempts. Please wait a few minutes." });
         let b; try { b = JSON.parse(await readBody(req, 1024)); } catch { return send(res, 400, { error: "Something went wrong. Please try again." }); }
         const item = load().filter(isPublic).find((x) => x.id === String(b.productId || "")), phone = normalisePhone(b.phone);
         if (!item) return send(res, 404, { error: "This piece is no longer listed." });
@@ -2259,7 +2470,7 @@ http
         let b; try { b = JSON.parse(await readBody(req, 2048)); } catch { return send(res, 400, { error: "Bad request." }); }
         const item = load().filter(isPublic).find((x) => x.id === String(b.productId || "")), size = holdSize(item, b.size), token = String(b.token || "");
         if (!item || item.status !== "available" || !/^[a-f0-9]{16}$/.test(token) || !isLastPiece(item, size)) return send(res, 200, { held: false });
-        return send(res, 200, { ...holds.take(item.id, size, token, String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0]), now: Date.now() });
+        return send(res, 200, { ...holds.take(item.id, size, token, clientIp(req)), now: Date.now() });
       }
       if (req.method === "POST" && p === "/api/hold/release") {
         let b; try { b = JSON.parse(await readBody(req, 2048)); } catch { return send(res, 400, { error: "Bad request." }); }
@@ -2283,8 +2494,42 @@ http
     } catch (e) {
       send(res, 500, { error: e.message });
     }
-  })
-  .listen(PORT, () => {
+}
+
+const server = http.createServer((req, res) => {
+  // handle() must never reject: an unhandled rejection would stop the shop for everyone.
+  handle(req, res).catch((e) => {
+    console.error(`${req.method} ${String(req.url).slice(0, 200)} failed: ${e.stack || e.message}`);
+    try { if (!res.headersSent) send(res, 500, { error: "Something went wrong." }); else res.destroy(); } catch { /* connection already gone */ }
+  });
+});
+// Anything that still slips through is logged and the shop keeps running. Every money file is written
+// whole (temp file + rename, lib/jsonstore.js), so a failed step leaves the old file, not half a file.
+// Many in a row means something is really broken: then exit, and Render starts a fresh process.
+let crashes = [];
+process.on("unhandledRejection", (e) => console.error(`Unhandled rejection: ${e?.stack || e}`));
+process.on("uncaughtException", (e) => {
+  console.error(`Uncaught exception: ${e?.stack || e}`);
+  crashes = crashes.filter((t) => Date.now() - t < 60e3).concat(Date.now());
+  if (crashes.length > 20) { console.error("More than 20 uncaught errors in a minute: exiting so the host restarts the server."); process.exit(1); }
+});
+// A deploy or restart sends SIGTERM. Meta was already told 200 for messages still in an album wait or
+// running, so stop taking new requests, let that WhatsApp work finish (up to 8 s), then exit.
+let stopping = false;
+async function shutdown() {
+  if (stopping) return;
+  stopping = true;
+  console.log("SIGTERM: finishing WhatsApp messages in progress, then stopping");
+  server.close();
+  server.closeIdleConnections?.();
+  const left = await wa.drain(Number(process.env.DRAIN_MS) || 8000).catch(() => -1);
+  if (left) console.warn(`SIGTERM: ${left} WhatsApp job(s) didn't finish in time`);
+  try { analytics.close(); lab.close(); } catch (e) { console.error(`close: ${e.message}`); }
+  process.exit(0);
+}
+process.on("SIGTERM", shutdown);
+
+server.listen(PORT, () => {
     console.log(`Vibe X demo: http://localhost:${PORT}/demo  (shop only: http://localhost:${PORT}/)`);
     console.log(aiEnabled() ? `Photo reading: ON (${MODEL})` : "Photo reading: OFF (no ANTHROPIC_API_KEY in .env), using keyword rules");
     console.log(wa.enabled() ? `WhatsApp: ON (owner ${wa.owners().map((n) => n.slice(0, 4) + "…").join(", ")})` : "WhatsApp: OFF (set WA_TOKEN, WA_PHONE_ID, WA_APP_SECRET, WA_VERIFY_TOKEN, OWNER_WHATSAPP)");

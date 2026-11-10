@@ -7,7 +7,8 @@
   const CATS = ["Clothing", "Footwear", "Fragrances", "Accessories"];
   function itemForm(p, newName = "") {
     const box = $("itemBox");
-    const f = (k, label, type = "text") => `<label class="sub">${label}<input id="it-${k}" type="${type}" value="${esc(p?.[k] ?? "")}"></label>`;
+    const MODE = { mrp: "decimal", price: "decimal", cost: "decimal", gstRate: "decimal", reorderAt: "numeric", quantity: "numeric" };
+    const f = (k, label, type = "text") => `<label class="sub">${label}<input id="it-${k}" type="${type}"${MODE[k] ? ` inputmode="${MODE[k]}"` : ""} value="${esc(p?.[k] ?? "")}"></label>`;
     box.innerHTML = `<details class="form" open><summary>${p ? `Edit #${esc(p.code)}` : "New item"}</summary><div>
       <div id="it-photos"></div>
       <div class="row2">${f("name", "Name")}<label class="sub">Section<select id="it-category">${CATS.map((c) => `<option ${(p?.category || "Clothing") === c ? "selected" : ""}>${c}</option>`).join("")}</select></label></div>
@@ -49,7 +50,7 @@
     };
     const drawSizes = () => {
       const names = sizeNames($("it-sizes").value);
-      $("it-sizeRows").innerHTML = names.length > 1 ? `<p class="sub" style="margin:8px 0 0">Stock of each size (leave blank to share one count)</p><div class="row3">${names.map((s) => `<label class="sub">${esc(s)}<input type="number" min="0" data-ss="${esc(s)}" value="${esc(typed[s] ?? "")}"></label>`).join("")}</div>` : "";
+      $("it-sizeRows").innerHTML = names.length > 1 ? `<p class="sub" style="margin:8px 0 0">Stock of each size (leave blank to share one count)</p><div class="row3">${names.map((s) => `<label class="sub">${esc(s)}<input type="number" inputmode="numeric" min="0" data-ss="${esc(s)}" value="${esc(typed[s] ?? "")}"></label>`).join("")}</div>` : "";
       document.querySelectorAll("[data-ss]").forEach((i) => (i.oninput = () => (typed[i.dataset.ss] = i.value)));
     };
     $("it-sizes").oninput = drawSizes;
@@ -65,7 +66,7 @@
     };
     for (const k of ["mrp", "price", "sizes"]) $(`it-${k}`).addEventListener("input", drawOffer);
     drawOffer();
-    $("itSave").onclick = async () => {
+    $("itSave").onclick = window.VX.busy($("itSave"), async (requestId) => {
       const b = {};
       for (const k of ["name", "category", "price", "cost", "mrp", "barcode", "sizes", "reorderAt", "hsn", "gstRate", "quantity"]) if ($(`it-${k}`)) b[k] = $(`it-${k}`).value;
       if ($("it-onWebsite") && !$("it-onWebsite").disabled) b.onWebsite = $("it-onWebsite").checked;
@@ -73,12 +74,10 @@
       if ($("it-wardrobe") && !$("it-wardrobe").disabled) b.wardrobe = $("it-wardrobe").checked;
       const boxes = [...document.querySelectorAll("[data-ss]")];
       if (boxes.length) b.sizeStock = boxes.some((i) => i.value !== "") ? Object.fromEntries(boxes.map((i) => [i.dataset.ss, i.value])) : {};
-      try {
-        const r = await api(p ? `/api/billing/items/${p.id}` : "/api/billing/items", { method: "POST", body: JSON.stringify(b) });
-        window.VX.closeDrawer(); toast(p ? "Saved." : "Added."); await window.VX.reload();
-        if (!p) itemPhotos(r.product, "", waiting);
-      } catch (e) { $("itErr").textContent = e.message; }
-    };
+      const r = await api(p ? `/api/billing/items/${p.id}` : "/api/billing/items", { method: "POST", requestId, body: JSON.stringify(b) });
+      window.VX.closeDrawer(); toast(p ? "Saved." : "Added."); await window.VX.reload();
+      if (!p) itemPhotos(r.product, "", waiting);
+    }, "itErr");
   }
   window.VX.itemForm = itemForm;
 
@@ -302,19 +301,21 @@
     $("prSize").onchange = () => { store.set("vx-print-size", $("prSize").value); toast("Saved on this device."); };
     $("prAuto").onchange = () => { store.set("vx-print-auto", $("prAuto").checked ? "1" : "0"); toast("Saved on this device."); };
     $("backupGo").onclick = () => window.VX.download("/api/billing/backup", `vibex-backup-${window.VX.today()}.json`).catch((e) => toast(e.message, { bad: true }));
-    $("sSave").onclick = async () => {
-      try {
-        const file = $("sLogo").files[0];
-        const logoData = file ? await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(file); }) : undefined;
-        await api("/api/billing/settings", { method: "POST", body: JSON.stringify({ headerLine: $("sHeader").value, terms: $("sTerms").value, email: $("sEmail").value, youtube: $("sYt").value, theme: $("sTheme").value, gstin: $("sGst").value, logoData }) });
-        toast("Saved."); settings();
-      } catch (e) { $("sErr").textContent = e.message; }
-    };
-    $("stAdd").onclick = async () => {
-      try { await api("/api/billing/staff", { method: "POST", body: JSON.stringify({ name: $("stName").value, pin: $("stPin").value }) }); toast("Added."); settings(); }
-      catch (e) { $("stErr").textContent = e.message; }
-    };
-    document.querySelectorAll("[data-strm]").forEach((b) => (b.onclick = async () => { await api(`/api/billing/staff/${b.dataset.strm}/remove`, { method: "POST", body: "{}" }); toast("Removed. That login stops working now."); settings(); }));
+    $("sSave").onclick = window.VX.busy($("sSave"), async (requestId) => {
+      const file = $("sLogo").files[0];
+      const logoData = file ? await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(file); }) : undefined;
+      await api("/api/billing/settings", { method: "POST", requestId, body: JSON.stringify({ headerLine: $("sHeader").value, terms: $("sTerms").value, email: $("sEmail").value, youtube: $("sYt").value, theme: $("sTheme").value, gstin: $("sGst").value, logoData }) });
+      toast("Saved."); settings().catch((e) => toast(e.message, { bad: true }));
+    }, "sErr");
+    $("stAdd").onclick = window.VX.busy($("stAdd"), async (requestId) => {
+      await api("/api/billing/staff", { method: "POST", requestId, body: JSON.stringify({ name: $("stName").value, pin: $("stPin").value }) });
+      toast("Added."); settings().catch((e) => toast(e.message, { bad: true }));
+    }, "stErr");
+    // Removing a login can't be undone, so it takes two taps. A failure says so (twoTap shows it).
+    document.querySelectorAll("[data-strm]").forEach((b) => window.VX.twoTap(b, "Tap again to remove", async () => {
+      await api(`/api/billing/staff/${b.dataset.strm}/remove`, { method: "POST", body: "{}" });
+      toast("Removed. That login stops working now."); settings().catch((e) => toast(e.message, { bad: true }));
+    }));
   }
   window.VX.tabs.settings = settings;
 
@@ -332,7 +333,7 @@
     const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
     $("tab-payments").innerHTML = `
       <details class="form"><summary>Create Payment ${dir === "in" ? "In" : "Out"}</summary>
-        <div class="row2"><select id="pyParty"><option value="">Party…</option>${who.map((p) => `<option value="${p.id}">${label(p)}</option>`).join("")}</select><input id="pyAmt" type="number" min="1" placeholder="Amount ₹"></div>
+        <div class="row2"><select id="pyParty"><option value="">Party…</option>${who.map((p) => `<option value="${p.id}">${label(p)}</option>`).join("")}</select><input id="pyAmt" type="number" inputmode="decimal" enterkeyhint="done" min="1" placeholder="Amount ₹"></div>
         <div class="row2"><input id="pyDay" type="date" value="${today}" max="${today}"><select id="pyMode" aria-label="Mode"><option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option><option value="bank">Bank</option></select></div>
         <input id="pyNote" placeholder="Note (optional)" style="margin-top:8px">
         <button class="big" id="pySave">Save</button><div class="err" id="pyErr"></div></details>
@@ -340,10 +341,10 @@
       ${shown.length ? shown.map((p) => `<tr class="${p.status === "cancelled" ? "cancelled" : ""}"><td>${dayFmt(p.day)}</td><td><b>${esc(p.number)}</b></td><td>${esc(names.get(p.partyId) || "")}</td><td>${esc(p.mode)}</td><td class="n"><b>${inr(p.amount)}</b></td><td class="n">${p.status === "cancelled" ? `<span class="sub">Cancelled</span>` : `<button class="tbtn danger" data-pcx="${p.id}">Cancel</button>`}</td></tr>`).join("") : `<tr><td colspan="6" class="empty">No payments yet.</td></tr>`}
       </tbody></table></div>`;
     $("pyParty").onchange = () => { const p = who.find((x) => x.id === $("pyParty").value); if (p?.balance) $("pyAmt").value = Math.abs(p.balance); };
-    $("pySave").onclick = async () => {
-      try { await api("/api/billing/payments", { method: "POST", body: JSON.stringify({ direction: dir, partyId: $("pyParty").value, amount: $("pyAmt").value, day: $("pyDay").value, mode: $("pyMode").value, note: $("pyNote").value }) }); toast("Saved."); payments(); }
-      catch (e) { $("pyErr").textContent = e.message; }
-    };
+    $("pySave").onclick = window.VX.busy($("pySave"), async (requestId) => {
+      await api("/api/billing/payments", { method: "POST", requestId, body: JSON.stringify({ direction: dir, partyId: $("pyParty").value, amount: $("pyAmt").value, day: $("pyDay").value, mode: $("pyMode").value, note: $("pyNote").value }) });
+      toast("Saved."); payments().catch((e) => toast(e.message, { bad: true }));
+    }, "pyErr");
     document.querySelectorAll("[data-pcx]").forEach((b) => {
       window.VX.twoTap(b, "Tap again to cancel", async () => { await api(`/api/billing/payments/${b.dataset.pcx}/cancel`, { method: "POST", body: "{}" }); toast("Cancelled."); await window.VX.reload(); payments(); });
     });
@@ -375,10 +376,12 @@
 
   // ---- The big pop-up: a customer is waiting on the payment screen, so it comes before anything else ----
   // Oldest first. "Later" hides that order only; a new one, and the WhatsApp alert, still get through.
-  let alertList = [], shownCode = "", hidden = new Set(), alertClock = null, busy = false, sound = null;
+  let alertList = [], shownCode = "", hidden = new Set(), alertClock = null, busy = false, sound = null, shownAt = 0;
   const box = document.createElement("div");
   box.className = "oa hide"; box.setAttribute("role", "alertdialog"); box.setAttribute("aria-modal", "true"); box.setAttribute("aria-label", "New website order");
   document.body.append(box);
+  // It opens by itself over the bill screen: a tap meant for the bill must not land on it.
+  box.addEventListener("click", (e) => { if (Date.now() - shownAt < 700) { e.stopPropagation(); e.preventDefault(); } }, true);
   function ring() {
     try {
       sound ||= new AudioContext();
@@ -397,7 +400,7 @@
     if (!o) { box.classList.add("hide"); shownCode = ""; clearInterval(alertClock); return; }
     if (o.code === shownCode) return paintClock();
     if (!shownCode) ring();
-    shownCode = o.code;
+    shownCode = o.code; shownAt = Date.now();
     const more = alertList.length - 1;
     box.innerHTML = `<div class="oa-card">
       <div class="oa-top"><span>New website order · ${esc(o.code)}</span><b data-oa-clock></b></div>
@@ -419,10 +422,10 @@
         alertList = alertList.filter((x) => x.code !== o.code);
         shownCode = ""; paintAlert();
         await window.VX.reload();
-      } catch (e) { toast(e.message, { bad: true }); }
+      } catch (e) { toast(e.message, { bad: true }); box.querySelectorAll("[data-oa-do]").forEach((b) => (b.disabled = false)); }
       busy = false;
     };
-    box.querySelector('[data-oa-do="confirm"]').onclick = act("confirm");
+    window.VX.twoTap(box.querySelector('[data-oa-do="confirm"]'), "Tap again: money received", act("confirm"));
     window.VX.twoTap(box.querySelector('[data-oa-do="cancel"]'), "Tap again: not received", act("cancel"));
     box.querySelector("[data-oa-later]").onclick = () => { hidden.add(o.code); shownCode = ""; paintAlert(); };
     box.classList.remove("hide");

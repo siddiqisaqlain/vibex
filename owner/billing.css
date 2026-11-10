@@ -365,3 +365,11 @@ table.dues td{padding:8px 4px}table.dues .click{cursor:pointer}table.dues .tbtn{
   .oa-item { font-size: 16px; }
   .oa-btns { grid-template-columns: 1fr; }
 }
+/* Items list on a touch screen: −, + and the row buttons big enough for a thumb, with room between them. */
+@media (pointer:coarse){
+  #stockRows .stockQty{gap:8px}
+  #stockRows .stockQty .tbtn{min-width:44px;min-height:44px;font-size:18px}
+  #stockRows .stockQty input,#stockRows .rate{min-height:44px}
+  #stockRows .rowBtns{gap:8px}
+  #stockRows .rowBtns .tbtn{min-height:44px;padding:8px 12px}
+}

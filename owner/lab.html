@@ -136,11 +136,17 @@
   let KEY = u.searchParams.get("key") || store.get("vx-owner-key") || "";
   if (u.searchParams.get("key")) { store.set("vx-owner-key", KEY); u.searchParams.delete("key"); history.replaceState(null, "", u.pathname); }
   async function api(path, opts = {}) {
-    const r = await fetch(`/api/analytics/${path}`, { ...opts, cache: "no-store", headers: { "Content-Type": "application/json", "x-owner-key": KEY } });
+    let r;
+    try { r = await fetch(`/api/analytics/${path}`, { ...opts, cache: "no-store", headers: { "Content-Type": "application/json", "x-owner-key": KEY } }); }
+    catch { throw new Error("No internet. Try again."); }
     if (r.status === 401) { $("lock").classList.remove("hide"); $("lockErr").textContent = KEY ? "That key didn't work." : ""; throw new Error("key"); }
-    const j = await r.json(); if (!r.ok) throw new Error(j.error || "Failed"); return j;
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Failed"); return j;
   }
-  $("lockForm").onsubmit = (e) => { e.preventDefault(); KEY = $("keyIn").value.trim(); store.set("vx-owner-key", KEY); $("lock").classList.add("hide"); loadTests(); loadRecs(); };
+  // A list that can't load says so, instead of staying blank. A wrong key already shows the lock.
+  const failed = (where) => (err) => { if (err.message !== "key") $(where).textContent = `Couldn't load: ${err.message}`; };
+  const testsOrSay = () => loadTests().then(() => { if (/^Couldn't load/.test($("tErr").textContent)) $("tErr").textContent = ""; }, failed("tErr"));
+  const loadAll = () => { testsOrSay(); loadRecs().catch(failed("recLead")); };
+  $("lockForm").onsubmit = (e) => { e.preventDefault(); KEY = $("keyIn").value.trim(); store.set("vx-owner-key", KEY); $("lockErr").textContent = ""; $("lock").classList.add("hide"); loadAll(); };
   for (const b of document.querySelectorAll("nav.tabs button")) b.onclick = () => {
     for (const x of document.querySelectorAll("nav.tabs button")) x.classList.toggle("on", x === b);
     for (const s of document.querySelectorAll("section.view")) s.classList.toggle("on", s.id === `v-${b.dataset.v}`);
@@ -229,8 +235,8 @@
   $("seek").oninput = () => { if (!player) return; const t = (Number($("seek").value) / 1000) * player.getMetaData().totalTime; player.play(t); $("pp").textContent = "Pause"; };
   $("speed").onchange = () => player?.setConfig({ speed: Number($("speed").value) });
 
-  loadTests().catch(() => {}); loadRecs().catch(() => {});
-  setInterval(() => { if (!document.hidden && $("v-tests").classList.contains("on")) loadTests().catch(() => {}); }, 60e3);
+  loadAll();
+  setInterval(() => { if (!document.hidden && $("v-tests").classList.contains("on")) testsOrSay(); }, 60e3);
 })();
 </script>
 </body>

@@ -7,7 +7,7 @@
   const pills = (name, list, on) => `<div class="pay">${list.map(([v, l]) => `<label><input type="radio" name="${name}" value="${v}" ${v === on ? "checked" : ""}><span>${l}</span></label>`).join("")}</div>`;
   const picked = (name) => document.querySelector(`input[name=${name}]:checked`)?.value;
   const MODES = [["cash", "Cash"], ["upi", "UPI"], ["card", "Card"], ["bank", "Bank"]];
-  const { twoTap } = window.VX;
+  const { twoTap, busy } = window.VX;
 
   // ---- Quotations, proforma, challans, purchase orders ----
   const KINDS = [["quotation", "Quotation"], ["proforma", "Proforma"], ["challan", "Challan"], ["purchase_order", "Purchase Order"], ["dispatch", "Dispatch Note"]];
@@ -24,7 +24,7 @@
         <p class="sub">A shipping slip from a bill. It isn't a government e-way bill.</p>
         <div class="row2"><input id="dpBill" placeholder="Bill number, e.g. 7651"><input id="dpCourier" placeholder="Courier or transporter"></div>
         <div class="row2"><input id="dpTrack" placeholder="Tracking or LR number"><input id="dpVehicle" placeholder="Vehicle number (optional)"></div>
-        <div class="row2"><input id="dpPack" type="number" min="1" value="1" aria-label="Packages"><input id="dpWeight" placeholder="Weight, e.g. 2 kg"></div>
+        <div class="row2"><input id="dpPack" type="number" inputmode="numeric" min="1" value="1" aria-label="Packages"><input id="dpWeight" placeholder="Weight, e.g. 2 kg"></div>
         <input id="dpTo" placeholder="Ship to (blank = address on the bill)" style="margin-top:8px">
         <button class="big" id="dpSave">Save</button><div class="err" id="dpErr"></div>
       </details>` : `<details class="form" ${lines.length ? "open" : ""}><summary>Create ${esc(KINDS.find((k) => k[0] === kind)[1])}</summary>
@@ -43,12 +43,10 @@
     document.querySelectorAll("[data-conv]").forEach((b) => twoTap(b, "Tap again to confirm", async () => { const r = await api(`/api/billing/docs/${b.dataset.conv}/convert`, { method: "POST", body: JSON.stringify({ payment: "cash" }) }); toast(`Done: ${r.doc.convertedTo}. Stock updated.`); documents(); }));
     document.querySelectorAll("[data-dcancel]").forEach((b) => twoTap(b, "Tap again to cancel", async () => { await api(`/api/billing/docs/${b.dataset.dcancel}/cancel`, { method: "POST", body: "{}" }); toast("Cancelled."); documents(); }));
     if (kind === "dispatch") {
-      $("dpSave").onclick = async () => {
-        try {
-          await api("/api/billing/dispatch", { method: "POST", body: JSON.stringify({ invoiceId: $("dpBill").value.trim(), courier: $("dpCourier").value, tracking: $("dpTrack").value, vehicle: $("dpVehicle").value, packages: $("dpPack").value, weight: $("dpWeight").value, shipTo: $("dpTo").value }) });
-          toast("Dispatch note saved."); documents();
-        } catch (e) { $("dpErr").textContent = e.message; }
-      };
+      $("dpSave").onclick = busy($("dpSave"), async (requestId) => {
+        await api("/api/billing/dispatch", { method: "POST", requestId, body: JSON.stringify({ invoiceId: $("dpBill").value.trim(), courier: $("dpCourier").value, tracking: $("dpTrack").value, vehicle: $("dpVehicle").value, packages: $("dpPack").value, weight: $("dpWeight").value, shipTo: $("dpTo").value }) });
+        toast("Dispatch note saved."); documents().catch((e) => toast(e.message, { bad: true }));
+      }, "dpErr");
       return;
     }
     paint();
@@ -60,12 +58,10 @@
       const p = items.find((x) => x.barcode === q || x.code === q);
       if (p) { add(p, buying); $("dQ").value = ""; $("dHits").innerHTML = ""; }
     };
-    $("dSave").onclick = async () => {
-      try {
-        await api("/api/billing/docs", { method: "POST", body: JSON.stringify({ kind, partyId: $("dParty").value, customer: { name: $("dName")?.value || "" }, validUntil: $("dValid")?.value || "", lines }) });
-        lines.length = 0; toast("Saved. Stock isn't touched until it's converted."); documents();
-      } catch (e) { $("dErr").textContent = e.message; }
-    };
+    $("dSave").onclick = busy($("dSave"), async (requestId) => {
+      await api("/api/billing/docs", { method: "POST", requestId, body: JSON.stringify({ kind, partyId: $("dParty").value, customer: { name: $("dName")?.value || "" }, validUntil: $("dValid")?.value || "", lines }) });
+      lines.length = 0; toast("Saved. Stock isn't touched until it's converted."); documents().catch((e) => toast(e.message, { bad: true }));
+    }, "dErr");
   }
   function hits(items, buying) {
     const q = $("dQ").value.trim().toLowerCase();
@@ -82,7 +78,7 @@
     const amt = (l) => (Number(l.price) || 0) * (Number(l.qty) || 0) - (Number(l.disc) || 0);
     const sums = () => { lines.forEach((l, i) => { const el = document.querySelector(`[data-damt="${i}"]`); if (el) el.textContent = inr(amt(l)); }); $("dTotal").textContent = inr(lines.reduce((n, l) => n + amt(l), 0)); };
     $("dLines").innerHTML = lines.map((l, i) => `<div class="line"><div class="grow"><div class="name">${esc(l.name)}</div><button class="x" data-drm="${i}">remove</button></div><div class="price" data-damt="${i}"></div>
-      <div class="row3"><label class="sub">Qty<input type="number" min="1" value="${esc(l.qty)}" data-d="qty" data-i="${i}"></label><label class="sub">Rate ₹<input type="number" min="0" value="${esc(l.price)}" data-d="price" data-i="${i}"></label><label class="sub">Disc ₹<input type="number" min="0" value="${l.disc ? esc(l.disc) : ""}" data-d="disc" data-i="${i}"></label></div></div>`).join("");
+      <div class="row3"><label class="sub">Qty<input type="number" inputmode="numeric" min="1" value="${esc(l.qty)}" data-d="qty" data-i="${i}"></label><label class="sub">Rate ₹<input type="number" inputmode="decimal" min="0" value="${esc(l.price)}" data-d="price" data-i="${i}"></label><label class="sub">Disc ₹<input type="number" inputmode="decimal" min="0" value="${l.disc ? esc(l.disc) : ""}" data-d="disc" data-i="${i}"></label></div></div>`).join("");
     sums();
     document.querySelectorAll("[data-drm]").forEach((b) => (b.onclick = () => { lines.splice(+b.dataset.drm, 1); paint(); }));
     document.querySelectorAll("[data-d]").forEach((i) => (i.oninput = () => { lines[+i.dataset.i][i.dataset.d] = i.value; sums(); }));
@@ -100,8 +96,8 @@
     $("tab-returns").innerHTML = `
       <details class="form"><summary>Create ${esc(RTYPES.find((r) => r[0] === rtype)[1])}</summary>
       ${goods ? `<div class="row2"><input id="rFind" placeholder="${sale ? "Bill number, e.g. 7651" : "Purchase number, e.g. PB/26-27/0001"}"><button class="tbtn" id="rLoad">Find</button></div><div id="rLines"></div>
-        <div class="row2" style="margin-top:8px"><input id="rRefund" type="number" min="0" placeholder="${sale ? "Money paid back ₹" : "Money received back ₹"}"><div></div></div>${pills("rmode", MODES, "cash")}`
-      : `<div class="row2"><select id="rParty"><option value="">Party…</option>${parties.filter((p) => p.type === (rtype === "credit_note" ? "customer" : "supplier")).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select><input id="rAmt" type="number" min="1" placeholder="Amount ₹"></div>`}
+        <div class="row2" style="margin-top:8px"><input id="rRefund" type="number" inputmode="decimal" min="0" placeholder="${sale ? "Money paid back ₹" : "Money received back ₹"}"><div></div></div>${pills("rmode", MODES, "cash")}`
+      : `<div class="row2"><select id="rParty"><option value="">Party…</option>${parties.filter((p) => p.type === (rtype === "credit_note" ? "customer" : "supplier")).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select><input id="rAmt" type="number" inputmode="decimal" min="1" placeholder="Amount ₹"></div>`}
         <input id="rWhy" placeholder="Reason" style="margin-top:8px">
         <button class="big" id="rSave">Save</button><div class="err" id="rErr"></div>
       </details>
@@ -110,17 +106,15 @@
         <td class="n"><a class="tbtn" href="/doc/${r.id}?o" target="_blank" rel="noopener">View</a>${r.status === "cancelled" ? "" : ` <button class="tbtn danger" data-rcancel="${r.id}">Cancel</button>`}</td></tr>`).join("") : `<tr><td colspan="4" class="empty">Nothing yet.</td></tr>`}
       </tbody></table></div>`;
     if (goods) $("rLoad").onclick = () => find(sale);
-    $("rSave").onclick = async () => {
-      try {
-        const base = { kind: rtype, reason: $("rWhy").value };
-        const body = goods
-          ? { ...base, [sale ? "invoiceId" : "purchaseId"]: src?.id, lines: [...document.querySelectorAll("[data-rq]")].map((i) => ({ productId: i.dataset.rq, qty: i.value })), refund: $("rRefund").value, mode: picked("rmode") }
-          : { ...base, partyId: $("rParty").value, amount: $("rAmt").value };
-        if (goods && !src) throw new Error(sale ? "Find the bill first." : "Find the purchase first.");
-        await api("/api/billing/returns", { method: "POST", body: JSON.stringify(body) });
-        src = null; toast("Saved. Stock and ledger updated."); returns();
-      } catch (e) { $("rErr").textContent = e.message; }
-    };
+    $("rSave").onclick = busy($("rSave"), async (requestId) => {
+      const base = { kind: rtype, reason: $("rWhy").value };
+      const body = goods
+        ? { ...base, [sale ? "invoiceId" : "purchaseId"]: src?.id, lines: [...document.querySelectorAll("[data-rq]")].map((i) => ({ productId: i.dataset.rq, qty: i.value, ...("rs" in i.dataset ? { sizes: i.dataset.rs } : {}) })), refund: $("rRefund").value, mode: picked("rmode") }
+        : { ...base, partyId: $("rParty").value, amount: $("rAmt").value };
+      if (goods && !src) throw new Error(sale ? "Find the bill first." : "Find the purchase first.");
+      await api("/api/billing/returns", { method: "POST", requestId, body: JSON.stringify(body) });
+      src = null; toast("Saved. Stock and ledger updated."); returns().catch((e) => toast(e.message, { bad: true }));
+    }, "rErr");
     document.querySelectorAll("[data-rcancel]").forEach((b) => twoTap(b, "Tap again to undo", async () => { await api(`/api/billing/returns/${b.dataset.rcancel}/cancel`, { method: "POST", body: "{}" }); toast("Undone."); returns(); }));
   }
   async function find(sale) {
@@ -129,7 +123,7 @@
     const pool = sale ? (await api("/api/billing/invoices")).invoices : await api("/api/billing/purchases");
     src = pool.find((x) => x.number === q) || null;
     if (!src) { $("rLines").innerHTML = ""; $("rErr").textContent = `Nothing found for ${q}.`; return; }
-    $("rLines").innerHTML = `<p class="sub">${esc(src.customer?.name || "")} · ${inr(src.total)}</p>` + src.lines.map((l) => `<div class="line"><div class="grow"><div class="name">${esc(l.name)}</div><div class="sub">${l.qty} on ${sale ? "bill" : "purchase"} · ${inr(l.amount / l.qty)} each</div></div><label class="sub">Back<input class="rate" type="number" min="0" max="${l.qty}" value="0" data-rq="${esc(l.productId)}"></label></div>`).join("");
+    $("rLines").innerHTML = `<p class="sub">${esc(src.customer?.name || "")} · ${inr(src.total)}</p>` + src.lines.map((l) => `<div class="line"><div class="grow"><div class="name">${esc(l.name)}${l.sizes ? ` <span class="sub">${esc(l.sizes)}</span>` : ""}</div><div class="sub">${l.qty} on ${sale ? "bill" : "purchase"} · ${inr(l.amount / l.qty)} each</div></div><label class="sub">Back<input class="rate" type="number" inputmode="numeric" min="0" max="${l.qty}" value="0" data-rq="${esc(l.productId)}"${l.sizes ? ` data-rs="${esc(l.sizes)}"` : ""}></label></div>`).join("");
   }
 
   // ---- Reports: a grid of report names with filter chips, like the screen he knows ----
