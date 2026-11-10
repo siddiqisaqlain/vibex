@@ -157,7 +157,7 @@
     <div class="chips" id="stockChips"></div>
     <div class="filters"><input type="search" id="sq" placeholder="Search by name, code or scan a barcode" autocomplete="off">
       <select id="sCat" aria-label="Category"><option value="">All Categories</option><option>Clothing</option><option>Footwear</option><option>Fragrances</option><option>Accessories</option></select>
-      <span id="stockTools" class="filters" style="margin:0;margin-left:auto"><button class="tbtn" id="linkBtn">Link website items</button><button class="tbtn" id="stockCsv">Download Excel (CSV)</button>
+      <span id="stockTools" class="filters" style="margin:0;margin-left:auto"><button class="tbtn" id="wardrobeBtn">The Wardrobe</button><button class="tbtn" id="linkBtn">Link website items</button><button class="tbtn" id="stockCsv">Download Excel (CSV)</button>
       <button class="primary" id="addItem">Create Item</button></span></div>
     <div id="pickBar" class="hide"></div>
     <div id="itemBox"></div>
@@ -706,6 +706,7 @@
   let stockSort = "name", stockDir = 1, stockChip = "", stockShown = 60;
   $("addItem").onclick = () => window.VX.itemForm(null);
   $("linkBtn").onclick = () => window.VX.linkPanel();
+  $("wardrobeBtn").onclick = () => window.VX.wardrobePanel();
 
   const STOCK_CHIPS = [
     ["", "All", () => true],

@@ -18,7 +18,8 @@
       <div id="it-sizeRows"></div>
       <div class="row3">${f("hsn", "HSN code")}${f("gstRate", "GST % (blank = default)", "number")}${p ? "<div></div>" : f("quantity", "Opening stock", "number")}</div>
       ${p ? `<label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="it-onWebsite" ${p.hidden ? "" : "checked"} ${p.image ? "" : "disabled"}> Show on website<span id="it-webNote">${p.image ? "" : " (add a photo first)"}</span></label>
-      <label class="sub" style="display:block;margin-top:4px"><input type="checkbox" id="it-featured" ${p.featured ? "checked" : ""}> Feature on home page (beside the video, up to 6)</label>` : ""}
+      <label class="sub" style="display:block;margin-top:4px"><input type="checkbox" id="it-featured" ${p.featured ? "checked" : ""}> Feature on home page (beside the video, up to 6)</label>
+      <label class="sub" style="display:block;margin-top:4px"><input type="checkbox" id="it-wardrobe" ${p.wardrobe ? "checked" : ""} ${p.image ? "" : "disabled"}> Show in The Wardrobe (premium 3D showcase, only while it's on the website)</label>` : ""}
       <button class="big" id="itSave">Save</button><div class="err" id="itErr"></div></div></details>`;
     if (newName) $("it-name").value = newName;
     // Photos save the moment they're added, so typing in the form is never lost. A new item has
@@ -69,6 +70,7 @@
       for (const k of ["name", "category", "price", "cost", "mrp", "barcode", "sizes", "reorderAt", "hsn", "gstRate", "quantity"]) if ($(`it-${k}`)) b[k] = $(`it-${k}`).value;
       if ($("it-onWebsite") && !$("it-onWebsite").disabled) b.onWebsite = $("it-onWebsite").checked;
       if ($("it-featured")) b.featured = $("it-featured").checked;
+      if ($("it-wardrobe") && !$("it-wardrobe").disabled) b.wardrobe = $("it-wardrobe").checked;
       const boxes = [...document.querySelectorAll("[data-ss]")];
       if (boxes.length) b.sizeStock = boxes.some((i) => i.value !== "") ? Object.fromEntries(boxes.map((i) => [i.dataset.ss, i.value])) : {};
       try {
@@ -230,6 +232,33 @@
       try { await api("/api/billing/link", { method: "POST", body: JSON.stringify({ websiteId: b.dataset.lkgo, stockId }) }); toast("Linked. Counter and website now share one stock."); await window.VX.reload(); window.VX.linkPanel(); }
       catch (e) { toast(e.message); }
     }));
+  };
+
+  // ---- The Wardrobe: pick the premium pieces for the 3D showcase at /wardrobe ----
+  // Only items on the website with a photo can go in. Clothing hangs on the rail, fragrances go in
+  // the drawers, anything else stands on the shelf.
+  window.VX.wardrobePanel = async () => {
+    const items = (await api("/api/billing/products")).filter((p) => !p.hidden && p.image && p.status !== "sold");
+    const paint = () => {
+      const inIt = items.filter((p) => p.wardrobe);
+      const groups = {};
+      for (const p of items) (groups[p.category || "Other"] ||= []).push(p);
+      box.querySelector("#wdBody").innerHTML = `<p class="sub"><b>${inIt.length}</b> in the wardrobe · <a href="/wardrobe" target="_blank" rel="noopener">Open The Wardrobe ↗</a></p>
+        <p class="sub">Pick your premium pieces only. Clothing hangs on the rail (up to 12 look best), fragrances go in the drawers (up to 14 a drawer, 3 drawers), anything else stands on the shelf. Sold pieces leave the wardrobe on their own.</p>
+        ${Object.entries(groups).map(([cat, list]) => `<h4 class="linkHead">${esc(cat)} <span class="sub">${list.filter((p) => p.wardrobe).length} of ${list.length}</span></h4>
+        <div class="scroll"><table><tbody>${list.sort((a, b) => (b.price || 0) - (a.price || 0)).map((p) => `<tr><td><div class="thumb" style="background-image:url('${esc(p.image)}')"></div></td>
+          <td><div class="name" style="white-space:normal">${esc(p.name)}</div><div class="sub">${inr(p.price)}${p.brand ? ` · ${esc(p.brand)}` : ""}</div></td>
+          <td class="n"><button class="tbtn" style="${p.wardrobe ? "background:#161514;color:#fff;border-color:#161514" : ""}" data-wd="${esc(p.id)}" aria-pressed="${p.wardrobe ? "true" : "false"}">${p.wardrobe ? "✓ In the wardrobe" : "Add"}</button></td></tr>`).join("")}</tbody></table></div>`).join("")}`;
+      box.querySelectorAll("[data-wd]").forEach((b) => (b.onclick = async () => {
+        const p = items.find((x) => x.id === b.dataset.wd), on = !p.wardrobe;
+        b.disabled = true;
+        try { await api(`/api/billing/items/${p.id}`, { method: "POST", body: JSON.stringify({ wardrobe: on }) }); p.wardrobe = on; toast(on ? "Added to the wardrobe." : "Taken out of the wardrobe."); paint(); }
+        catch (e) { toast(e.message); b.disabled = false; }
+      }));
+    };
+    if (!items.length) return toast("Put items on the website first (with a photo), then pick them for the wardrobe.");
+    const box = window.VX.drawer("The Wardrobe", `<div id="wdBody"></div>`, { wide: true });
+    paint();
   };
 
   // ---- Barcode labels ----

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#8c7e6f">
+<title>The Wardrobe · Vibe X</title>
+<meta name="description" content="Open the Vibe X wardrobe: jackets on the rail, fragrances in the drawers. Tap anything to see it.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --red: #e2382c; --ink: #161514; --paper: #fbf9f6; --room: #8c7e6f; --muted: #77706a; --line: rgba(22,21,20,.1); --glass: rgba(251,249,246,.72); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--room); color: var(--ink); font-family: Archivo, system-ui, sans-serif; overflow: hidden; overscroll-behavior: none; }
+  #stage { position: fixed; inset: 0; touch-action: none; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+  /* top bar */
+  .wd-top { position: fixed; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: max(14px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) 12px max(18px, env(safe-area-inset-left)); pointer-events: none; }
+  .wd-top > * { pointer-events: auto; }
+  .wd-brandmark { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 16px; border-radius: 999px; background: var(--glass); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); box-shadow: 0 1px 0 rgba(255,255,255,.7) inset, 0 4px 18px rgba(40,30,20,.08); }
+  .wd-logo { line-height: 1; }
+  .wd-logo { color: var(--ink); text-decoration: none; font-weight: 900; font-stretch: 112%; font-size: 22px; letter-spacing: -.02em; }
+  .wd-logo span { color: var(--red); }
+  .wd-title { color: rgba(22,21,20,.6); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; }
+  .wd-back { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; color: var(--ink); text-decoration: none; font-size: 13px; font-weight: 600; padding: 0 16px;
+    border-radius: 999px; background: var(--glass); backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4); box-shadow: 0 1px 0 rgba(255,255,255,.7) inset, 0 4px 18px rgba(40,30,20,.08); }
+  .wd-back .short { display: none; }
+  .wd-back:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+  /* the section switcher */
+  .wd-dock { position: fixed; left: 50%; bottom: max(14px, calc(env(safe-area-inset-bottom) + 6px)); transform: translateX(-50%); z-index: 3;
+    display: flex; gap: 4px; padding: 5px; border-radius: 999px; background: var(--glass); backdrop-filter: blur(16px) saturate(1.4); -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    box-shadow: 0 1px 0 rgba(255,255,255,.7) inset, 0 10px 30px rgba(40,30,20,.14); max-width: calc(100vw - 20px); overflow-x: auto; scrollbar-width: none;
+    transition: opacity .3s, transform .3s; }
+  .wd-dock::-webkit-scrollbar { display: none; }
+  .wd-dock button { all: unset; cursor: pointer; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap;
+    min-height: 44px; min-width: 44px; padding: 0 15px; border-radius: 999px; color: var(--ink); font-size: 13.5px; font-weight: 600; transition: background .2s, color .2s; }
+  .wd-dock button:hover { background: rgba(22,21,20,.06); }
+  .wd-dock button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .wd-dock button:focus-visible { outline: 2px solid var(--red); outline-offset: -2px; }
+  .wd-dock .n { opacity: .5; font-weight: 500; font-size: 12px; }
+  .wd-dock .x { font-size: 18px; line-height: 1; }
+  .wd-dock button.dot { min-width: 28px; padding: 0 6px; }
+  .wd-dock button.dot i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .35; }
+  .wd-dock button.dot[aria-pressed="true"] { background: none; color: var(--ink); }
+  .wd-dock button.dot[aria-pressed="true"] i { opacity: 1; transform: scale(1.25); }
+  .wd-dock .sep { flex: none; width: 1px; align-self: stretch; margin: 10px 2px; background: var(--line); }
+  body.has-panel .wd-dock { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(14px); }
+
+  .wd-hint { position: fixed; left: 50%; bottom: calc(max(14px, calc(env(safe-area-inset-bottom) + 6px)) + 66px); transform: translateX(-50%); z-index: 2;
+    color: var(--muted); font-size: 11.5px; letter-spacing: .08em; text-align: center; pointer-events: none; transition: opacity .6s; white-space: nowrap;
+    padding: 6px 12px; border-radius: 999px; background: rgba(251,249,246,.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+
+  .wd-load { position: fixed; inset: 0; display: grid; place-items: center; z-index: 5; background: radial-gradient(ellipse at 50% 40%, #d9ccb9, #8c7e6f 70%); color: #3d342b; transition: opacity .8s; }
+  /* a soft vignette, like a lit shop window */
+  .wd-vignette { position: fixed; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(ellipse 75% 70% at 50% 46%, rgba(0,0,0,0) 55%, rgba(40,28,18,.32) 100%); }
+  .wd-load.gone { opacity: 0; pointer-events: none; }
+  .wd-load p { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; margin: 14px 0 0; text-align: center; }
+  .wd-load .bar { width: 160px; height: 2px; background: rgba(22,21,20,.1); overflow: hidden; margin: 0 auto; border-radius: 2px; }
+  .wd-load .bar i { display: block; height: 100%; width: 0; background: var(--ink); transition: width .2s; }
+
+  /* product panel: a floating card on the right on wide screens, a bottom sheet on phones */
+  .wd-panel { position: fixed; z-index: 4; display: flex; flex-direction: column; background: var(--paper); box-shadow: 0 24px 70px rgba(40,30,20,.22);
+    top: 12px; right: 12px; bottom: 12px; width: min(400px, calc(100vw - 24px)); border-radius: 22px; overflow: hidden;
+    transform: translateX(calc(100% + 24px)); transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+  .wd-panel.open { transform: none; }
+  .wd-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+  .wd-grab { display: none; }
+  .wd-close { all: unset; cursor: pointer; position: absolute; top: 12px; right: 12px; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+    background: rgba(255,255,255,.92); box-shadow: 0 2px 12px rgba(0,0,0,.1); font-size: 20px; z-index: 2; }
+  .wd-close:focus-visible { outline: 2px solid var(--red); }
+  .wd-photos { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 12px 12px 0; scrollbar-width: none; }
+  .wd-photos::-webkit-scrollbar { display: none; }
+  .wd-photos img { flex: 0 0 100%; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 14px; background: #eee8df; scroll-snap-align: center; }
+  .wd-body { padding: 18px 20px 10px; }
+  .wd-brand { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .wd-name { font-size: 21px; line-height: 1.2; font-weight: 800; margin: 6px 0 10px; letter-spacing: -.015em; }
+  .wd-price { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .wd-price b { font-size: 22px; font-weight: 800; }
+  .wd-price s { color: var(--muted); font-size: 14px; }
+  .wd-price em { font-style: normal; color: var(--red); font-size: 13px; font-weight: 700; }
+  .wd-more { padding: 0 20px; }
+  .wd-facts { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; padding: 0; list-style: none; }
+  .wd-facts li { font-size: 12px; padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px; background: #fff; }
+  .wd-facts li.sold { border-color: var(--red); color: var(--red); }
+  .wd-desc { font-size: 14px; line-height: 1.55; color: #3d3833; margin: 0 0 8px; }
+  .wd-note { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+  .wd-cta { flex: none; padding: 12px 20px max(16px, env(safe-area-inset-bottom)); background: var(--paper); border-top: 1px solid var(--line); }
+  .wd-order { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 52px; border-radius: 14px; background: var(--red); color: #fff; font-weight: 700; font-size: 15px; text-decoration: none; }
+  .wd-order:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .wd-order.sold { background: var(--ink); }
+  .wd-panel.info .wd-photos { display: none; }
+  .wd-list { display: grid; gap: 2px; margin: 4px 0 12px; }
+  .wd-list[hidden] { display: none; }
+  .wd-row { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; padding: 8px; margin: 0 -8px; border-radius: 12px; color: var(--ink); text-decoration: none; transition: background .15s; }
+  .wd-row:hover, .wd-row:focus-visible { background: rgba(22,21,20,.05); outline: none; }
+  .wd-row img { width: 56px; height: 70px; object-fit: cover; border-radius: 9px; background: #eee8df; }
+  .wd-row .t { min-width: 0; display: grid; gap: 2px; }
+  .wd-row .t small { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .wd-row .t b { font-size: 14px; font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .wd-row .pr { font-weight: 800; font-size: 14px; white-space: nowrap; }
+  .wd-panel.info .wd-body { padding-top: 22px; }
+  @media (max-width: 760px) { .wd-panel.info .wd-body { padding: 0 44px 0 0; } }
+
+  @media (max-width: 760px) {
+    .wd-title { display: none; }
+    .wd-back .long { display: none; }
+    .wd-back .short { display: inline; }
+    .wd-panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: min(64svh, 560px); border-radius: 22px 22px 0 0; transform: translateY(105%); }
+    .wd-panel.dragging { transition: none; }
+    .wd-grab { display: block; flex: none; height: 24px; cursor: grab; touch-action: none; }
+    .wd-grab::before { content: ""; display: block; width: 40px; height: 5px; border-radius: 3px; background: rgba(22,21,20,.18); margin: 10px auto 0; }
+    .wd-close { top: 12px; width: 36px; height: 36px; font-size: 18px; }
+    .wd-head { display: flex; gap: 14px; align-items: flex-start; padding: 2px 16px 0; touch-action: pan-y; }
+    .wd-photos { flex: 0 0 104px; width: 104px; padding: 0; }
+    .wd-photos img { flex: 0 0 104px; width: 104px; border-radius: 12px; }
+    .wd-body { padding: 0 44px 0 0; flex: 1; min-width: 0; }
+    .wd-name { font-size: 17px; margin: 4px 0 6px; }
+    .wd-price b { font-size: 19px; }
+    .wd-more { padding: 2px 16px 0; }
+    .wd-facts { margin: 12px 0 10px; }
+    .wd-desc { font-size: 13.5px; }
+    .wd-cta { padding: 10px 16px max(12px, env(safe-area-inset-bottom)); }
+  }
+
+  .wd-fail { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; color: var(--ink); padding: 24px; z-index: 6; background: var(--room); }
+  .wd-fail a { color: var(--red); }
+  @media (prefers-reduced-motion: reduce) { .wd-panel, .wd-dock { transition: none; } }
+</style>
+</head>
+<body>
+<div id="stage" aria-label="A 3D wardrobe with the shop's jackets and fragrances" role="img"></div>
+<div class="wd-vignette" aria-hidden="true"></div>
+
+<header class="wd-top">
+  <div class="wd-brandmark"><a class="wd-logo" href="/#feat">VIBE<span>X</span></a><span class="wd-title mono">The Wardrobe</span></div>
+  <a class="wd-back" href="/#rack"><span aria-hidden="true">←</span><span class="long">Back to shop</span><span class="short">Shop</span></a>
+</header>
+
+<div class="wd-hint mono" id="hint">Brush the hangers · tap anything</div>
+<nav class="wd-dock" id="dock" aria-label="Wardrobe sections"></nav>
+
+<aside class="wd-panel" id="panel" aria-label="Product details" aria-hidden="true">
+  <div class="wd-grab" id="grab" aria-hidden="true"></div>
+  <button class="wd-close" id="close" aria-label="Put it back">×</button>
+  <div class="wd-scroll" id="scroll">
+    <div class="wd-head">
+      <div class="wd-photos" id="photos"></div>
+      <div class="wd-body">
+        <div class="wd-brand mono" id="brand"></div>
+        <h2 class="wd-name" id="name"></h2>
+        <div class="wd-price" id="price"></div>
+      </div>
+    </div>
+    <div class="wd-more">
+      <ul class="wd-facts" id="facts"></ul>
+      <p class="wd-desc" id="desc"></p>
+      <div class="wd-list" id="list" hidden></div>
+      <p class="wd-note" id="note">Pick it up in Khanyaar, Srinagar, or get it couriered anywhere in India.</p>
+    </div>
+  </div>
+  <div class="wd-cta"><a class="wd-order" id="order" href="/">View and order →</a></div>
+</aside>
+
+<div class="wd-load" id="load"><div><div class="bar"><i id="loadbar"></i></div><p class="mono">Opening the wardrobe</p></div></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+} }
+</script>
+<script type="module" src="/wardrobe.js"></script>
+<script src="/track.js" defer></script>
+</body>
+</html>

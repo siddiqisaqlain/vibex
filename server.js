@@ -2238,6 +2238,7 @@ http
       if (p === "/" ) return serveFile(res, PUBLIC, "index.html");
       if (p === "/account" || p === "/bag") return accountPage(res, p.slice(1));
       if (p === "/demo") return serveFile(res, PUBLIC, "demo.html");
+      if (p === "/wardrobe") return serveFile(res, PUBLIC, "wardrobe.html");
       const pm = /^\/p\/([\w-]{1,40})$/.exec(p);
       if (pm) return productPage(req, res, pm[1]);
       const legalKey = { "/returns": "returns", "/terms": "terms", "/privacy": "privacy", "/contact": "contact" }[p];

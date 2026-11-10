@@ -13,7 +13,7 @@
   // A WhatsApp chat with the shop, the message already written. From the analytics (2026-11-09): people open a
   // jacket and leave within 5 seconds, so the page answers the doubts they'd otherwise have to ask about.
   const waLink = (text) => window.SHOP?.whatsapp ? `https://wa.me/${window.SHOP.whatsapp}?text=${encodeURIComponent(text)}` : "";
-  const sizeTxt = (p) => pick ? ` in size ${pick}` : "";
+  const sizeTxt = (p) => { const c = chosenOf(p)?.size; return c && optionsOf(p).length > 1 ? ` in size ${c}` : ""; };
   function trust(p) {
     if (p.status !== "available") return "";
     const maps = window.SHOP?.maps;
@@ -55,8 +55,18 @@
   }
 
   const optionsOf = (p) => p.options || [];
-  // Only one size can be bought: that's chosen for them. Otherwise never guess, a wrong size means a return.
-  const chosenOf = (p) => { const o = optionsOf(p).filter((x) => x.left !== 0); return o.length === 1 ? o[0] : o.find((x) => x.size === pick) || null; };
+  // The smallest size in stock is chosen to start with (decided 2026-11-10): S before M before L,
+  // 50 ml before 100 ml. The customer can tap another size; their tap always wins.
+  const LETTER = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "4XL", "5XL"];
+  const sizeRank = (size, i) => {
+    const t = String(size).toUpperCase().replace(/\s+/g, "");
+    const k = LETTER.indexOf({ "2XL": "XXL", "3XL": "XXXL" }[t] || t);
+    if (k >= 0) return 1e6 + k;                                  // S, M, L, XL, 2XL...
+    const n = /^(\d+(?:\.\d+)?)/.exec(t);
+    return n ? Number(n[1]) : 2e6 + i;                           // 50 ml, 100ml, 32, 9.5; anything else keeps its order
+  };
+  const smallestOf = (list) => list.map((o, i) => ({ o, r: sizeRank(o.size, i) })).sort((a, b) => a.r - b.r)[0]?.o || null;
+  const chosenOf = (p) => { const o = optionsOf(p).filter((x) => x.left !== 0); return o.find((x) => x.size === pick) || smallestOf(o); };
   const multiPrice = (p) => new Set(optionsOf(p).map((o) => o.price)).size > 1;
 
   function sizePicker(p) {
