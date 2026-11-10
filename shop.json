@@ -41,17 +41,19 @@
       "perKg": 130,
       "kashmirPins": ["190", "191", "192", "193"],
       "insideKashmirPerKg": 100,
-      "_kgNote": "Packed weight in kg for each kind of piece, pulled automatically: a weightKg set on the item wins, then the first word here found in its subcategory or name (a plural 's' also matches), then its category, then default. These are estimates; weigh a few real parcels and correct them here.",
+      "_kgNote": "Packed weight in kg for each kind of piece, pulled automatically: a weightKg set on the item wins, then byCode (LOT code -> kg), then the first word here found in its subcategory or name (a plural 's' also matches), then its category, then default. These are estimates; weigh a few real parcels and correct them here.",
       "kg": {
         "default": 1,
-        "Puffer": 1.2, "Parka": 1.3, "Coat": 1.2, "Jacket": 0.95, "Blazer": 0.9, "Fleece": 0.6, "Hoodie": 0.7, "Sweatshirt": 0.6,
+        "Puffer": 0.95, "Parka": 0.95, "Coat": 0.95, "Jacket": 0.9, "Blazer": 0.9, "Fleece": 0.6, "Hoodie": 0.7, "Sweatshirt": 0.6,
         "Sweater": 0.6, "Cardigan": 0.6, "Vest": 0.5, "Gilet": 0.5, "Shirt": 0.35, "T-shirt": 0.3, "Tee": 0.3, "Polo": 0.35, "Top": 0.3,
         "Jeans": 0.7, "Trousers": 0.6, "Pants": 0.6, "Chinos": 0.6, "Joggers": 0.5, "Shorts": 0.35, "Tracksuit": 0.9, "Dress": 0.5,
         "Perfume": 0.4, "Attar": 0.2, "Cologne": 0.4, "Deodorant": 0.3,
         "Boots": 2, "Sneakers": 1.3, "Shoes": 1.5, "Loafers": 1.2, "Sandals": 0.8, "Slides": 0.6, "Slippers": 0.6,
         "Bag": 0.9, "Backpack": 0.9, "Wallet": 0.25, "Belt": 0.4, "Watch": 0.4, "Cap": 0.3, "Sunglasses": 0.3, "Scarf": 0.3, "Gloves": 0.25,
         "Clothing": 0.7, "Fragrances": 0.4, "Footwear": 1.5, "Accessories": 0.4
-      }
+      },
+      "_byCodeNote": "Packed kg per LOT code, from each product's weight looked up online on 2026-11-10 plus ~60-100 g packing. Columbia Arctic Crest hooded: 825 g listed (snowleader.com); no-hood ~780 g est. Puma MT7 EcoLite jackets: thin 75 gsm shell, ~350 g est. Puma reversible Ferrari padded: ~650 g est. USPA sweater: ~480 g est. 100 ml perfume boxed ~260 g, 80 ml ~220 g, 75 ml ~210 g (estimates; Zara sizes 90-100 ml). Jackets are kept under 1 kg each. New products fall back to the kg table.",
+      "byCode": { "1038": 0.31, "1343": 0.31, "1399": 0.31, "1878": 0.31, "1939": 0.6, "1998": 0.75, "2230": 0.93, "2490": 0.31, "2510": 0.31, "2701": 0.6, "2809": 0.45, "3083": 0.31, "3385": 0.31, "3591": 0.6, "4184": 0.31, "4254": 0.88, "4316": 0.31, "4494": 0.31, "4591": 0.31, "4645": 0.45, "4769": 0.6, "5231": 0.31, "5275": 0.28, "5278": 0.6, "5344": 0.6, "5384": 0.6, "5485": 0.31, "5549": 0.32, "5571": 0.31, "5817": 0.31, "6020": 0.32, "6207": 0.45, "6317": 0.31, "6533": 0.32, "7072": 0.31, "7144": 0.31, "7163": 0.6, "7955": 0.31, "8006": 0.6, "8513": 0.31, "8667": 0.6, "8677": 0.6, "8942": 0.27, "9002": 0.6, "9198": 0.6, "9379": 0.32, "9390": 0.28, "9676": 0.31, "9783": 0.88, "9865": 0.31 }
     }
   },
   "rush": {

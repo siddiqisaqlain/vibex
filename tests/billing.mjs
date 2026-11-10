@@ -104,7 +104,7 @@ try {
   assert.equal(o.shipping, inKashmir); assert.equal(o.amount, 2799 + inKashmir); ok("inside Kashmir: per kg from shop.json, worked out by the server");
   assert.equal(feeFor(C, 0.95, "190001").fee, 100); assert.equal(feeFor(C, 1.9, "190001").fee, 200); assert.equal(feeFor(C, 2.1, "190001").fee, 300);
   assert.equal(feeFor(C, 0.4 * 2, "110001").fee, 130); ok("courier is charged per started kg: 0.95 kg = Rs 100, 1.9 kg = Rs 200, 2.1 kg = Rs 300");
-  assert.equal(kgOf(C, { name: "Nuptse Puffer Jacket", category: "Clothing", subcategory: null }), 1.2);
+  assert.equal(kgOf(C, { name: "Nuptse Puffer Jacket", category: "Clothing", subcategory: null }), 0.95);
   assert.equal(kgOf(C, { name: "Uspa Sweater", category: "Clothing", subcategory: null }), 0.6);
   assert.equal(kgOf(C, { name: "Bleu", category: "Fragrances", subcategory: "Perfume" }), 0.4);
   assert.equal(kgOf(C, { name: "Odd thing", category: "Clothing", subcategory: null, weightKg: 2.5 }), 2.5); ok("each piece's weight comes from its own weight, then its name/kind, then its category");
