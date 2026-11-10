@@ -29,6 +29,7 @@
       <a href="#rack" data-jump="Clothing">Clothing</a>
       <a href="#rack" data-jump="Fragrances">Fragrances</a>
       <a href="#rack" data-jump="Footwear">Footwear</a>
+      <a href="/wardrobe" class="wd-link" hidden>The Wardrobe</a>
       <a href="#visit">The store</a>
     </nav>
     <div class="icons">
@@ -56,6 +57,7 @@
   <a href="#rack" data-jump="Clothing">Clothing</a>
   <a href="#rack" data-jump="Fragrances">Fragrances</a>
   <a href="#rack" data-jump="Footwear">Footwear</a>
+  <a href="/wardrobe" class="wd-link" hidden>The Wardrobe</a>
   <a href="#visit">Visit the store</a>
   <a href="/account">My account</a>
   <a href="/returns">Returns and refunds</a>
@@ -97,6 +99,29 @@
       </div>
     </header>
     <div class="feat-track" id="feat-track"></div>
+  </section>
+
+  <!-- The Wardrobe teaser: shown only once the owner has picked pieces for /wardrobe (wardrobe-teaser.js) -->
+  <section class="wdt wrap" id="wardrobe-teaser" aria-labelledby="wdt-h" hidden>
+    <a class="wdt-card" href="/wardrobe">
+      <div class="wdt-copy">
+        <p class="wdt-eyebrow"><span class="dot"></span>New · The Wardrobe</p>
+        <h2 class="wdt-h" id="wdt-h">Step inside<br>The Wardrobe</h2>
+        <p class="wdt-lede">Our premium pieces, in 3D. Open the doors, brush the hangers, pull out the drawers.</p>
+        <span class="wdt-cta">Step inside <span aria-hidden="true">→</span></span>
+        <span class="wdt-count" id="wdt-count"></span>
+      </div>
+      <div class="wdt-cab" aria-hidden="true">
+        <div class="wdt-plaque">VIBE X</div>
+        <div class="wdt-inside">
+          <div class="wdt-rail"></div>
+          <div class="wdt-pieces" id="wdt-pieces"></div>
+          <div class="wdt-drawers"><i></i><i></i><i></i></div>
+        </div>
+        <div class="wdt-door l"><i></i></div>
+        <div class="wdt-door r"><i></i></div>
+      </div>
+    </a>
   </section>
 
   <section class="rack wrap" id="rack">
@@ -241,6 +266,7 @@
 <script src="/menu.js"></script>
 <script src="/search.js"></script>
 <script src="/shop.js"></script>
+<script src="/wardrobe-teaser.js" defer></script>
 <script src="/salebar.js"></script>
 <script src="/motion.js"></script>
 <script src="/heromap.js"></script>

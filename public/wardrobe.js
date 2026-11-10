@@ -346,22 +346,51 @@ function cutout(img, maxH) {
       if (x === 0 || x === w - 1 || p < w || p >= N - w || !src[p - 1] || !src[p + 1] || !src[p - w] || !src[p + w]) a[p] = 0;
     }
   }
-  // soft 3x3 edge
+  // A clean edge: the garment's own colour is carried a few pixels past its outline (no white or
+  // dark fringe), and the outline itself is smoothed (two 5x5 box blurs, close to a gaussian) so the
+  // cut follows a smooth curve instead of pixel steps.
+  const col = new Uint8ClampedArray(px.length); col.set(px);
+  if (ok) {
+    let have = Uint8Array.from(a, (v) => (v ? 1 : 0));
+    for (let it = 0; it < 5; it++) {
+      const next = Uint8Array.from(have);
+      for (let p = 0; p < N; p++) {
+        if (have[p]) continue;
+        const x = p % w;
+        for (const n of [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, p - w, p + w]) {
+          if (n < 0 || n >= N || !have[n]) continue;
+          col[p * 4] = col[n * 4]; col[p * 4 + 1] = col[n * 4 + 1]; col[p * 4 + 2] = col[n * 4 + 2];
+          next[p] = 1; break;
+        }
+      }
+      have = next;
+    }
+  }
+  let af = Float32Array.from(a);
+  const blur = (src) => {
+    const tmp = new Float32Array(N), dst = new Float32Array(N), r = 2;
+    for (let y = 0; y < h; y++) { let acc = 0; const row = y * w;
+      for (let x = -r; x < w + r; x++) {
+        const add = x + r < w ? src[row + Math.min(w - 1, Math.max(0, x + r))] : 0, sub = x - r - 1 >= 0 ? src[row + x - r - 1] : 0;
+        acc += add - sub; if (x >= 0 && x < w) tmp[row + x] = acc / (2 * r + 1);
+      } }
+    for (let x = 0; x < w; x++) { let acc = 0;
+      for (let y = -r; y < h + r; y++) {
+        const add = y + r < h ? tmp[Math.min(h - 1, Math.max(0, y + r)) * w + x] : 0, sub = y - r - 1 >= 0 ? tmp[(y - r - 1) * w + x] : 0;
+        acc += add - sub; if (y >= 0 && y < h) dst[y * w + x] = acc / (2 * r + 1);
+      } }
+    return dst;
+  };
+  if (ok) af = blur(blur(af));
   const out = document.createElement("canvas");
   const cw = x1 - x0 + 1, ch = y1 - y0 + 1;
   out.width = cw; out.height = ch;
   const og = out.getContext("2d");
   const od = og.createImageData(cw, ch), mask = new Uint8Array(cw * ch);
   for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
-    const sx = x + x0, sy = y + y0;
-    let sum = 0, k = 0;
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-      const xx = sx + dx, yy = sy + dy;
-      if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-      sum += a[yy * w + xx]; k++;
-    }
-    const al = ok ? Math.round(sum / k) : 255, si = (sy * w + sx) * 4, di = (y * cw + x) * 4;
-    od.data[di] = px[si]; od.data[di + 1] = px[si + 1]; od.data[di + 2] = px[si + 2]; od.data[di + 3] = al;
+    const sx = x + x0, sy = y + y0, sp = sy * w + sx;
+    const al = ok ? Math.round(af[sp]) : 255, si = sp * 4, di = (y * cw + x) * 4;
+    od.data[di] = col[si]; od.data[di + 1] = col[si + 1]; od.data[di + 2] = col[si + 2]; od.data[di + 3] = al;
     mask[y * cw + x] = al;
   }
   og.putImageData(od, 0, 0);
@@ -422,7 +451,7 @@ function edgeDistance(cut, GX, GY) {
     const k = y * GX + x; if (!d[k]) continue;
     d[k] = Math.min(d[k], at(x + 1, y) + 1, at(x, y + 1) + 1, at(x + 1, y + 1) + 1.414, at(x - 1, y + 1) + 1.414);
   }
-  for (let pass = 0; pass < 2; pass++) {
+  for (let pass = 0; pass < 4; pass++) {
     const c = Float32Array.from(d);
     for (let y = 1; y < GY - 1; y++) for (let x = 1; x < GX - 1; x++) {
       const k = y * GX + x; if (!c[k]) continue;
@@ -449,10 +478,11 @@ function reliefTexture(cut) {
 }
 function addGarment(p, cut) {
   const gw = GARMENT_W, gh = gw * (cut.h / cut.w);
-  const GX = PHONE ? 64 : 90, GY = Math.max(20, Math.round(GX * (cut.h / cut.w)));
+  const GX = PHONE ? 80 : 128, GY = Math.max(20, Math.round(GX * (cut.h / cut.w)));
   const dist = edgeDistance(cut, GX, GY);
-  const R = GX * 0.16; // cells over which the edge rolls round
-  const thick = (k) => { const t = Math.min(dist[k] / R, 1); return Math.sqrt(1 - (1 - t) * (1 - t)); };
+  const R = GX * 0.2; // cells over which the edge rolls round
+  // smoothstep: the padding rises gently from the outline, so the edge isn't shaded as a hard dark rim
+  const thick = (k) => { const t = Math.min(dist[k] / R, 1); return t * t * (3 - 2 * t); };
   const build = (front) => {
     const geo = new THREE.PlaneGeometry(gw, gh, GX - 1, GY - 1);
     const pos = geo.attributes.position;
