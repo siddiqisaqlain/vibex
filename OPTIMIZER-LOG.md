@@ -33,3 +33,11 @@ Nightly SEO / GEO / AEO notes. Newest last. Hard rules: no checkout/payment/lega
 - **Left out on purpose:** itemCondition, ratings, reviews, GTIN (no such facts). Breadcrumb has no category level because no category pages exist.
 - **Note:** live site unreachable from the sandbox again (proxy refused), judged from repo.
 - **Next:** canonical/OG on legal pages and /wardrobe; /llms.txt from shop.json; FAQ + FAQPage from shop.json policy; meta description quality, image alt text, heading order.
+
+## 2026-11-11 (night 4)
+- **Changed:** new `/llms.txt` (`llmsTxt()` in server.js): shop name, tagline, legal name, address, phone, map, Instagram/YouTube, dispatch/delivery days, courier per-kg rates, 7-day change-of-mind, 48h damage report, 5-day refund, page links. All values read from shop.json; nothing invented. Payment methods left out on purpose (not summarised in shop.json policy).
+- **Why:** backlog item 4 (GEO).
+- **Files:** server.js, OPTIMIZER-LOG.md.
+- **Checks:** node --check server.js; local server: /llms.txt, /, /sitemap.xml all 200; tests/domain.mjs 22/22.
+- **Note:** live site unreachable from the sandbox again (proxy refused), judged from repo.
+- **Next:** FAQ block + FAQPage schema from policy; canonical/OG on /wardrobe and legal pages (inject in server.js, not lib/legal.js); meta description quality, image alt text, heading order.

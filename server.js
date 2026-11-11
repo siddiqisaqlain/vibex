@@ -1160,6 +1160,35 @@ function sitemapXml(req) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${escHtml(origin + u)}</loc></url>`).join("\n")}\n</urlset>\n`;
 }
 
+// llms.txt: a plain-text summary of the shop for AI search. Only facts from shop.json.
+function llmsTxt(req) {
+  const origin = siteOrigin(req);
+  const b = SHOP.business || {};
+  const pol = SHOP.policy || {};
+  const c = pol.courier || {};
+  const L = [`# ${SHOP.name}`, "", `> ${SHOP.name} (${SHOP.tagline || "surplus store"}) sells original world-brand surplus clothing, footwear and fragrances from ${SHOP.city}, with shipping across India.`, ""];
+  L.push("## Store", "");
+  if (b.legalName) L.push(`- Legal name: ${b.legalName}`);
+  if (b.address) L.push(`- Address: ${b.address}`);
+  if (b.phone) L.push(`- Phone / WhatsApp: ${b.phone}`);
+  if (SHOP.maps) L.push(`- Map: ${SHOP.maps}`);
+  if (SHOP.instagram) L.push(`- Instagram: ${SHOP.instagram}`);
+  if (SHOP.youtube && SHOP.youtube.channel) L.push(`- YouTube: ${SHOP.youtube.channel}`);
+  L.push("", "## Shipping and returns", "");
+  if (pol.dispatchWorkingDays) L.push(`- Orders are dispatched within ${pol.dispatchWorkingDays} working days.`);
+  if (pol.deliveryDays) L.push(`- Delivery takes ${pol.deliveryDays} days after dispatch.`);
+  if (c.perKg) L.push(`- Courier charge: Rs ${c.perKg} per kg outside Kashmir${c.insideKashmirPerKg ? `, Rs ${c.insideKashmirPerKg} per kg inside Kashmir` : ""}, charged per started kg.`);
+  if (pol.changeOfMindDays) L.push(`- Change-of-mind returns within ${pol.changeOfMindDays} days (see ${origin}/returns for the full terms).`);
+  if (pol.damageReportHours) L.push(`- Report a damaged or wrong piece within ${pol.damageReportHours} hours of delivery.`);
+  if (pol.refundWorkingDays) L.push(`- Refunds are made within ${pol.refundWorkingDays} working days.`);
+  L.push("- Each piece is one of a few, so sizes are limited. Prices are in Indian rupees (INR).", "", "## Pages", "",
+    `- [Shop (home)](${origin}/): featured pieces and shop details`,
+    `- [Wardrobe](${origin}/wardrobe): browse the pieces`,
+    `- [Returns](${origin}/returns)`, `- [Terms](${origin}/terms)`, `- [Privacy](${origin}/privacy)`, `- [Contact](${origin}/contact)`,
+    `- [Sitemap](${origin}/sitemap.xml): every product page, /p/<id>`, "");
+  return L.join("\n");
+}
+
 // Home page: the static file plus canonical, Open Graph and Store JSON-LD. Only facts from shop.json.
 function homeHead(req) {
   const origin = siteOrigin(req);
@@ -2834,6 +2863,7 @@ async function handle(req, res) {
       const pv = /^\/preview\/(classic|modern)(\/.*)?$/.exec(p);
       if (pv) return previewRoute(req, res, pv[1], pv[2] || "");
       if (req.method === "GET" && p === "/robots.txt") return send(res, 200, robotsTxt(req), "text/plain; charset=utf-8", "public, max-age=3600");
+      if (req.method === "GET" && p === "/llms.txt") return send(res, 200, llmsTxt(req), "text/plain; charset=utf-8", "public, max-age=3600");
       if (req.method === "GET" && p === "/sitemap.xml") return send(res, 200, sitemapXml(req), "application/xml; charset=utf-8", "public, max-age=900");
       if (p === "/" ) return homePage(req, res);
       if (p === "/account" || p === "/bag") return accountPage(res, p.slice(1));
