@@ -91,6 +91,55 @@ window.VXOrder = (() => {
     return `<div class="actions">${order}${enquire}${heart}</div>${extra}`;
   }
 
+  // ---- Add to bag straight from the rack (2026-11-11) ----
+  // A small bag button in the corner of a card's photo. One tap adds the piece without leaving the rack;
+  // a piece with several sizes slides up its sizes first. The card itself stays photo, name and price.
+  const TICK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+  const BAG_PLUS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8h12l1 13H5L6 8z"/><path d="M9 8a3 3 0 0 1 6 0"/><path d="M12 12v5M9.5 14.5h5"/></svg>`;
+  function quick(p) {
+    if (S.orderingOpen === false || p.status !== "available" || !p.price || !window.VXBag) return "";
+    const inBag = window.VXBag.bag().some((l) => l.id === p.id);
+    return `<button type="button" class="vx-quick${inBag ? " in" : ""}" data-quick="${esc(p.id)}" aria-label="${inBag ? "In your bag: " : "Add to bag: "}${esc(p.name)}"><span class="q-add">${BAG_PLUS}</span><span class="q-in">${TICK}</span></button>`;
+  }
+  const multiPrice = (p) => new Set((p.options || []).map((o) => o.price)).size > 1;
+  let sizes = null, sizesFor = null;
+  function openSizes(p, getProduct) {
+    if (!sizes) {
+      sizes = document.createElement("dialog");
+      sizes.className = "ask-dialog vx-sheet vx-sizes";
+      document.body.appendChild(sizes);
+      sizes.addEventListener("click", (e) => {
+        if (e.target === sizes || e.target.closest("[data-close]")) return sizes.close();
+        const b = e.target.closest("[data-size]");
+        if (!b) return;
+        const now = sizesFor.get(sizesFor.id), o = now?.status === "available" && (now.options || []).find((x) => x.size === b.dataset.size && x.left !== 0);
+        sizes.close();
+        if (o) place({ ...now, price: o.price, sizes: o.size, chosenSize: o.size }, "rack"); // else it sold while the sheet was open
+      });
+    }
+    sizesFor = { id: p.id, get: getProduct };
+    const left = (o) => (o.left === 0 ? "Sold out" : o.left === 1 ? "Last one" : o.left <= 3 ? `${o.left} left` : multiPrice(p) ? "" : "In stock");
+    const pic = p.image ? `<img src="${esc(p.image)}" alt="">` : window.productArt(p, hash(p.id));
+    sizes.innerHTML = `<div class="co">
+      <button type="button" class="ask-x" data-close aria-label="Close">×</button>
+      <div class="ask-item"><div class="ask-thumb ${p.image ? "" : "art-bg"}">${pic}</div>
+        <div><span class="brand">${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><span class="mono">${multiPrice(p) ? "From " : ""}${rupees(p.price)}</span></div></div>
+      <h2>Select size</h2>
+      <div class="vx-size-grid" role="group" aria-label="Select size">${p.options.map((o) => `<button type="button" class="vx-size" data-size="${esc(o.size)}" ${o.left === 0 ? "disabled" : ""}><b>${esc(o.size)}</b>${multiPrice(p) && o.left !== 0 ? `<span>${rupees(o.price)}</span>` : ""}${left(o) ? `<span class="${o.left >= 1 && o.left <= 3 ? "low" : ""}">${left(o)}</span>` : ""}</button>`).join("")}</div>
+      <p class="co-small">Tap your size and it goes in your bag.</p>
+      <a class="pdp-size-help" href="${esc(pageUrl(p))}">See all photos and details</a>
+    </div>`;
+    sizes.showModal();
+    window.VXTrack?.("size_sheet", { pr: p.id });
+  }
+  function quickAdd(p, getProduct) {
+    if (window.VXBag.bag().some((l) => l.id === p.id)) return window.VXBag.openSheet(); // already in: show the bag
+    const opts = (p.options || []).filter((o) => o.left !== 0);
+    if ((p.options || []).length > 1) return openSizes(p, getProduct);
+    const o = opts[0];
+    place(o ? { ...p, price: o.price, sizes: o.size, chosenSize: o.size } : p, "rack");
+  }
+
   let dialog = null;
   function openAsk(p) {
     if (!dialog) {
@@ -180,12 +229,14 @@ window.VXOrder = (() => {
     toast.timer = setTimeout(() => (t.hidden = true), ms);
   }
 
-  const place = (p) => (window.VXBag ? window.VXBag.add(p) : window.VXCheckout.open(p));
+  const place = (p, from) => (window.VXBag ? window.VXBag.add(p, from) : window.VXCheckout.open(p));
 
   // getProduct(id) -> product, supplied by the page. forOrder(id) -> the product as ordered
   // (with its size), or nothing if the customer still has to choose.
   function install(getProduct, forOrder = getProduct) {
     document.addEventListener("click", (e) => {
+      const q = e.target.closest("button[data-quick]");
+      if (q) { e.preventDefault(); const p = getProduct(q.dataset.quick); if (p) quickAdd(p, getProduct); return; }
       const ord = e.target.closest("button[data-order]");
       if (ord) {
         const p = forOrder(ord.dataset.order);
@@ -214,5 +265,5 @@ window.VXOrder = (() => {
     });
   }
 
-  return { firstName, rememberName, savedDetails, rememberDetails, forgetDetails, keepDetails, tidyPhone, button, install, place, toast, lot, rupees, esc, hash, pageUrl };
+  return { firstName, rememberName, savedDetails, rememberDetails, forgetDetails, keepDetails, tidyPhone, button, quick, install, place, toast, lot, rupees, esc, hash, pageUrl };
 })();

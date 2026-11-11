@@ -277,6 +277,7 @@
           ${badges(p)}${window.VXPhotos.badge(p)}
           ${p.status === "sold" ? `<div class="sold-stamp"><span>Sold out</span></div>` : ""}
           ${p.status === "hold" ? `<div class="sold-stamp hold-stamp"><span>On hold</span></div>` : ""}
+          ${window.VXOrder.quick(p)}
         </div>
         <div class="info">
           <span class="brand">${esc(p.brand || p.subcategory || p.category)}</span>

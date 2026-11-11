@@ -51,19 +51,86 @@ window.VXBag = (() => {
     header();
     const n = count();
     document.querySelectorAll(".vx-count").forEach((el) => { el.textContent = n; el.hidden = !n; });
+    document.querySelectorAll("[data-quick]").forEach((b) => { const on = bag.some((l) => l.id === b.dataset.quick); if (b.classList.contains("in") !== on) { b.classList.toggle("in", on); b.setAttribute("aria-label", b.getAttribute("aria-label").replace(/^[^:]+:/, on ? "In your bag:" : "Add to bag:")); } });
     document.querySelectorAll("[data-wish]").forEach((b) => { const on = wish.includes(b.dataset.wish); b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); b.setAttribute("aria-label", on ? "Saved to wishlist" : "Save to wishlist"); });
     document.dispatchEvent(new CustomEvent("vx-bag"));
   }
 
   // ---------- adding ----------
-  function add(p) {
+  function add(p, from) {
     const size = p.chosenSize || "";
     const have = bag.find((l) => l.id === p.id && (l.size || "") === size);
     if (!have) bag.push({ id: p.id, size, qty: 1 });
     save();
-    window.VXTrack?.("bag_add", { pr: p.id, n: p.price });
-    openSheet({ added: p });
+    window.VXTrack?.("bag_add", { pr: p.id, n: p.price, x: from === "rack" ? "rack" : "page" });
+    if (!have) fly(p);
+    addedBar(p, Boolean(have));
   }
+  // The piece's photo flies up into the bag in the header, and the bag answers with a bump:
+  // it shows the tap worked and where the bag is. Off for reduced motion.
+  const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function fly(p) {
+    const to = [...document.querySelectorAll("[data-bag-open]")].find((el) => el.getClientRects().length);
+    const bump = () => { if (!to) return; to.classList.remove("bump"); void to.offsetWidth; to.classList.add("bump"); };
+    const from = document.querySelector(`.card[data-id="${CSS.escape(p.id)}"] .media img`) || document.querySelector(".pdp-media img");
+    if (calm() || !to || !from || !from.animate) return bump();
+    const a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+    if (a.bottom < 0 || a.top > innerHeight) return bump();
+    const w = Math.min(a.width, 150), h = w * (a.height / a.width), x0 = a.left + (a.width - w) / 2, y0 = Math.max(a.top + (a.height - h) / 2, 70);
+    const ghost = document.createElement("img");
+    ghost.src = from.currentSrc || from.src; ghost.alt = ""; ghost.className = "vx-fly";
+    ghost.style.cssText = `left:${x0}px;top:${y0}px;width:${w}px;height:${h}px`;
+    document.body.appendChild(ghost);
+    const dx = b.left + b.width / 2 - (x0 + w / 2), dy = b.top + b.height / 2 - (y0 + h / 2);
+    ghost.animate([
+      { transform: "translate(0,0) scale(1)", opacity: 1, borderRadius: "10px" },
+      { transform: `translate(${dx * 0.35}px, ${dy * 0.55 - 40}px) scale(.62) rotate(-6deg)`, opacity: 1, offset: 0.45 },
+      { transform: `translate(${dx}px, ${dy}px) scale(.12) rotate(0deg)`, opacity: 0.35, borderRadius: "50%" },
+    ], { duration: 720, easing: "cubic-bezier(.3,.1,.2,1)" }).onfinish = () => { ghost.remove(); bump(); };
+  }
+  // The first time the rack is seen, the first bag button rings twice so people learn it is there.
+  function hintQuick() {
+    const rack = document.getElementById("grid");
+    if (!rack || calm() || !window.IntersectionObserver || store.get("vx-quick-seen")) return;
+    const io = new IntersectionObserver((list) => {
+      if (!list.some((e) => e.isIntersecting)) return;
+      const b = [...rack.querySelectorAll(".vx-quick:not(.in)")].find((el) => { const r = el.getBoundingClientRect(); return r.top > 80 && r.bottom < innerHeight - 90; });
+      if (!b) return;
+      io.disconnect(); store.set("vx-quick-seen", 1);
+      setTimeout(() => { b.classList.add("hint"); setTimeout(() => b.classList.remove("hint"), 3200); }, 700);
+    }, { threshold: [0, 0.2, 0.5] });
+    io.observe(rack);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", hintQuick); else setTimeout(hintQuick, 0);
+  // After adding: a slim bar at the bottom, not the whole bag over the page (2026-11-11). They stay where they
+  // were and can keep adding; Checkout is one tap away, and a tap on the words opens the bag.
+  let bar = null, barTimer = null;
+  function addedBar(p, had) {
+    const { esc, rupees } = O();
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.className = "vx-addbar"; bar.setAttribute("role", "status");
+      document.body.appendChild(bar);
+      bar.addEventListener("click", (e) => {
+        if (e.target.closest("[data-checkout]")) { hideBar(); return checkout(); }
+        if (e.target.closest("[data-bar-x]")) return hideBar();
+        if (e.target.closest("[data-bar-bag]")) { hideBar(); openSheet(); }
+      });
+      bar.addEventListener("pointerenter", () => clearTimeout(barTimer));
+      bar.addEventListener("pointerleave", () => { barTimer = setTimeout(hideBar, 4000); });
+    }
+    const n = count(), pic = p.image ? `<img src="${esc(p.image)}" alt="">` : "";
+    bar.innerHTML = `<button type="button" class="vx-addbar-txt" data-bar-bag><span class="vx-addbar-pic">${pic}</span><span><b>✓ ${had ? "Already in your bag" : "Added to bag"}</b><small>${esc(p.name)}${p.chosenSize ? ` · ${esc(p.chosenSize)}` : ""} · ${n} in bag</small></span></button>
+      <button type="button" class="vx-addbar-go" data-checkout>Checkout<span data-bar-total></span></button>
+      <button type="button" class="vx-addbar-x" data-bar-x aria-label="Close">×</button>`;
+    bar.hidden = false;
+    bar.classList.remove("run"); void bar.offsetWidth; bar.classList.add("run"); // the line that shows how long it stays
+    requestAnimationFrame(() => bar.classList.add("on"));
+    clearTimeout(barTimer); barTimer = setTimeout(hideBar, 7000);
+    const mine = bar.firstElementChild;
+    quote().then((q) => { const el = bar.querySelector("[data-bar-total]"); if (el && bar.firstElementChild === mine && q.goods) el.textContent = ` · ${rupees(q.goods)}`; });
+  }
+  function hideBar() { clearTimeout(barTimer); if (!bar) return; bar.classList.remove("on"); setTimeout(() => { if (!bar.classList.contains("on")) bar.hidden = true; }, 260); }
   function remove(id, size = "") { bag = bag.filter((l) => !(l.id === id && (l.size || "") === size)); save(); }
   function toggleWish(id) {
     wish = wish.includes(id) ? wish.filter((x) => x !== id) : [...wish, id];
@@ -121,7 +188,7 @@ window.VXBag = (() => {
       <button type="button" class="order co-cta" data-checkout>Checkout · ${rupees(q.goods)}</button>` : ""}
       ${off.length ? `<p class="co-small">Pieces marked in grey can't be ordered right now. Remove them to continue.</p>` : ""}
       <button type="button" class="co-back" data-close>Keep shopping</button></div>`;
-    if (added) window.VXTrack?.("bag_view", { n: q.goods });
+    window.VXTrack?.("bag_view", { n: q.goods });
   }
 
   async function checkout() {

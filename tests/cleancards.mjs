@@ -41,6 +41,7 @@ try {
   await b.nav(`${base}/`);
   await b.until(`document.querySelector(${JSON.stringify(card)})`);
   ok(await b.js(`!document.querySelector(".card .actions") && !document.querySelector(".card .enq") && !document.querySelector(".card .order")`), "no card has a button under it");
+  ok(await b.js(`Boolean(document.querySelector(${JSON.stringify(card + " .media .vx-quick")}))`), "the photo carries a small bag button");
   ok(await b.js(`Boolean(document.querySelector(${JSON.stringify(card + " .price b")})?.textContent.includes("999"))`), "the card still shows its name and price");
   await b.tap(`${card} .media .cover`);
   ok(await b.until(`location.pathname === "/p/${jacket}" || window.__opened`, 4000) || (await newTabOpened(b, jacket)), "a tap on the photo opens the product page");
@@ -61,8 +62,8 @@ try {
   ok(await b.until(`window.VXBag.bag().length === 1`, 3000), "a tap on a size adds it to the bag");
   ok((await b.js(`JSON.stringify(window.VXBag.bag())`)) === JSON.stringify([{ id: jacket, size: "XL", qty: 1 }]), "in the size they tapped");
   ok(await b.js(`!document.querySelector("dialog.vx-sizes").open`), "the size sheet closes");
-  ok(await b.until(`document.querySelector("dialog.vx-sheet:not(.vx-sizes)")?.open && /Added to your bag/.test(document.querySelector("dialog.vx-sheet:not(.vx-sizes)").textContent)`, 4000), "and the bag opens, saying it was added");
-  await b.tap(`dialog.vx-sheet:not(.vx-sizes) .ask-x`);
+  ok(await b.until(`document.querySelector(".vx-addbar.on") && /Added to bag/.test(document.querySelector(".vx-addbar").textContent)`, 4000), "and a small bar says it was added");
+  ok(await b.js(`!document.querySelector("dialog[open]")`), "nothing covers the page: they can keep shopping");
   ok((await b.js(`document.querySelector(".pdp-sizes .pill.on")?.dataset.pick`)) === "XL", "the page now shows the size they chose");
 
   // A size picked on the page itself: Add to bag adds it straight away, no sheet.
