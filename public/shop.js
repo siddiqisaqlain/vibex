@@ -52,11 +52,25 @@
   if (B.phone) { $("store-phone").textContent = B.phone; $("store-phone").href = `tel:${B.phone.replace(/\s/g, "")}`; }
   else $("store-phone").parentElement.hidden = true;
 
-  // Trust strip: only the numbers the owner confirmed (shop.json → claims.stats).
-  const stats = (S.claims && S.claims.stats) || [];
-  $("stats").innerHTML = stats.map((x, i) => `<div><span class="trust-no">${String(i + 1).padStart(2, "0")}</span>${/store|srinagar/i.test(`${x.big} ${x.small}`) ? `<a class="trust-link" href="#visit">` : ""}<p><b>${esc(x.big)}</b><span>${esc(x.small)}</span></p>${/store|srinagar/i.test(`${x.big} ${x.small}`) ? "</a>" : ""}</div>`).join("");
+  // Trust strip. Once the owner has agreed the policy pages (shop.json -> policy.confirmed), it is the
+  // shop's own promises, each one a link to where it is written down. Until then, the confirmed
+  // numbers (claims.stats). Nothing here that isn't on the Returns page or true of the store.
+  const P = S.policy || {};
+  const stats = P.confirmed ? [
+    { big: "100% original", small: "or your money back", href: "/returns" },
+    P.photoBeforeDispatch && { big: "See it first", small: "photo on WhatsApp before dispatch", href: "/returns" },
+    P.changeOfMindDays && { big: `${P.changeOfMindDays}-day returns`, small: "if you change your mind", href: "/returns" },
+    { big: "A real store", small: "Khanyaar, Srinagar", href: "#visit" },
+  ].filter(Boolean) : ((S.claims && S.claims.stats) || []).map((x) => ({ ...x, href: /store|srinagar/i.test(`${x.big} ${x.small}`) ? "#visit" : "" }));
+  $("stats").innerHTML = stats.map((x, i) => `<div><span class="trust-no">${String(i + 1).padStart(2, "0")}</span>${x.href ? `<a class="trust-link" href="${x.href}">` : ""}<p><b>${esc(x.big)}</b><span>${esc(x.small)}</span></p>${x.href ? "</a>" : ""}</div>`).join("");
   $("stats").hidden = !stats.length;
   $("stats").style.setProperty("--n", Math.max(1, stats.length));
+  // Under the headline: the one big number the owner confirmed (claims.orders), in a sentence.
+  const O = S.claims && S.claims.orders;
+  if (O && $("proof")) {
+    $("proof").innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l7.5 3v5.6c0 4.600-3.100 8.300-7.500 10.400-4.400-2.100-7.500-5.800-7.500-10.400V5.500z"/><path d="M8.300 12.200l2.600 2.600 4.800-5.200"/></svg><span><b>${esc(O.label)} ${esc(O.small)}</b> from our store in Srinagar to all of India</span>`;
+    $("proof").hidden = false;
+  }
 
   // ---- latest YouTube video: a plain picture until someone presses play, so YouTube's player
   // (about 1 MB of scripts) costs nothing on a normal visit. The server picks the video. ----
@@ -229,6 +243,114 @@
     for (const c of CATS) document.querySelectorAll(`a[data-jump="${c}"]`).forEach((a) => { a.style.display = products.some((p) => p.category === c) ? "" : "none"; });
   }
 
+  // ---- The drop: the hero's rotating piece. The brand's MRP shown big, slashed, and our price
+  // landing in its place. Only pieces whose MRP the owner entered; the freshest fill any gap.
+  // Stories-style bars on top: it moves on by itself, a tap on a bar or a swipe moves it by hand. ----
+  const DROP = 5;
+  function dropPicks() {
+    const ok = products.filter((p) => p.image && p.status === "available" && p.price);
+    const picks = [], perBrand = {};
+    const take = (p) => {
+      const b = (p.brand || p.name.split(" ")[0]).toLowerCase();
+      if (picks.length >= DROP || picks.some((x) => x.name === p.name) || (perBrand[b] || 0) >= 2) return;
+      perBrand[b] = (perBrand[b] || 0) + 1;
+      picks.push(p);
+    };
+    ok.filter(hasOffer).sort((a, b) => (b.mrp - b.price) - (a.mrp - a.price)).forEach(take);
+    if (picks.length < 3) ok.filter((p) => !hasOffer(p)).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).forEach(take);
+    // No two of a label in a row, where that can be helped.
+    const brandOf = (p) => (p.brand || p.name.split(" ")[0]).toLowerCase(), out = [];
+    while (picks.length) {
+      const left = (p) => picks.filter((x) => brandOf(x) === brandOf(p)).length; // the label with most still to show goes next
+      const free = picks.filter((p) => !out.length || brandOf(p) !== brandOf(out[out.length - 1]));
+      const next = free.sort((a, b) => left(b) - left(a))[0] || picks[0];
+      out.push(picks.splice(picks.indexOf(next), 1)[0]);
+    }
+    return out;
+  }
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let dropKey = "", dropAt = 0, dropSeen = null, dropRoll = 0;
+  function renderDrop() {
+    const box = $("drop");
+    if (!box) return;
+    const list = dropPicks();
+    box.hidden = !list.length;
+    const key = list.map((p) => `${p.id}:${p.price}:${p.mrp}:${p.quantity}:${p.image}`).join();
+    if (key === dropKey) return;
+    dropKey = key;
+    if (!list.length) { box.innerHTML = ""; return; }
+    dropAt = Math.min(dropAt, list.length - 1);
+    const many = list.length > 1;
+    const low = (p) => (p.quantity >= 2 && p.quantity <= 3 ? `Only ${p.quantity} left` : p.quantity === 1 && soldAt(p) ? "Last one" : "");
+    box.innerHTML = `
+      <div class="drop-top"><span class="drop-label"><span class="dot"></span>${list.some(hasOffer) ? "MRP vs our price" : "Just unpacked"}</span>
+        ${many ? `<div class="drop-bars">${list.map((p, i) => `<button type="button" data-drop="${i}" aria-label="Piece ${i + 1} of ${list.length}"><i></i></button>`).join("")}</div>` : ""}</div>
+      <div class="drop-stage">${list.map((p, i) => `
+        <a class="drop-card" href="${pdp(p)}" data-i="${i}">
+          <span class="drop-pic"><img ${i === dropAt ? "src" : "data-src"}="${esc(p.image)}" alt="${esc(p.name)}" decoding="async"${i === dropAt ? ` fetchpriority="high"` : ""}>${hasOffer(p) ? `<span class="drop-off">${offPct(p)}% off</span>` : ""}</span>
+          <span class="drop-info">
+            <span class="drop-brand">${esc(p.brand && p.brand !== p.name ? p.brand : p.category)}${low(p) ? `<i>${low(p)}</i>` : ""}</span>
+            <b class="drop-name">${esc(p.name)}</b>
+            ${hasOffer(p) ? `<span class="drop-mrp drop-was"><em>MRP</em><s>${rupees(p.mrp)}</s></span>` : `<span class="drop-mrp">Posted ${esc(agoAt(p.createdAt))}</span>`}
+            <span class="drop-price${hasOffer(p) ? " drop-cut" : ""}">${hasOffer(p) ? `<span class="drop-big" aria-hidden="true"><i class="a">${rupees(p.mrp)}</i><i class="b">${rupees(p.mrp)}</i><u><b></b></u></span>` : ""}<span class="drop-now" data-from="${hasOffer(p) ? p.mrp : p.price}" data-to="${p.price}">${rupees(p.price)}</span></span>
+            ${hasOffer(p) ? `<span class="drop-save">You save ${rupees(p.mrp - p.price)}</span>` : p.sizes ? `<span class="drop-size">${esc(p.sizes)}</span>` : ""}
+            <span class="drop-go">See this piece <span aria-hidden="true">→</span></span>
+          </span>
+        </a>`).join("")}</div>`;
+    const cards = [...box.querySelectorAll(".drop-card")], bars = [...box.querySelectorAll(".drop-bars button")];
+    const load = (i) => { const img = cards[i]?.querySelector("img[data-src]"); if (img) { img.src = img.dataset.src; img.removeAttribute("data-src"); } };
+    // The MRP stands big as the price, a red blade cuts it in two, the halves fall away and ours lands in
+    // its place (shop.css, replayed each time a card comes on). Our price then counts down from the MRP.
+    const roll = (card) => {
+      const el = card.querySelector(".drop-now"), from = Number(el.dataset.from), to = Number(el.dataset.to);
+      cancelAnimationFrame(dropRoll);
+      if (calm || from === to) { el.textContent = rupees(to); return; }
+      const t0 = performance.now(), wait = 1420, ms = 750;
+      el.textContent = rupees(from);
+      const step = (now) => {
+        const k = Math.min(1, Math.max(0, (now - t0 - wait) / ms)), e = 1 - Math.pow(1 - k, 3);
+        el.textContent = rupees(k < 1 ? Math.round((from - (from - to) * e) / 10) * 10 : to);
+        if (k < 1) dropRoll = requestAnimationFrame(step);
+      };
+      dropRoll = requestAnimationFrame(step);
+    };
+    const show = (i) => {
+      dropAt = (i + list.length) % list.length;
+      load(dropAt);
+      cards.forEach((c, n) => {
+        const on = n === dropAt;
+        c.classList.remove("on"); if (on) { void c.offsetWidth; c.classList.add("on"); }
+        c.tabIndex = on ? 0 : -1; c.setAttribute("aria-hidden", on ? "false" : "true");
+      });
+      bars.forEach((b, n) => { b.classList.remove("on"); b.classList.toggle("done", n < dropAt); if (n === dropAt) { void b.offsetWidth; b.classList.add("on"); } });
+      roll(cards[dropAt]);
+      load((dropAt + 1) % list.length); // the next photo is ready before its turn
+    };
+    box.onclick = (e) => {
+      const b = e.target.closest("[data-drop]");
+      if (b) show(Number(b.dataset.drop));
+      else if (box.dataset.swiped) { e.preventDefault(); delete box.dataset.swiped; }
+    };
+    box.onanimationend = (e) => { if (e.animationName === "dropbar") show(dropAt + 1); };
+    // A sideways swipe changes the piece; up and down still scrolls the page.
+    let sx = 0, sy = 0;
+    box.ontouchstart = (e) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; delete box.dataset.swiped; box.classList.add("held"); };
+    box.ontouchend = (e) => {
+      box.classList.remove("held");
+      const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+      if (many && Math.abs(dx) > 36 && Math.abs(dx) > Math.abs(dy) * 1.4) { box.dataset.swiped = "1"; show(dropAt + (dx < 0 ? 1 : -1)); setTimeout(() => delete box.dataset.swiped, 400); }
+    };
+    box.ontouchcancel = () => box.classList.remove("held");
+    // Stands still while off screen, so nothing runs for a customer who is down in the rack.
+    if (!dropSeen) {
+      dropSeen = new IntersectionObserver(([e]) => box.classList.toggle("away", !e.isIntersecting), { threshold: .35 });
+      dropSeen.observe(box);
+    }
+    show(dropAt);
+    const root = document.documentElement;
+    if (root.classList.contains("vx-pre")) new MutationObserver((_, o) => { if (!root.classList.contains("vx-pre")) { o.disconnect(); show(dropAt); } }).observe(root, { attributeFilter: ["class"] });
+  }
+
   // ---- Featured, above the rack: pieces ticked in the portal, then the priciest in stock.
   // Skips repeats of a name (several Tender Ambers). ----
   const FEATURED = 6;
@@ -240,9 +362,10 @@
     const chosen = ok.filter((p) => p.featured);
     const rest = ok.filter((p) => !p.featured).sort((a, b) => (b.price || 0) - (a.price || 0));
     const picks = [...chosen];
-    for (const p of rest) {
+    const up = dropPicks(); // already in the hero just above: Featured shows different pieces
+    for (const skip of [true, false]) for (const p of rest) {
       if (picks.length >= FEATURED) break;
-      if (picks.includes(p) || picks.some((x) => x.name === p.name)) continue;
+      if (picks.includes(p) || picks.some((x) => x.name === p.name) || (skip && up.some((x) => x.id === p.id || x.name === p.name))) continue;
       picks.push(p);
     }
     const list = picks.slice(0, FEATURED);
@@ -424,6 +547,7 @@
       renderGrid(fresh);
       renderCatTabs();
       renderHeroFeed();
+      renderDrop();
       renderLooks();
       renderFeatured();
       if (first) { renderTicker(); document.documentElement.classList.add("vx-ready"); }

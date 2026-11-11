@@ -72,15 +72,16 @@
     <div class="hero-copy">
       <p class="eyebrow"><span class="dot"></span>Live from Srinagar <i>34.08° N, 74.80° E</i></p>
       <h1>World brands.<br><span>One destination.</span></h1>
+      <p class="proof" id="proof" hidden></p>
       <p class="lede">Original surplus from the labels you know: jackets, fleece, footwear and fragrances at a fraction of retail. Every piece is posted the moment it's unpacked.</p>
       <div class="cta">
         <a class="btn btn-ink" href="#rack" data-jump="New">Shop new in <span aria-hidden="true">→</span></a>
         <a class="btn btn-line" href="#visit">Visit the store</a>
       </div>
     </div>
-    <aside class="hero-live" aria-label="From Srinagar, across India">
-      <div class="hl-head"><span class="dot"></span><b>Srinagar</b><time id="hl-clock"></time><span class="hl-ship">Shipping across India</span></div>
-      <div class="hl-map" id="hl-map" aria-hidden="true"></div>
+    <!-- Real pieces, one at a time: the brand's MRP against our price (renderDrop in shop.js) -->
+    <aside class="hero-live" aria-label="On the rack now">
+      <div class="drop" id="drop" hidden></div>
       <div class="hl-feed" id="hl-feed" hidden></div>
     </aside>
   </section>
@@ -275,7 +276,6 @@
 <script src="/wardrobe-teaser.js" defer></script>
 <script src="/salebar.js"></script>
 <script src="/motion.js"></script>
-<script src="/heromap.js"></script>
 <script src="/logo.js"></script>
 <script src="/newtab.js"></script>
 <script src="/track.js"></script><script src="/lab.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
