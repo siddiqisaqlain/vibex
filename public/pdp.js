@@ -80,8 +80,8 @@
   }
 
   const optionsOf = (p) => p.options || [];
-  // The smallest size in stock is chosen to start with (decided 2026-11-10): S before M before L,
-  // 50 ml before 100 ml. The customer can tap another size; their tap always wins.
+  // With several sizes nothing is chosen for them (2026-11-11): "Add to bag" asks for the size in a sheet,
+  // so nobody bags the wrong one without noticing. A piece with one size has it chosen already.
   const LETTER = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "4XL", "5XL"];
   const sizeRank = (size, i) => {
     const t = String(size).toUpperCase().replace(/\s+/g, "");
@@ -91,7 +91,7 @@
     return n ? Number(n[1]) : 2e6 + i;                           // 50 ml, 100ml, 32, 9.5; anything else keeps its order
   };
   const smallestOf = (list) => list.map((o, i) => ({ o, r: sizeRank(o.size, i) })).sort((a, b) => a.r - b.r)[0]?.o || null;
-  const chosenOf = (p) => { const o = optionsOf(p).filter((x) => x.left !== 0); return o.find((x) => x.size === pick) || smallestOf(o); };
+  const chosenOf = (p) => { const o = optionsOf(p).filter((x) => x.left !== 0); return o.find((x) => x.size === pick) || (optionsOf(p).length > 1 ? null : smallestOf(o)); };
   const multiPrice = (p) => new Set(optionsOf(p).map((o) => o.price)).size > 1;
 
   function sizePicker(p) {
@@ -104,6 +104,42 @@
         <div class="pills">${opts.map((o) => `<button type="button" class="pill${o.size === on ? " on" : ""}" data-pick="${esc(o.size)}" aria-pressed="${o.size === on}" ${o.left === 0 ? "disabled" : ""}>${label(o)}</button>`).join("")}</div>
         ${needPick ? `<p class="ask-err" role="alert">Choose your size to order</p>` : ""}
       </div>`;
+  }
+
+  // "Add to bag" with no size chosen slides the sizes up, and a tap on one adds that size.
+  let sheet = null;
+  function openSizes(p) {
+    if (!sheet) {
+      sheet = document.createElement("dialog");
+      sheet.className = "ask-dialog vx-sheet vx-sizes";
+      document.body.appendChild(sheet);
+      sheet.addEventListener("click", (e) => {
+        if (e.target === sheet || e.target.closest("[data-close]")) return sheet.close();
+        const b = e.target.closest("[data-size]");
+        if (!b) return;
+        const now = products.find((x) => x.id === id);
+        const o = now?.status === "available" && optionsOf(now).find((x) => x.size === b.dataset.size && x.left !== 0);
+        sheet.close();
+        if (!o) return render(); // it sold while the sheet was open
+        pick = o.size; needPick = false;
+        render();
+        O.place({ ...now, price: o.price, sizes: o.size, chosenSize: o.size });
+      });
+    }
+    const left = (o) => (o.left === 0 ? "Sold out" : o.left === 1 ? "Last one" : o.left <= 3 ? `${o.left} left` : multiPrice(p) ? "" : "In stock");
+    const help = waLink(`Hi Vibe X, what are the chest and length measurements of ${p.name}? (${lot(p)})`);
+    const pic = p.image ? `<img src="${esc(p.image)}" alt="">` : window.productArt(p, hash(p.id));
+    sheet.innerHTML = `<div class="co">
+      <button type="button" class="ask-x" data-close aria-label="Close">×</button>
+      <div class="ask-item"><div class="ask-thumb ${p.image ? "" : "art-bg"}">${pic}</div>
+        <div><span class="brand">${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><span class="mono">${multiPrice(p) ? "From " : ""}${rupees(p.price)}</span></div></div>
+      <h2>Select size</h2>
+      <div class="vx-size-grid" role="group" aria-label="Select size">${optionsOf(p).map((o) => `<button type="button" class="vx-size" data-size="${esc(o.size)}" ${o.left === 0 ? "disabled" : ""}><b>${esc(o.size)}</b>${multiPrice(p) && o.left !== 0 ? `<span>${rupees(o.price)}</span>` : ""}${left(o) ? `<span class="${o.left >= 1 && o.left <= 3 ? "low" : ""}">${left(o)}</span>` : ""}</button>`).join("")}</div>
+      <p class="co-small">Tap your size and it goes in your bag.</p>
+      ${help ? `<a class="pdp-size-help" href="${esc(help)}" target="_blank" rel="noopener" data-sizehelp="${esc(p.id)}">Not sure? Get measurements on WhatsApp</a>` : ""}
+    </div>`;
+    sheet.showModal();
+    window.VXTrack?.("size_sheet", { pr: p.id });
   }
 
   // The shop's promise, beside the button where the doubt is. Every line is read from the policy in shop.json, says the
@@ -301,6 +337,7 @@
     if (!p) return null;
     const chosen = chosenOf(p);
     if (optionsOf(p).length > 1 && !chosen) {
+      if (optionsOf(p).some((o) => o.left !== 0)) { openSizes(p); return null; }
       needPick = true;
       render();
       // Added here, not in render(): the 5-second refresh would replay the jiggle otherwise.

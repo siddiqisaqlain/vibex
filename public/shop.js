@@ -283,7 +283,6 @@
           <h3 class="name"><a href="${pdp(p)}">${esc(p.name)}</a></h3>
           <div class="price"><b>${p.price ? `${manyPrices(p) ? "From " : ""}${rupees(p.price)}` : "Price on request"}</b>${off && !manyPrices(p) ? `<s>${rupees(p.mrp)}</s><em>(${off}% off)</em>` : ""}</div>
           ${meta ? `<span class="meta">${meta}</span>` : ""}
-          ${window.VXOrder.button(p)}
         </div>
       </article>`;
   }

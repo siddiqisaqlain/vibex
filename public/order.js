@@ -69,14 +69,14 @@ window.VXOrder = (() => {
   // Primary: "Order now" (checkout with UPI / bank / number).
   // Secondary: "Enquire" (leave your number; the shop gets the photo + your details on WhatsApp).
   // On product pages only: a small "ask on Instagram / chat on WhatsApp" link as a last resort.
+  // Product pages only. A card on the rack is its photo, name and price, like an Instagram grid (2026-11-11):
+  // a tap opens the product page, and the buttons live there.
   function button(p, big = false) {
     if (p.status === "sold") return `<span class="order is-sold">Sold out</span>`;
     const enquire = `<button type="button" class="enq" data-ask="${esc(p.id)}" aria-label="Ask on WhatsApp">${WA}Enquire</button>`;
     if (p.status === "hold") return `<span class="order is-hold">On hold</span>${enquire}`;
     // Online ordering stays off until the shop's real payment details are in shop.json.
     const order = S.orderingOpen === false ? ""
-      : p.price && !big && (p.options || []).length > 1
-      ? `<a class="order order-now" href="${window.VX_BASE || ""}/p/${encodeURIComponent(p.id)}">${BAG}Choose size</a>`
       : p.price
       ? `<button type="button" class="order order-now" data-order="${esc(p.id)}">${BAG}Add to bag</button>`
       : `<span class="order is-sold">Price on request</span>`;
@@ -180,6 +180,8 @@ window.VXOrder = (() => {
     toast.timer = setTimeout(() => (t.hidden = true), ms);
   }
 
+  const place = (p) => (window.VXBag ? window.VXBag.add(p) : window.VXCheckout.open(p));
+
   // getProduct(id) -> product, supplied by the page. forOrder(id) -> the product as ordered
   // (with its size), or nothing if the customer still has to choose.
   function install(getProduct, forOrder = getProduct) {
@@ -187,7 +189,7 @@ window.VXOrder = (() => {
       const ord = e.target.closest("button[data-order]");
       if (ord) {
         const p = forOrder(ord.dataset.order);
-        if (p) (window.VXBag ? window.VXBag.add(p) : window.VXCheckout.open(p));
+        if (p) place(p);
         return;
       }
       const ask = e.target.closest("button[data-ask]");
@@ -212,5 +214,5 @@ window.VXOrder = (() => {
     });
   }
 
-  return { firstName, rememberName, savedDetails, rememberDetails, forgetDetails, keepDetails, tidyPhone, button, install, toast, lot, rupees, esc, hash, pageUrl };
+  return { firstName, rememberName, savedDetails, rememberDetails, forgetDetails, keepDetails, tidyPhone, button, install, place, toast, lot, rupees, esc, hash, pageUrl };
 })();
