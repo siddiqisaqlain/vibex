@@ -296,6 +296,13 @@ window.VXCheckout = (() => {
     if (!matchMedia("(pointer: coarse)").matches) form.querySelector("input[name=phone]").focus();
   }
 
+  // The shop's promise, said again where the money is asked for. Same words as the product page.
+  function safeLine() {
+    const P = S.policy || {};
+    if (!P.confirmed) return "";
+    return `<a class="co-safe" href="/returns" target="_blank" rel="noopener"><i aria-hidden="true">✓</i><span><b>Real, or your money back</b>${P.changeOfMindDays ? ` · ${O().esc(P.changeOfMindDays)}-day returns` : ""}</span></a>`;
+  }
+
   // For people who'd rather talk first: the same order, written out, on WhatsApp.
   function waOrder() {
     if (!S.whatsapp) return "";
@@ -341,6 +348,8 @@ window.VXCheckout = (() => {
       ${isPhone ? `<div class="co-pay">${upiButtons(link)}</div>` : ""}
       <details class="co-qr-more"><summary>${isPhone ? "Show QR" : "Other ways to pay"}</summary>${others}</details>
       ${O().quote("pay")}
+      ${safeLine()}
+      ${S.whatsapp ? `<a class="co-talk" data-co-talk href="https://wa.me/${esc(S.whatsapp)}?text=${encodeURIComponent(`Hi Vibe X, I have a question before I pay for order ${o.code}.`)}" target="_blank" rel="noopener">${WA_ICON}<span><b>Talk to us first</b> on WhatsApp</span></a>` : ""}
       <p class="co-foot"><span class="mono">Order ${esc(o.code)}</span><button type="button" class="co-back" data-back>Change details</button></p>
     </div>`, false);
     // The name box and the WhatsApp button come up only once they have started paying: a tap on a UPI app,

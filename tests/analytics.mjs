@@ -504,6 +504,19 @@ await check("a day's events survive a restart", async () => {
   await down;
   if (process.platform !== "win32") assert.match(fs.readFileSync(path.join(dir, "analytics", `${day}.jsonl`), "utf8"), new RegExp(id(8)));
 });
+await check("machines are counted apart, and the weeks add up", () => {
+  const t0 = Date.UTC(2026, 10, 11, 6), list = [];
+  const visit = (k, tz, dev, ms, more = []) => { const v = String(k).repeat(16), s = String(k + 1).repeat(16); list.push({ t: t0, v, s, e: "page", p: "/", dev, os: "Linux", tz, nw: 1 }, { t: t0 + ms, v, s, e: "leave", p: "/", n: ms }, ...more.map((x) => ({ t: t0 + 500, v, s, ...x }))); };
+  visit(1, "America/New_York", "Computer", 2000);                                      // a crawler: left out
+  visit(3, "Asia/Kolkata", "Computer", 2000);                                          // India: a person
+  visit(5, "America/New_York", "Phone", 2000);                                         // a phone: a person
+  visit(7, "America/New_York", "Computer", 40000);                                     // stayed: a person
+  visit(9, "Europe/Berlin", "Computer", 1000, [{ e: "bag_add", p: "/", pr: "x" }]);    // used the bag: a person
+  const d = summarise(list, { from: "2026-11-11", to: "2026-11-11" });
+  assert.equal(d.machines, 1); assert.equal(d.totals.visits, 4);
+  assert.deepEqual(d.weeks.map((w) => [w.week, w.visits, w.bag]), [["2026-11-09", 4, 1]]);
+  assert.equal(clean({ e: "wa", p: "/", x: "pay" }).x, "pay");
+});
 srv.kill();
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`all ${n} analytics checks passed`);

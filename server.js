@@ -2521,7 +2521,17 @@ async function billingRoute(req, res, route, url, who, body, reply, post, get) {
     const b = (await body()) || {};
     return reply(dm[3] === "cancel" ? documents.cancelDoc(dm[2]) : documents.convertDoc(dm[2], b));
   }
-  if (get && route === "orders") { const items = load(); return send(res, 200, loadOrders().slice(-200).reverse().map(({ proof, ...o }) => ({ ...o, lapsesAt: lapsesAt(o, items) }))); }
+  // stillHere: every piece of the order can still be bought, so a follow-up can honestly say "it's still here".
+  if (get && route === "orders") { const items = load(), here = new Map(items.map((p) => [p.id, p.status === "available"])); return send(res, 200, loadOrders().slice(-200).reverse().map(({ proof, ...o }) => ({ ...o, lapsesAt: lapsesAt(o, items), stillHere: orderLines(o).every((l) => here.get(l.productId)) }))); }
+  // The owner pressed "Follow up" or "Ask for a review": remember when, so nobody is messaged twice.
+  const om3 = /^orders\/(VX-\d{4})\/(followed|review-asked)$/.exec(route);
+  if (post && om3) {
+    const all = loadOrders(), o = all.find((x) => x.code === om3[1]);
+    if (!o) return send(res, 404, { error: "No such order." });
+    o[om3[2] === "followed" ? "followedAt" : "reviewAskedAt"] = new Date().toISOString();
+    saveOrders(all);
+    return send(res, 200, { ok: true });
+  }
   const om2 = /^orders\/(VX-\d{4})\/(confirm|cancel)$/.exec(route);
   if (post && om2) { const text = orderCommand(`${om2[2]} ${om2[1]}`); return /^[✅❌]/.test(text) ? send(res, 200, { ok: true, text }) : send(res, 409, { error: text.replace(/\n[\s\S]*/, "") }); }
   if (get && route === "reports") return send(res, 200, reports.LIST);

@@ -1602,3 +1602,35 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .vx-look-ink-buttons .pill.on { background: var(--ink); border-color: var(--ink); color: var(--paper); box-shadow: none; }
 .vx-look-ink-buttons .vx-size:active { background: var(--ink); color: var(--paper); }
 .vx-look-ink-buttons :is(.vx-size:hover, .vx-size:focus-visible) { border-color: var(--ink); box-shadow: inset 0 1px 0 #fff, 0 8px 18px rgba(18,18,18,.12); }
+
+/* ===== 2026-11-12: a quieter green. Less saturated, a little see-through on buttons, so it reassures
+   without shouting. Text on it still passes the 4.5:1 reading test. ===== */
+:root { --teal: #2e664d; --teal-soft: #e4eee8; --teal-bright: #9fcdb6; --teal-hi: rgba(56,114,87,.9); --teal-deep: rgba(36,82,62,.94); --teal-glow: rgba(46,102,77,.16); --teal-end: rgba(46,102,77,.92); }
+.vx-addbar-go, .co-cta, .co-cta:hover, .order-now, .order-now:hover { background: linear-gradient(180deg, var(--teal-hi), var(--teal-end)); border-color: transparent; }
+.co-details .co-cta, .co-details .co-cta:hover { background: linear-gradient(180deg, var(--teal-hi), var(--teal-end)); box-shadow: 0 6px 16px var(--teal-glow); }
+
+/* Talk to us first: a real button for WhatsApp, beside the way to buy and on the pay screen. */
+.pdp-info a.ask-talk, .co-talk { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; margin-top: 12px; padding: 0 16px; border: 1px solid var(--line-2); border-radius: 999px; background: #fff; font: 400 15px/1.2 var(--body); color: var(--ink); text-decoration: none; }
+.pdp-info a.ask-talk svg, .co-talk svg { width: 20px; height: 20px; flex: none; color: #1fa855; }
+.pdp-info a.ask-talk b, .co-talk b { font-weight: 600; }
+.co-talk { margin: 0; border-radius: 14px; min-height: 48px; }
+.co-safe { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; font: 400 14px/1.3 var(--body); color: var(--ink-2); text-decoration: none; }
+.co-safe i { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--teal); color: #fff; font: 700 12px/1 var(--body); font-style: normal; }
+.co-safe b { font-weight: 600; color: var(--ink); }
+/* Why is it this cheap? */
+.vx-why { margin: 14px 0 0; border: 1px solid var(--line-2); border-radius: 14px; background: #fff; }
+.vx-why summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 50px; padding: 0 16px; font: 600 15px/1.2 var(--body); color: var(--ink); cursor: pointer; list-style: none; }
+.vx-why summary::-webkit-details-marker { display: none; }
+.vx-why summary::after { content: "+"; font: 400 20px/1 var(--body); color: var(--muted); }
+.vx-why[open] summary::after { content: "–"; }
+.vx-why p { margin: 0; padding: 0 16px 12px; font: 400 14.5px/1.5 var(--body); color: var(--ink-2); }
+.rv-bought { font-style: normal; font-weight: 600; color: var(--teal); }
+
+/* The real shop, in its own photos. */
+.look-in { padding-top: 6px; }
+.look-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.look-row img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 14px; background: var(--paper-2); }
+.look-cap { margin: 10px 0 0; font: 400 14px/1.4 var(--body); color: var(--ink-2); }
+.look-cap b { color: var(--ink); font-weight: 600; }
+.look-cap a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 600px) { .look-row { grid-auto-flow: row; grid-template-columns: 1fr 1fr; } .look-row img:first-child:nth-last-child(odd) { grid-column: 1 / -1; aspect-ratio: 16 / 9; } }

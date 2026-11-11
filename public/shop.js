@@ -142,6 +142,16 @@
   }
   renderVideo();
 
+  // ---- the real shop: its own photos, near the top, for a stranger wondering if it exists ----
+  (() => {
+    const pics = (S.storePhotos || []).filter((x) => x && x.src).slice(0, 4);
+    if (!pics.length) return;
+    const where = S.business?.address ? S.business.address.split(",").slice(-4, -1).join(",").trim() : S.city;
+    $("shop-look").innerHTML = `<div class="look-row">${pics.map((x) => `<img src="${esc(x.src)}" alt="${esc(x.alt || "Inside the Vibe X store")}" loading="lazy" decoding="async">`).join("")}</div>
+      <p class="look-cap"><b>A real store you can walk into.</b> ${esc(where || "")}${S.maps ? ` · <a href="${esc(S.maps)}" target="_blank" rel="noopener">Directions</a>` : ""}</p>`;
+    $("shop-look").hidden = false;
+  })();
+
   // ---- what customers wrote to the shop ----
   (() => { const html = window.VXOrder.reviews(); if (html) { $("rv-body").innerHTML = html; $("reviews").hidden = false; } })();
 

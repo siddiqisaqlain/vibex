@@ -85,7 +85,7 @@ window.VXOrder = (() => {
     const heart = big && window.VXBag ? `<button type="button" class="vx-wish" data-wish="${esc(p.id)}" aria-pressed="false" aria-label="Save to wishlist"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 7.9 3.6 4.5 7 4.5c2 0 3.6 1.1 5 3 1.4-1.9 3-3 5-3 3.4 0 5.6 3.4 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2z"/></svg></button>` : "";
     if (big) {
       extra = S.whatsapp
-        ? `<a class="ask" href="${esc(`https://wa.me/${S.whatsapp}?text=${encodeURIComponent(message(p))}`)}" target="_blank" rel="noopener">or chat with us on WhatsApp</a>`
+        ? `<a class="ask ask-talk" href="${esc(`https://wa.me/${S.whatsapp}?text=${encodeURIComponent(message(p))}`)}" target="_blank" rel="noopener">${WA}<span><b>Talk to us first</b> on WhatsApp</span></a>`
         : `<a class="ask" href="${esc(igChat)}" target="_blank" rel="noopener" data-ig="${esc(p.id)}">or ask us on Instagram</a>`;
     }
     return `<div class="actions">${order}${enquire}${heart}</div>${extra}`;
@@ -272,7 +272,7 @@ window.VXOrder = (() => {
     const R = window.SHOP?.reviews, list = (R?.list || []).filter((r) => r && r.text).slice(0, limit);
     if (list.length < 3) return "";
     // Each card shows the heart of the message; a long one opens to the whole thing on a tap.
-    const card = (r) => `<figure class="rv-card"><blockquote${r.short ? ` data-short="${esc(r.short)}" data-full="${esc(r.text)}"` : ""}>${esc(r.short || r.text)}</blockquote>${r.short ? `<button type="button" class="rv-more" aria-expanded="false">Read full message</button>` : ""}<figcaption><b>${esc(r.name || "Vibe X customer")}</b>${r.place ? `<span>${esc(r.place)}</span>` : ""}<i>on ${esc(r.via || "WhatsApp")}</i></figcaption></figure>`;
+    const card = (r) => `<figure class="rv-card"><blockquote${r.short ? ` data-short="${esc(r.short)}" data-full="${esc(r.text)}"` : ""}>${esc(r.short || r.text)}</blockquote>${r.short ? `<button type="button" class="rv-more" aria-expanded="false">Read full message</button>` : ""}<figcaption><b>${esc(r.name || "Vibe X customer")}</b>${r.place ? `<span>${esc(r.place)}</span>` : ""}<i>${r.bought ? `<em class="rv-bought">✓ Bought here</em> · ` : ""}${r.when ? `${esc(r.when)} · ` : ""}on ${esc(r.via || "WhatsApp")}</i></figcaption></figure>`;
     return `<div class="rv-row" tabindex="0" role="group" aria-label="Customer messages">${list.map(card).join("")}</div>
       <p class="rv-note">Messages customers sent us, in their own words.${R.source ? ` <a href="${esc(R.source)}" target="_blank" rel="noopener">See the chats on Instagram →</a>` : ""}</p>`;
   }
@@ -296,5 +296,12 @@ window.VXOrder = (() => {
     return `<figure class="rv-one"><blockquote>${esc(r.line)}</blockquote><figcaption><b>${esc(who)}</b> · on ${esc(r.via || "WhatsApp")}${more ? ` · <a href="${esc(more)}">See all ${all.length}</a>` : ""}</figcaption></figure>`;
   }
 
-  return { reviews, quote, firstName, rememberName, savedDetails, rememberDetails, forgetDetails, keepDetails, tidyPhone, button, quick, install, place, toast, lot, rupees, esc, hash, pageUrl };
+  // "Why is it this cheap?": the shop's own answer (shop.json -> claims.surplus), folded away under the price.
+  function whyCheap() {
+    const C = window.SHOP?.claims?.surplus;
+    if (!C?.q || !C.a?.length) return "";
+    return `<details class="vx-why"><summary>${esc(C.q)}</summary>${C.a.map((x) => `<p>${esc(x)}</p>`).join("")}</details>`;
+  }
+
+  return { reviews, quote, whyCheap, firstName, rememberName, savedDetails, rememberDetails, forgetDetails, keepDetails, tidyPhone, button, quick, install, place, toast, lot, rupees, esc, hash, pageUrl };
 })();

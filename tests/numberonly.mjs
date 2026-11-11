@@ -39,7 +39,7 @@ async function run() {
     if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "green-addbar.png"));
     if (await b.js(`!!document.querySelector(".vx-count, [data-bag-open], .bag-btn")`)) { await b.js(`window.VXBag && window.VXBag.openSheet && window.VXBag.openSheet()`); await sleep(700); if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "green-bag.png")); }
     const col = await b.js(`(()=>{const e=document.querySelector(".vx-bag .co-cta, .vx-addbar-go");return e?getComputedStyle(e).backgroundImage:""})()`);
-    ok(/rgb\(23, 128, 63\)/.test(col), `the Checkout button is the green (${col.slice(0, 70)})`);
+    ok(/rgba\(46, 102, 77/.test(col), `the Checkout button is the quieter green (${col.slice(0, 70)})`);
     await b.js(`document.querySelector("dialog[open]")?.close(); localStorage.removeItem("vx-bag")`);
   };
   try {

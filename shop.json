@@ -79,6 +79,15 @@
     "shippingFee": null
   },
   "claims": {
+    "surplus": {
+      "_note": "DRAFT written 2026-11-12, for the owner to confirm or correct before anyone relies on it. Say only what is true of this shop's stock.",
+      "q": "Why is it this cheap?",
+      "a": [
+        "Surplus is original stock that a brand or its factory made but did not sell through the brand's own shops: extra production, last season's pieces and cancelled export orders.",
+        "It is the same product, sold outside the brand's stores, so the price is lower. Each piece is one of a few, which is why sizes are limited.",
+        "Every piece is in our Srinagar store, where you can see and try it. If it isn't what you expected, return it within 7 days."
+      ]
+    },
     "_note": "Homepage numbers. Only list what the owner has confirmed is true (misleading claims break the Consumer Protection Act). Add e.g. {\"big\":\"100,000+\",\"small\":\"orders delivered\"} once confirmed.",
     "stats": [
       {
@@ -149,8 +158,10 @@
     "perRupees": 100,
     "maxPct": 10
   },
+  "_storePhotos_note": "Two to four of the shop's OWN photos of the store (counter, racks, shopfront). Put the files in public/store/ and list them here as {\"src\": \"/store/counter.jpg\", \"alt\": \"The counter at Vibe X\"}. The home page shows them near the top once at least one is listed.",
+  "storePhotos": [],
   "reviews": {
-    "_note": "Real messages customers sent the shop, copied word for word from the shop's own Instagram highlights (Reviews, Customer review) on 2026-11-11. First names only, and only where the shop's post showed one. Never add a message nobody sent.",
+    "_note": "Real messages customers sent the shop, copied word for word from the shop's own Instagram highlights (Reviews, Customer review) on 2026-11-11. First names only, and only where the shop's post showed one. Never add a message nobody sent. New ones: add \"when\": \"Nov 2026\" and, only for someone who bought on this website or in the store, \"bought\": true. The owner asks for them from Online Orders > Ask for a review, which also asks permission to show the first name.",
     "source": "https://www.instagram.com/vibex.india/",
     "list": [
       {

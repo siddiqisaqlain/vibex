@@ -234,6 +234,7 @@
           ${sizePicker(p)}
           ${sizeGuide(p)}
           ${trust(p)}
+          ${p.status === "available" ? O.whyCheap() : ""}
           <p class="pdp-desc">${esc(p.description)}</p>
           <dl class="pdp-facts">
             ${p.sizes && (optionsOf(p).length < 2 || p.status !== "available") ? `<div><dt>Size</dt><dd>${esc(p.sizes)}</dd></div>` : ""}
