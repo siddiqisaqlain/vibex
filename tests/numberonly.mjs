@@ -13,8 +13,11 @@ const post = (u, body, headers = {}) => fetch(base + u, { method: "POST", header
 
 async function run() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-numberonly-"));
+  // A stand-in for the post office list, so the test never leaves this computer.
+  const http = await import("node:http");
+  const posts = http.createServer((q, r) => { r.setHeader("Content-Type", "application/json"); r.end(JSON.stringify(q.url.endsWith("/190001") ? [{ Status: "Success", PostOffice: [{ District: "Srinagar", State: "Jammu & Kashmir" }] }] : [{ Status: "Error", PostOffice: null }])); }).listen(PORT + 1);
   const srv = spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."), stdio: "ignore",
-    env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", ORDER_HOURS: "0-24", RENDER: "", PUBLIC_URL: "", PAY_SMS_TOKEN: "" } });
+    env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", ORDER_HOURS: "0-24", RENDER: "", PUBLIC_URL: "", PAY_SMS_TOKEN: "", PIN_LOOKUP: `http://localhost:${PORT + 1}/pincode/` } });
   for (let i = 0; i < 80; i++) { try { await fetch(base + "/api/products"); break; } catch { await sleep(100); } }
   const { product } = await (await post("/api/billing/items", { name: "Puma jacket", price: 2400, quantity: 5 }, { "x-owner-key": "k" })).json();
   const f = path.join(dir, "products.json"), all = JSON.parse(fs.readFileSync(f, "utf8"));
@@ -67,14 +70,39 @@ async function run() {
     ok(await b.js(`document.querySelector("[data-co-wa]").hidden === true`), "Or order on WhatsApp is out of the way at first");
     if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-empty.png"));
     await b.tap(".co-form .co-cta"); // nothing chosen yet: the form asks, and offers the way out
-    ok(await b.until(`document.querySelector("[data-co-wa]").hidden === false && /pick up or delivery/i.test(document.querySelector(".ask-err").textContent)`, 3000), "after a stumble on the form, Or order on WhatsApp appears");
+    ok(await b.until(`document.querySelector("[data-co-wa]").hidden === false && /10 digit WhatsApp number/.test(document.querySelector(".ask-err").textContent) && document.querySelector(".co-group").classList.contains("co-bad")`, 3000), "after a stumble on the form, the number box is marked and Or order on WhatsApp appears");
     ok(/order/.test(await b.js(`decodeURIComponent(document.querySelector("[data-co-wa]").href)`)), "its message says what they want to order");
     if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-stalled.png"));
     await b.fill(".co-form input[name=phone]", "9876500032");
-    await b.tap(".co-form input[name=delivery][value=pickup]");
+    ok(await b.until(`document.querySelector(".ask-err").hidden && !document.querySelector(".co-bad")`, 2000), "typing clears the mark");
+    ok(await b.js(`document.querySelector(".co-form input[name=delivery]").value === "ship" && !document.querySelector(".co-ship").hidden && !document.querySelector(".co-seg") && /pick up/i.test(document.querySelector("[data-co-how]").textContent)`), "no question to answer: delivery is assumed, with one line for picking up instead");
+    await b.tap(".co-form .co-cta");
+    ok(await b.js(`document.querySelector("[data-co-city]").hidden && !document.querySelector(".co-form input[name=pin]").closest("[hidden]") && !document.querySelector(".co-form input[name=address]").closest("[hidden]")`), "delivery starts with two boxes, the address and the PIN code");
+    ok(await b.until(`/house, street/.test(document.querySelector(".ask-err").textContent) && document.querySelector(".co-ship .co-group").classList.contains("co-bad") && !document.querySelector(".co-pay")`, 3000), "deliver with no address: the box is marked, nothing is sent");
+    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-address.png"));
+    await b.fill(".co-form input[name=pin]", "19ab");
+    ok(await b.until(`document.querySelector(".co-form input[name=pin]").value === "19" && /numbers only/.test(document.querySelector(".ask-err").textContent) && !document.querySelector(".ask-err").hidden && document.querySelector(".co-ship .co-group").classList.contains("co-bad")`, 3000), "letters typed into the PIN box are dropped, and the box says numbers only");
+    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-pin.png"));
+    const wipe = (n) => b.js(`(()=>{const e=document.querySelector(".co-form input[name=${n}]");e.value="";e.dispatchEvent(new Event("input",{bubbles:true}));})()`);
+    await wipe("pin");
+    ok(await b.js(`document.querySelector("[data-co-city]").hidden`), "the city box stays away until the PIN is in");
+    await b.fill(".co-form input[name=pin]", "190001");
+    ok(await b.until(`document.querySelector(".co-form input[name=city]").value === "Srinagar" && !document.querySelector("[data-co-city]").hidden`, 4000), "a full PIN code brings up the city, already written");
+    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-city.png"));
+    await b.fill(".co-form input[name=city]", "4");
+    ok(await b.until(`document.querySelector(".co-form input[name=city]").value === "Srinagar" && /City is letters only/.test(document.querySelector(".ask-err").textContent) && !document.querySelector(".ask-err").hidden`, 3000), "a digit typed into the city is dropped, and the box says so");
+    await b.fill(".co-form input[name=phone]", "x");
+    ok(await b.until(`document.querySelector(".co-form input[name=phone]").value === "9876500032" && /numbers only/.test(document.querySelector(".ask-err").textContent) && document.querySelector(".co-group").classList.contains("co-bad")`, 3000), "a letter typed into the number box is dropped, and the box says so");
+    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-letters.png"));
+    await wipe("pin"); await wipe("city"); await sleep(700);
+    await b.js(`window.VXOrder.forgetDetails()`);
+    if (await b.js(`document.querySelector(".co-form input[name=delivery]").value !== "pickup"`)) await b.tap("[data-co-how]");
     ok(await b.until(`/Pick up at the store/.test(document.querySelector("[data-bill-del]").textContent) && /Free/.test(document.querySelector("[data-bill-del]").textContent) && document.querySelector(".co-ship").hidden`, 3000), "choosing pick up adds a free pick-up row to the bill, and keeps the address boxes away");
     if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-pickup.png"));
     await b.tap(".co-form .co-cta");
+    ok(await b.until(`/Placing your order/.test(document.querySelector(".co-form .co-cta")?.textContent || "") && !document.querySelector(".co-pay")`, 800), "Place Order shows it is working before the screen changes");
+    ok(await b.until(`/Order placed/.test(document.querySelector(".co-form .co-cta")?.textContent || "")`, 3000), "then it says the order is placed");
+    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-placed.png"));
     ok(await b.until(`!!document.querySelector(".co-pay")`), `number and pick up are enough to reach the pay screen ${await b.js(`document.querySelector(".ask-err")?.textContent || ""`)}`);
     if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "pay-first.png"));
     ok(await b.js(`document.querySelector(".co-later").hidden === true`), "the name box and WhatsApp button stay out of the way at first");
@@ -122,15 +150,17 @@ async function run() {
     ok(await openCheckout("?form=b"), "form b opens for a delivery order");
     await b.js(`(()=>{const e=document.querySelector(".co-form input[name=phone]");e.value="";})()`);
     await b.fill(".co-form input[name=phone]", "9876500034");
-    await b.tap(".co-form input[name=delivery][value=ship]");
+    if (await b.js(`document.querySelector(".co-form input[name=delivery]").value !== "ship"`)) await b.tap("[data-co-how]");
     ok(await b.until(`/Add your PIN code/.test(document.querySelector("[data-bill-del]").textContent)`, 3000) && !(await b.js(`/kg inside Kashmir/.test(document.querySelector(".co-details").textContent)`)), "choosing delivery asks for the PIN in the bill, with no per-kg rates on show");
     if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-delivery-nopin.png"));
-    await b.fill(".co-form input[name=address]", "12 Lal Chowk");
-    await b.fill(".co-form input[name=city]", "Delhi");
     await b.fill(".co-form input[name=pin]", "110001");
+    ok(await b.until(`!document.querySelector("[data-co-city]").hidden && document.querySelector(".co-form input[name=city]").value === ""`, 4000), "a PIN the list doesn't know brings up an empty city box");
+    await sleep(400); // the boxes slide in
+    await b.fill(".co-form input[name=city]", "Delhi");
+    await b.fill(".co-form input[name=address]", "12 Lal Chowk");
     await sleep(800);
     const bill = await b.js(`[...document.querySelectorAll(".co-brow:not([hidden])")].map(e=>e.textContent.replace(/\\s+/g," ")).join(" | ")`);
-    ok(/Delivery.*₹130/.test(bill) && /Total.*₹2,530/.test(bill) && /₹2,530/.test(await b.js(`document.querySelector(".co-cta").textContent`)), `the bill shows the delivery charge and the total, and Pay matches (${bill})`);
+    ok(/Delivery.*₹130/.test(bill) && /Total.*₹2,530/.test(bill) && /Place Order/.test(await b.js(`document.querySelector(".co-cta").textContent`)), `the bill shows the delivery charge and the total, above Place Order (${bill})`);
     if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-delivery.png"));
     await b.tap(".co-form .co-cta");
     if (await b.until(`!!document.querySelector(".co-paynow")`)) {
@@ -148,7 +178,7 @@ async function run() {
     const t = await (await fetch(base + "/api/billing/form-test", { headers: { "x-owner-key": "k" } })).json();
     ok(t.a && t.b && typeof t.b.opened === "number", `the owner can read the test's counts (${JSON.stringify(t)})`);
     ok(b.errors.length === 0, `no page errors ${b.errors.join(" | ")}`);
-  } finally { b.close(); srv.kill(); await sleep(300); }
+  } finally { b.close(); srv.kill(); posts.closeAllConnections(); posts.close(); await sleep(300); }
 }
 
 async function browser({ width, height, mobile, ua }, port) {

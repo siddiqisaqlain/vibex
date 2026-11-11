@@ -325,6 +325,28 @@ function clientIp(req) {
 
 const recent = new Map(); // ip -> timestamps, a simple flood guard
 const FLOOD_MS = 10 * 60e3;
+// PIN code -> city, for the order form, so the customer need not type the city. Looked up from India's
+// post office list (api.postalpincode.in), kept in memory, and never in the way: no answer in 2.5 s, or
+// too many asks from one place, and the form just leaves the city box for the customer to fill.
+const pinSeen = new Map(), pinAsks = new Map();
+const PIN_LOOKUP = process.env.PIN_LOOKUP === undefined ? "https://api.postalpincode.in/pincode/" : process.env.PIN_LOOKUP;
+async function pinPlace(raw, ip) {
+  const pin = String(raw || "");
+  if (!/^[1-9]\d{5}$/.test(pin)) return {};
+  if (pinSeen.has(pin)) return pinSeen.get(pin);
+  if (!PIN_LOOKUP) return {};
+  const now = Date.now(), a = pinAsks.get(ip);
+  if (a && now - a.t < 60e3) { if (++a.n > 20) return {}; } else { if (pinAsks.size > 5000) pinAsks.clear(); pinAsks.set(ip, { t: now, n: 1 }); }
+  try {
+    const r = await fetch(PIN_LOOKUP + pin, { signal: AbortSignal.timeout(2500) });
+    const po = (await r.json())?.[0]?.PostOffice?.[0];
+    const clean = (s) => String(s || "").replace(/[^\p{L} .&'-]/gu, "").trim().slice(0, 60);
+    const out = po ? { city: clean(po.District), state: clean(po.State) } : {};
+    if (r.ok) { if (pinSeen.size > 20000) pinSeen.clear(); pinSeen.set(pin, out); }
+    return out;
+  } catch { return {}; }
+}
+
 function tooMany(ip) {
   const now = Date.now();
   const list = (recent.get(ip) || []).filter((t) => now - t < FLOOD_MS);
@@ -2574,6 +2596,7 @@ async function handle(req, res) {
       if (toDomain(req, res, p, url)) return;
       if (req.method === "GET" && p === "/api/products") return send(res, 200, publicProducts());
       if (req.method === "GET" && p === "/api/recent-sales") return send(res, 200, recentSales());
+      if (req.method === "GET" && p.startsWith("/api/pin/")) return send(res, 200, await pinPlace(p.slice(9), clientIp(req)), "application/json", "public, max-age=86400");
       if (p === "/webhook" && (req.method === "GET" || req.method === "POST")) return await whatsappWebhook(req, res, url);
       if (req.method === "POST" && p === "/api/enquiry") return await handleEnquiry(req, res);
       if (req.method === "POST" && p === "/api/orders") return await createOrder(req, res);

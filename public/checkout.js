@@ -96,6 +96,13 @@ window.VXCheckout = (() => {
     const { esc } = O();
     const f = state.form, goods = state.goods;
     const short = state.arm === "b";
+    // No question to answer: it is delivered unless they say they will collect it. A returning
+    // customer who collected last time opens on that.
+    const pickup = f.delivery === "pickup";
+    // Delivery asks for two things, the address and the PIN code. The city box comes up, already
+    // written, once the PIN is in.
+    const rest = /^[1-9]\d{5}$/.test(f.pin || "") || Boolean(f.city);
+    const HOW = { pickup: "Pick up from the store instead", ship: "Get it delivered instead" }, HEAD = { ship: "Deliver to", pickup: "Pick up" };
     const C = S.policy?.courier;
     const shipNote = C?.perKg ? `${C.insideKashmirPerKg ? `${O().rupees(C.insideKashmirPerKg)}/kg inside Kashmir, ` : ""}${O().rupees(C.perKg)}/kg outside Kashmir, shown before you pay.` : PAY.shippingFee == null ? "Courier charge depends on your location. We'll tell you the exact amount on WhatsApp before dispatch; if you don't want to pay it, cancel for a full refund." : PAY.shippingFee === 0 ? "Free shipping." : `Shipping: ${O().rupees(PAY.shippingFee)}.`;
     const coinBox = state.coinsUsable > 0
@@ -118,20 +125,17 @@ window.VXCheckout = (() => {
           ${short ? "" : `<label class="co-line"><input name="name" autocomplete="name" maxlength="60" placeholder="Your name" aria-label="Your name" value="${esc(f.name || "")}" required></label>`}
         </div>
         ${short && f.name ? `<input type="hidden" name="name" value="${esc(f.name)}">` : ""}
-        <fieldset class="co-choice co-seg"><legend class="co-sr">How do you want it?</legend>
-          <label><input type="radio" name="delivery" value="pickup" ${f.delivery === "pickup" ? "checked" : ""}><span>Pick up</span></label>
-          <label><input type="radio" name="delivery" value="ship" ${f.delivery === "ship" ? "checked" : ""}><span>Deliver</span></label>
-        </fieldset>
-        <div class="co-ship" ${f.delivery === "ship" ? "" : "hidden"}>
+        <input type="hidden" name="delivery" value="${pickup ? "pickup" : "ship"}">
+        <div class="co-head"><b data-co-title>${pickup ? HEAD.pickup : HEAD.ship}</b><button class="co-how" type="button" data-co-how>${pickup ? HOW.ship : HOW.pickup}</button></div>
+        <div class="co-ship" ${pickup ? "hidden" : ""}>
           <div class="co-group">
             <label class="co-line"><input name="address" autocomplete="street-address" maxlength="300" value="${esc(f.address || "")}" placeholder="House, street, area" aria-label="Address"></label>
-            <div class="co-line co-two">
-              <label><input name="city" autocomplete="address-level2" maxlength="60" value="${esc(f.city || "")}" placeholder="City" aria-label="City"></label>
-              <label><input name="pin" inputmode="numeric" autocomplete="postal-code" maxlength="6" value="${esc(f.pin || "")}" placeholder="PIN code" aria-label="PIN code"></label>
-            </div>
+            <label class="co-line"><input name="pin" inputmode="numeric" autocomplete="postal-code" maxlength="6" value="${esc(f.pin || "")}" placeholder="PIN code" aria-label="PIN code"></label>
+            <label class="co-line co-cityline" data-co-city ${rest ? "" : "hidden"}><span class="co-pre">City</span><input name="city" autocomplete="address-level2" maxlength="60" value="${esc(f.city || "")}" placeholder="Your city" aria-label="City"></label>
           </div>
           <p class="co-small co-fee" role="status" hidden></p>
         </div>
+        <p class="co-pick" ${pickup ? "" : "hidden"}><b>${esc(S.city ? `Vibe X, ${S.city}` : "Vibe X store")}</b><span>Collect it from the store. No delivery charge.</span></p>
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
         ${short && !f.name ? "" : `<label class="co-hide"><input type="checkbox" name="hideName" value="1" ${f.hideName ? "checked" : ""}><span>Don't show my name on the site</span></label>`}
         ${coinBox}
@@ -154,12 +158,16 @@ window.VXCheckout = (() => {
     if (err) showWa(); else if (!state.waShown) state.waTimer = setTimeout(showWa, 20000);
     form.querySelector("[data-co-wa]")?.addEventListener("click", () => window.VXTrack?.("nudge_tap", { x: "wa_order" }));
     form.addEventListener("change", (e) => {
-      if (e.target.name === "delivery") {
-        form.querySelector(".co-ship").hidden = e.target.value !== "ship";
-        const er = form.querySelector(".ask-err"); if (/pick up or delivery/i.test(er.textContent)) er.hidden = true;
-        showFee();
-      }
       if (e.target.name === "useCoins") showFee();
+    });
+    form.querySelector("[data-co-how]").addEventListener("click", (e) => {
+      const to = form.elements.delivery.value === "pickup" ? "ship" : "pickup";
+      form.elements.delivery.value = to;
+      form.querySelector(".co-ship").hidden = to === "pickup";
+      form.querySelector(".co-pick").hidden = to !== "pickup";
+      e.currentTarget.textContent = to === "pickup" ? HOW.ship : HOW.pickup;
+      form.querySelector("[data-co-title]").textContent = HEAD[to];
+      clearBad(); hold(); O().rememberDetails({ delivery: to }); showFee();
     });
     // The courier charge is shown before payment, and it comes from the server, which also sets the order's total.
     let asked = 0;
@@ -186,19 +194,82 @@ window.VXCheckout = (() => {
       row("[data-bill-total]", Boolean(label) || coinsOff() > 0 || state.lines.length > 1, null, rupees(total));
       box.textContent = text; box.hidden = !text;
     }
-    form.elements.pin.addEventListener("input", showFee);
+    // Letters in the PIN box are taken out, and the box says why, so it never looks broken.
+    // The same for letters in the number box, and digits in a name or city.
+    let pinSaid = false;
+    const only = (el, drop, block, msg) => el?.addEventListener("input", () => {
+      const v = el.value.replace(drop, "");
+      if (v !== el.value) { el.value = v; pinSaid = true; mark(block(), msg); }
+    });
+    const who = () => form.querySelector(".co-group"), shipBox = () => form.querySelector(".co-ship .co-group");
+    only(form.elements.phone, /[^\d+ -]/g, who, "WhatsApp number is numbers only, 10 digits.");
+    if (!short) only(form.elements.name, /[\d@#$%^*_=<>{}\[\]|\\/~`]/g, who, "Name is letters only.");
+    only(form.elements.city, /[\d@#$%^*_=<>{}\[\]|\\/~`]/g, shipBox, "City is letters only.");
+    only(form.elements.pin, /\D/g, shipBox, "PIN code is numbers only, 6 digits.");
+    form.elements.phone.addEventListener("blur", (e) => { O().tidyPhone(e.target); const d = e.target.value.replace(/\D/g, ""); if (d && !/^[6-9]\d{9}$/.test(d)) mark(who(), d.length === 10 ? "That doesn't look like a mobile number." : "WhatsApp number should be 10 digits."); });
+    // The city box stays away until the PIN is in. A full PIN brings it up with the city already written,
+    // for the customer to confirm or correct; if the PIN isn't in the post office list, it comes up empty.
+    // A city the customer wrote themselves is never replaced.
+    let cityAuto = "";
+    const showCity = () => { form.querySelector("[data-co-city]").hidden = false; };
+    const fillCity = async () => {
+      const pin = form.elements.pin.value, city = form.elements.city;
+      if (!/^[1-9]\d{5}$/.test(pin)) return;
+      if (city.value.trim() && city.value !== cityAuto) return showCity();
+      const r = await fetch(`/api/pin/${pin}`).then((x) => x.json()).catch(() => null);
+      if (form.elements.pin.value !== pin || !dlg.contains(form)) return;
+      showCity();
+      if (!r?.city || (city.value.trim() && city.value !== cityAuto)) return;
+      city.value = cityAuto = r.city; hold(); O().rememberDetails({ city: r.city });
+    };
+    form.elements.pin.addEventListener("input", () => { fillCity(); showFee(); });
+    form.elements.pin.addEventListener("blur", (e) => { const v = e.target.value; if (v && !/^[1-9]\d{5}$/.test(v) && !form.querySelector(".co-ship").hidden) mark(form.querySelector(".co-ship .co-group"), "PIN code should be 6 digits."); });
+    // A slip is pointed out where it is: the box is marked, the message sits right under it, and the
+    // cursor goes there. Nothing is sent to the shop until every box needed is filled.
+    const errEl = form.querySelector(".ask-err"), errHome = errEl.nextElementSibling;
+    const clearBad = () => { if (pinSaid) { pinSaid = false; return; } if (!form.querySelector(".co-bad")) return; form.querySelectorAll(".co-bad").forEach((el) => el.classList.remove("co-bad")); errEl.hidden = true; errHome.before(errEl); };
+    form.addEventListener("input", clearBad);
+    form.addEventListener("change", clearBad);
+    const mark = (block, msg) => {
+      form.querySelectorAll(".co-bad").forEach((el) => el.classList.remove("co-bad"));
+      block.classList.add("co-bad"); block.after(errEl);
+      errEl.textContent = msg; errEl.hidden = false;
+    };
+    const fail = (block, msg, input) => {
+      mark(block, msg);
+      window.VXTrack?.("formerr", { x: msg });
+      showWa();
+      block.scrollIntoView({ block: "center", behavior: "smooth" });
+      if (input) input.focus({ preventScroll: true });
+      return false;
+    };
+    const check = () => {
+      const el = form.elements, who = form.querySelector(".co-group"), ship = form.querySelector(".co-ship .co-group");
+      O().tidyPhone(el.phone);
+      if (!/^[6-9]\d{9}$/.test(el.phone.value.replace(/\D/g, ""))) return fail(who, "Enter your 10 digit WhatsApp number.", el.phone);
+      if (!short && !el.name.value.trim()) return fail(who, "Add your name.", el.name);
+      if (el.delivery.value === "ship") {
+        if (!el.address.value.trim()) return fail(ship, "Add your house, street and area.", el.address);
+        if (!/^[1-9]\d{5}$/.test(el.pin.value)) return fail(ship, el.pin.value ? "PIN code should be 6 digits." : "Add your PIN code.", el.pin);
+        showCity();
+        if (!el.city.value.trim()) return fail(ship, "Add your city.", el.city);
+      }
+      return true;
+    };
     showFee();
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      // Nothing is ticked for a new customer (so the address boxes stay out of the way): ask, never guess.
-      if (!form.elements.delivery.value) { const er = form.querySelector(".ask-err"); er.textContent = "Choose pick up or delivery."; er.hidden = false; showWa(); form.querySelector(".co-choice").scrollIntoView({ block: "center", behavior: "smooth" }); return; }
-      O().tidyPhone(form.elements.phone);
+      if (!check()) return;
       state.form = Object.fromEntries(new FormData(form));
       O().rememberDetails(state.form);
       if (form.elements.useCoins) state.form.useCoins = form.elements.useCoins.checked ? "1" : "";
       const btn = form.querySelector(".co-cta");
+      // The button works for a moment and then says the order is placed, before the pay screen comes in:
+      // a beat to see that the tap landed, instead of a screen that changes under the thumb.
+      const began = Date.now(), pause = (ms) => new Promise((r) => setTimeout(r, ms));
       btn.disabled = true;
-      btn.textContent = "One moment…";
+      btn.classList.add("is-busy");
+      btn.textContent = "Placing your order…";
       try {
         const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...state.form, useCoins: Boolean(state.form.useCoins), holdToken: window.VXVisit?.s, lines: state.bag, form: state.arm, ...(short ? { nameLater: true } : {}) }) });
         const out = await res.json().catch(() => ({}));
@@ -210,7 +281,11 @@ window.VXCheckout = (() => {
         state.ranOut = false;
         window.VXTrack?.("details", { pr: state.lines[0].productId, n: goods, k: state.lines.length });
         if (state.form.name) window.VXOrder.rememberName(state.form.name);
-        stepPay();
+        await pause(Math.max(0, 900 - (Date.now() - began)));
+        btn.classList.replace("is-busy", "is-done");
+        btn.textContent = "Order placed";
+        await pause(650);
+        if (state.order === out && dlg.open) stepPay();
       } catch (ex) {
         window.VXTrack?.("formerr", { x: ex.message });
         stepDetails(ex.message);

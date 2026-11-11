@@ -31,7 +31,7 @@ async function run(sms) {
         ok(await b.until(`!!document.querySelector(".co-form")`), `${tag}: details step opens`);
         await b.fill("input[name=phone]", "9876500021");
         await b.fill("input[name=name]", "Aamir");
-        await b.tap("input[name=delivery][value=pickup]");
+        if (await b.js(`document.querySelector(".co-form input[name=delivery]").value !== "pickup"`)) await b.tap("[data-co-how]");
         await b.tap(".co-form .co-cta");
         ok(await b.until(`!!document.querySelector(".co-pay")`), `${tag}: pay step opens`);
         await sleep(300);

@@ -14,7 +14,7 @@ const val = (n) => `document.querySelector(".co-form input[name=${n}]")?.value`;
 async function run() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-remember-"));
   const srv = spawn(process.execPath, ["server.js"], { cwd: path.resolve(import.meta.dirname, ".."), stdio: "ignore",
-    env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", ORDER_HOURS: "0-24", RENDER: "", PUBLIC_URL: "", PAY_SMS_TOKEN: "" } });
+    env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, OWNER_KEY: "k", WA_TOKEN: "", ANTHROPIC_API_KEY: "", ORDER_HOURS: "0-24", RENDER: "", PUBLIC_URL: "", PAY_SMS_TOKEN: "", PIN_LOOKUP: "" } });
   for (let i = 0; i < 80; i++) { try { await fetch(base + "/api/products"); break; } catch { await sleep(100); } }
   const { product } = await (await fetch(base + "/api/billing/items", { method: "POST", headers: { "Content-Type": "application/json", "x-owner-key": "k" }, body: JSON.stringify({ name: "Puma jacket", price: 2400, quantity: 3 }) })).json();
   const f = path.join(dir, "products.json"), all = JSON.parse(fs.readFileSync(f, "utf8"));
@@ -40,13 +40,15 @@ async function run() {
     // Leaves without ordering, comes back later.
     ok(await openCheckout(), "details step opens again after a reload");
     ok(await b.js(`${val("phone")} === "9876500021" && ${val("name")} === "Aamir Khan"`), `name and number are already filled in (${await b.js(val("name"))}, ${await b.js(val("phone"))})`);
-    await b.tap(".co-form input[name=delivery][value=ship]");
-    await b.fill(".co-form input[name=address]", "12 Lal Chowk");
-    await b.fill(".co-form input[name=city]", "Srinagar");
+    if (await b.js(`document.querySelector(".co-form input[name=delivery]").value !== "ship"`)) await b.tap("[data-co-how]");
     await b.fill(".co-form input[name=pin]", "190001");
+    await b.until(`!document.querySelector("[data-co-city]").hidden`, 4000);
+    await sleep(400); // the boxes slide in
+    await b.fill(".co-form input[name=city]", "Srinagar");
+    await b.fill(".co-form input[name=address]", "12 Lal Chowk");
     await sleep(700);
     ok(await openCheckout(), "details step opens a third time");
-    ok(await b.js(`${val("address")} === "12 Lal Chowk" && ${val("city")} === "Srinagar" && ${val("pin")} === "190001" && document.querySelector(".co-form input[name=delivery][value=ship]").checked`), "delivery choice and address are remembered too");
+    ok(await b.js(`${val("address")} === "12 Lal Chowk" && ${val("city")} === "Srinagar" && ${val("pin")} === "190001" && document.querySelector(".co-form input[name=delivery]").value === "ship"`), `delivery choice and address are remembered too (${await b.js(`[${val("address")}, ${val("city")}, ${val("pin")}, document.querySelector(".co-form input[name=delivery]").value].join("|")`)})`);
     // The enquiry form uses the same saved name and number.
     await b.nav(page);
     if (await b.js(`!!document.querySelector(".pdp-info [data-ask]")`)) {
@@ -59,7 +61,7 @@ async function run() {
     await b.fill(".co-form input[name=phone]", "919876500021");
     ok(await b.js(`${val("phone")} === "9876500021"`), "typing 91 first is trimmed to ten digits");
     await b.fill(".co-form input[name=name]", "Aamir");
-    await b.tap(".co-form input[name=delivery][value=pickup]");
+    if (await b.js(`document.querySelector(".co-form input[name=delivery]").value !== "pickup"`)) await b.tap("[data-co-how]");
     await b.tap(".co-form .co-cta");
     ok(await b.until(`!!document.querySelector(".co-pay")`), "the order goes through to the pay step");
     ok(await b.js(`JSON.parse(localStorage.getItem("vx-details")).phone === "9876500021"`), "the details are saved when the order starts");
