@@ -1569,3 +1569,15 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
   .trust-link { min-width: 0; }
   .trust-link b::after { content: none; }
 }
+
+/* ===== Split test, 2026-11-11: black order buttons against the green (lib/lab.js look "ink-buttons").
+   The owner felt the green on buttons was throwing customers off; a day of numbers could not say either way.
+   Half the visitors get this class on <html> (lab-client.js) and see every button that moves an order forward in
+   the shop's own black, like "Shop new in". Green stays for small reassurance: ticks, "you save", done steps.
+   On the black bag bar the button is paper instead. Whichever wins is kept from the Analytics page. ===== */
+.vx-look-ink-buttons :is(.order-now, .order-now:hover, .co-cta, .co-cta:hover, .pdp-zadd, .pdp-zadd:hover) { background: var(--ink); border-color: var(--ink); color: var(--paper); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 8px 20px rgba(18,18,18,.2); }
+.vx-look-ink-buttons .co-details :is(.co-cta, .co-cta:hover) { background: var(--ink); color: var(--paper); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 8px 20px rgba(18,18,18,.2); }
+.vx-look-ink-buttons .vx-addbar-go { background: var(--paper); border-color: var(--paper); color: var(--ink); box-shadow: none; }
+.vx-look-ink-buttons .pill.on { background: var(--ink); border-color: var(--ink); color: var(--paper); box-shadow: none; }
+.vx-look-ink-buttons .vx-size:active { background: var(--ink); color: var(--paper); }
+.vx-look-ink-buttons :is(.vx-size:hover, .vx-size:focus-visible) { border-color: var(--ink); box-shadow: inset 0 1px 0 #fff, 0 8px 18px rgba(18,18,18,.12); }
