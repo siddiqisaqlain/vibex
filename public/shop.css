@@ -8,7 +8,7 @@
   --card: #fbfaf8;      /* raised surfaces, dialogs */
   --ink: #121212;
   --ink-2: #3d3c39;
-  --muted: #85837d;
+  --muted: #6d6b65;
   --faint: #b5b2aa;
   --line: rgba(18,18,18,.12);
   --line-2: rgba(18,18,18,.22);
@@ -1299,7 +1299,7 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .co-details .co-pre { flex: none; padding: 0 2px 0 16px; font: 500 17px/1 var(--body, system-ui, sans-serif); color: var(--muted); }
 .co-details .co-form .co-group input:not([type=radio]):not([type=checkbox]) { flex: 1; min-width: 0; width: 100%; min-height: 54px; padding: 0 16px; border: 0; border-radius: 0; background: none; font: 400 17px/1.2 var(--body, system-ui, sans-serif); color: var(--ink); }
 .co-details .co-pre + input { padding-left: 8px !important; }
-.co-details .co-form .co-group input::placeholder { color: #a9a59c; }
+.co-details .co-form .co-group input::placeholder { color: #77746d; }
 .co-details .co-form .co-group input:focus { outline: none; box-shadow: none; }
 .co-details .co-group:focus-within { border-color: var(--ink); }
 .co-details .co-two { display: grid; grid-template-columns: 1.3fr 1fr; }
@@ -1419,7 +1419,7 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .co-details .ask-err { text-align: left; padding: 0 4px; font-size: 13px; }
 .co-details .co-bad + .ask-err { margin-top: -8px; }
 .co-details .co-cityline input { font-weight: 500; }
-.co-details .consent { font-size: 11px; line-height: 1.45; color: #9a968d; }
+.co-details .consent { font-size: 11px; line-height: 1.45; }
 .co-details .co-cta.is-busy, .co-details .co-cta.is-done { opacity: 1; cursor: default; }
 .co-details .co-cta.is-busy::before { width: 18px; height: 18px; -webkit-mask: none; mask: none; background: none; border: 2.5px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: co-spin .7s linear infinite; }
 .co-details .co-cta.is-done::before { -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.2 16.6 4.9 12.3l-1.6 1.6 5.9 5.9L21 8l-1.6-1.6z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.2 16.6 4.9 12.3l-1.6 1.6 5.9 5.9L21 8l-1.6-1.6z'/%3E%3C/svg%3E") center / contain no-repeat; width: 20px; height: 20px; animation: pop .35s cubic-bezier(.2,.9,.3,1.5); }

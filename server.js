@@ -213,18 +213,31 @@ const TYPES = {
   ".json": "application/json", ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp",
 };
 
+// Sent with every reply: keep the browser on https, don't let it guess a file's type, don't let another
+// site put this one in a frame, and tell other sites only where a visitor came from, not which page.
+const SAFE = { "Strict-Transport-Security": "max-age=31536000", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "SAMEORIGIN", "Referrer-Policy": "strict-origin-when-cross-origin" };
+
 function send(res, status, body, type = "application/json", cache = "no-store") {
   if (res.onSend) { const f = res.onSend; res.onSend = null; f(status, body); } // requestId replies (billingApi)
-  res.writeHead(status, { "Content-Type": type, "Cache-Control": cache });
+  res.writeHead(status, { "Content-Type": type, "Cache-Control": cache, ...SAFE });
   res.end(typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
-function serveFile(res, base, rel, cache) {
+// Files carry a tag made from their size and date. The browser keeps its copy and asks "still the same?"
+// (no-cache), and gets a short 304 instead of the whole file again; a new deploy changes the tag at once.
+function serveFile(res, base, rel, cache = "no-cache") {
   const file = path.normalize(path.join(base, rel));
   if (!file.startsWith(base)) return send(res, 403, { error: "forbidden" });
-  fs.readFile(file, (err, buf) => {
-    if (err) return send(res, 404, "Not found", "text/plain");
-    send(res, 200, buf, TYPES[path.extname(file)] || "application/octet-stream", cache);
+  fs.stat(file, (bad, st) => {
+    if (bad || !st.isFile()) return send(res, 404, "Not found", "text/plain");
+    const tag = `"${st.size.toString(36)}-${Math.round(st.mtimeMs).toString(36)}"`;
+    const has = String(res.req?.headers["if-none-match"] || "").replace(/W\//g, "").split(/\s*,\s*/);
+    if (has.includes(tag)) { res.writeHead(304, { ETag: tag, "Cache-Control": cache, ...SAFE }); return res.end(); }
+    fs.readFile(file, (err, buf) => {
+      if (err) return send(res, 404, "Not found", "text/plain");
+      res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream", "Cache-Control": cache, ETag: tag, ...SAFE });
+      res.end(buf);
+    });
   });
 }
 
@@ -852,6 +865,7 @@ function legacyProductPage(title, head, id) {
 <title>${escHtml(title)}</title>
 ${head}
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shop.css">
@@ -872,6 +886,7 @@ function pageShell({ title, head = "", body, scripts = [] }) {
 <title>${escHtml(title)}</title>
 ${head}
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="/vendor/phosphor/style.css">
 <link rel="stylesheet" href="/shop.css">
@@ -901,6 +916,7 @@ function v1Shell({ title, head = "", body, scripts = [] }) {
 <title>${escHtml(title)}</title>
 ${head}
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shop.css">
