@@ -830,10 +830,39 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
    sooner, the page doesn't jump when the category pills arrive, and price and size are in reach. */
 .cat-tabs { min-height: 59px; }
 .pdp-media img { cursor: zoom-in; }
-.pdp-zoom { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: #000; }
-.pdp-zoom::backdrop { background: #000; }
-.pdp-zoom img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.pdp-zoom button { position: absolute; right: 12px; top: calc(12px + env(safe-area-inset-top)); width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(255,255,255,.9); color: #121212; font-size: 24px; line-height: 1; }
+/* The photo viewer (pdp.js zoom): the page dims behind a white panel, as on Myntra. by-mouse: the photo is as
+   wide as the panel and the mouse travels along it. by-touch: the whole photo fits, a tap zooms into that spot. */
+.pdp-zoom { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; overflow: hidden; background: rgba(0, 0, 0, .8); }
+.pdp-zoom::backdrop { background: transparent; }
+.pdp-zpanel { position: relative; display: flex; flex-direction: column; width: 100%; max-width: 980px; height: 100%; margin: 0 auto; background: #fff; box-shadow: 0 0 5px rgba(0, 0, 0, .35); }
+.pdp-zstage { position: relative; flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.pdp-zstage img { display: block; margin: auto; user-select: none; -webkit-user-drag: none; }
+.pdp-zoom.by-mouse .pdp-zstage { cursor: ns-resize; }
+.pdp-zoom.by-mouse .pdp-zstage img { flex: none; width: 100%; height: auto; }
+.pdp-zoom.by-touch .pdp-zstage img { width: 100%; height: 100%; object-fit: contain; cursor: zoom-in; transition: transform .28s var(--ease); }
+.pdp-zoom.by-touch .pdp-zstage img.zoomed { transform: scale(2.5); cursor: zoom-out; }
+.pdp-zoom.by-touch .pdp-zstage.zooming { touch-action: none; }
+.pdp-zthumbs { display: flex; gap: 6px; scrollbar-width: none; }
+.pdp-zthumbs::-webkit-scrollbar { display: none; }
+.pdp-zthumbs button { flex: none; width: 44px; height: 58px; padding: 0; border: 1px solid var(--line-2); border-radius: var(--r); overflow: hidden; background: #fff; cursor: pointer; }
+.pdp-zthumbs button.on { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
+.pdp-zthumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pdp-zoom.by-mouse .pdp-zthumbs { position: absolute; left: 12px; top: 12px; z-index: 2; flex-direction: column; max-height: calc(100% - 100px); overflow-y: auto; }
+.pdp-zoom.by-touch .pdp-zthumbs { padding: 8px 12px; overflow-x: auto; border-top: 1px solid var(--line); }
+.pdp-zbtn { position: absolute; z-index: 2; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line-2); border-radius: 50%; background: rgba(255, 255, 255, .94); color: #121212; font: 400 26px/1 var(--body); cursor: pointer; }
+.pdp-zbtn:hover { background: #f1f1f1; }
+.pdp-zclose { right: 12px; top: calc(12px + env(safe-area-inset-top)); }
+.pdp-zstep { top: 45%; }
+.pdp-zstep.prev { left: 12px; } .pdp-zstep.next { right: 12px; }
+.pdp-zoom.by-mouse .pdp-zthumbs ~ .pdp-zstep.prev { left: 72px; }
+.pdp-zoom.by-touch .pdp-zstep { display: none; }
+.pdp-zfoot { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: #fff; }
+.pdp-zname { min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: 14px; line-height: 1.25; color: var(--ink); }
+.pdp-zname b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pdp-zname span { font-weight: 700; }
+.pdp-zadd { flex: none; height: 44px; padding: 0 26px; border: 0; border-radius: 999px; background: var(--teal); color: #fff; font: 700 14px/1 var(--body); letter-spacing: .02em; cursor: pointer; }
+.pdp-zadd:hover { background: var(--teal-hi, var(--teal)); }
+@media (prefers-reduced-motion: reduce) { .pdp-zoom .pdp-zstage img { transition: none; } }
 @media (max-width: 820px) {
   .pdp-media .media { aspect-ratio: auto; height: 46vh; height: 46svh; background: #fff; }
   .pdp-media .media img { object-fit: contain; }
@@ -1132,9 +1161,6 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
   .pdp-dots { display: flex; }
 }
 @media (max-width: 820px) { .pdp-thumbs { display: none; } }
-.pdp-zoom .pdp-zcount { position: absolute; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); padding: 6px 11px; border-radius: 999px; background: rgba(255, 255, 255, .9); color: #121212; font: 600 12px/1 var(--mono); }
-.pdp-zoom .pdp-zstep { top: 50%; margin-top: -22px; font-size: 28px; }
-.pdp-zoom .pdp-zstep.prev { left: 12px; right: auto; } .pdp-zoom .pdp-zstep.next { right: 12px; }
 
 /* ---- The size sheet that Add to bag opens when no size is chosen (pdp.js) ---- */
 .vx-sizes .co { gap: 14px; }

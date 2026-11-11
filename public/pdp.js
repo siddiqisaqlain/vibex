@@ -263,34 +263,72 @@
     } catch { /* keep what's on screen */ }
   }
 
-  // People kept tapping the photo: open it full screen, where a phone can pinch in on it.
-  // With several photos the arrows, arrow keys or a swipe (when not pinched in) move through them all.
+  // People kept tapping the photo. It opens over the page the way Myntra's does: the page dims behind a white
+  // panel with the photo large, the small photos to pick from, and the name, price and Add to bag underneath.
+  // With a mouse the photo is as wide as the panel and moving the mouse up and down travels along it. On a
+  // phone the whole photo fits: a tap zooms into that spot, a drag looks around, a swipe changes the photo.
   function zoom(start) {
     const p = products.find((x) => x.id === id);
     const list = p ? photosOf(p) : [], n = list.length;
     if (!n) return;
-    let at = start;
+    const Z = 2.5, mouse = matchMedia("(hover: hover) and (min-width: 821px)").matches;
+    const buy = root.querySelector(".pdp-info [data-order]");
+    let at = start, spot = [0.5, 0.5], pan = null, zx = null, lastY = null;
     const box = document.createElement("dialog");
-    box.className = "pdp-zoom";
-    box.innerHTML = `<img alt="">${n > 1 ? `<span class="pdp-zcount"></span><button type="button" class="pdp-zstep prev" data-z="-1" aria-label="Previous photo">‹</button><button type="button" class="pdp-zstep next" data-z="1" aria-label="Next photo">›</button>` : ""}<button type="button" class="pdp-zclose" aria-label="Close photo">×</button>`;
-    const img = box.querySelector("img");
+    box.className = `pdp-zoom ${mouse ? "by-mouse" : "by-touch"}`;
+    box.innerHTML = `<div class="pdp-zpanel">
+      <div class="pdp-zstage"><img alt="" draggable="false"></div>
+      ${n > 1 ? `<div class="pdp-zthumbs">${list.map((u, i) => `<button type="button" data-zshot="${i}" aria-label="Photo ${i + 1} of ${n}"><img src="${esc(u)}" alt="" loading="lazy" decoding="async"></button>`).join("")}</div>
+      <button type="button" class="pdp-zbtn pdp-zstep prev" data-z="-1" aria-label="Previous photo">‹</button><button type="button" class="pdp-zbtn pdp-zstep next" data-z="1" aria-label="Next photo">›</button>` : ""}
+      <button type="button" class="pdp-zbtn pdp-zclose" aria-label="Close photo">×</button>
+      <div class="pdp-zfoot"><p class="pdp-zname"><b>${esc(p.name)}</b><span>${esc(root.querySelector(".pdp-price b")?.textContent || "")}</span></p>${buy ? `<button type="button" class="pdp-zadd">Add to bag</button>` : ""}</div>
+    </div>`;
+    const stage = box.querySelector(".pdp-zstage"), img = stage.querySelector("img");
+    const clamp = (v) => Math.max(0, Math.min(1, v));
+    // Mouse: where the pointer is, top to bottom, is how far down the photo you are (a little spare at each end).
+    const travel = (y) => { lastY = y; const r = stage.getBoundingClientRect(); stage.scrollTop = clamp((y - r.top - r.height * 0.1) / (r.height * 0.8)) * (stage.scrollHeight - stage.clientHeight); };
+    // Touch: the point of the photo held in place while it is 2.5 times bigger.
+    const hold = (fx, fy) => { spot = [clamp(fx), clamp(fy)]; img.style.transformOrigin = `${spot[0] * 100}% ${spot[1] * 100}%`; };
+    const zoomed = () => img.classList.contains("zoomed");
+    const zoomTo = (on) => { img.classList.toggle("zoomed", on); stage.classList.toggle("zooming", on); pan = null; };
     const show = (i) => {
       at = ((i % n) + n) % n;
+      zoomTo(false);
       img.src = list[at]; img.alt = `${p.name}, photo ${at + 1} of ${n}`;
-      if (n > 1) box.querySelector(".pdp-zcount").textContent = `${at + 1}/${n}`;
+      box.querySelectorAll("[data-zshot]").forEach((b, k) => { b.classList.toggle("on", k === at); b.setAttribute("aria-pressed", String(k === at)); if (k === at) b.scrollIntoView?.({ block: "nearest", inline: "nearest" }); });
     };
     show(at);
-    box.addEventListener("click", (e) => { const b = e.target.closest("[data-z]"); if (b) return show(at + Number(b.dataset.z)); box.close(); });
+    img.addEventListener("load", () => { if (mouse) lastY == null ? (stage.scrollTop = 0) : travel(lastY); });
+    box.addEventListener("click", (e) => { if (Date.now() - swiped < 400) e.stopImmediatePropagation(); }, { capture: true }); // the end of a swipe or drag isn't a tap
+    box.addEventListener("click", (e) => {
+      const t = e.target;
+      if (t === box || t.closest(".pdp-zclose")) return box.close(); // the dark part around the panel closes it too
+      const step = t.closest("[data-z]"), thumb = t.closest("[data-zshot]");
+      if (step) return show(at + Number(step.dataset.z));
+      if (thumb) return show(Number(thumb.dataset.zshot));
+      if (t.closest(".pdp-zadd")) { box.close(); root.querySelector(".pdp-info [data-order]")?.click(); return; }
+      if (!mouse && t === img) { if (zoomed()) return zoomTo(false); const r = stage.getBoundingClientRect(); hold((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); zoomTo(true); }
+    });
     box.addEventListener("keydown", (e) => { if (n > 1 && (e.key === "ArrowLeft" || e.key === "ArrowRight")) { e.preventDefault(); show(at + (e.key === "ArrowRight" ? 1 : -1)); } });
-    let zx = null;
-    box.addEventListener("touchstart", (e) => { zx = e.touches.length === 1 && (window.visualViewport?.scale || 1) <= 1.01 ? [e.touches[0].clientX, e.touches[0].clientY] : null; }, { passive: true });
-    box.addEventListener("touchend", (e) => {
+    if (mouse) stage.addEventListener("mousemove", (e) => travel(e.clientY));
+    stage.addEventListener("touchstart", (e) => {
+      const one = e.touches.length === 1, t = e.touches[0];
+      pan = one && zoomed() ? { x: t.clientX, y: t.clientY, from: spot, w: stage.clientWidth, h: stage.clientHeight, moved: false } : null;
+      zx = one && !zoomed() && (window.visualViewport?.scale || 1) <= 1.01 ? [t.clientX, t.clientY] : null;
+    }, { passive: true });
+    stage.addEventListener("touchmove", (e) => {
+      if (!pan) return;
+      const dx = e.touches[0].clientX - pan.x, dy = e.touches[0].clientY - pan.y;
+      if (!pan.moved && Math.hypot(dx, dy) > 8) pan.moved = true;
+      if (pan.moved) hold(pan.from[0] - dx / (pan.w * (Z - 1)), pan.from[1] - dy / (pan.h * (Z - 1))); // the photo follows the finger
+    }, { passive: true });
+    stage.addEventListener("touchend", (e) => {
+      if (pan) { if (pan.moved) swiped = Date.now(); pan = null; return; }
       if (!zx || n < 2) return;
       const dx = e.changedTouches[0].clientX - zx[0], dy = e.changedTouches[0].clientY - zx[1];
       zx = null;
       if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) { swiped = Date.now(); show(at + (dx < 0 ? 1 : -1)); }
     }, { passive: true });
-    box.addEventListener("click", (e) => { if (Date.now() - swiped < 400) e.stopImmediatePropagation(); }, { capture: true });
     box.addEventListener("close", () => { box.remove(); if (n > 1) go(at, false); });
     document.body.append(box);
     box.showModal();
