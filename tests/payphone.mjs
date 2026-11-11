@@ -24,7 +24,7 @@ async function run(sms) {
       const tag = `${dev.name}${sms ? " +sms" : ""}`;
       const b = await browser(dev, 9790 + (sms ? 2 : 0) + (dev.mobile ? 0 : 1));
       try {
-        await b.nav(`${base}/p/${encodeURIComponent(product.id)}`);
+        await b.nav(`${base}/p/${encodeURIComponent(product.id)}?form=a`); // the usual form (numberonly.mjs covers the other)
         await b.tap(".pdp-info .order-now");
         await b.until(`document.querySelector(".co-form") || document.querySelector("[data-checkout]")`);
         if (await b.js(`!!document.querySelector("[data-checkout]") && !document.querySelector(".co-form")`)) await b.tap("[data-checkout]");

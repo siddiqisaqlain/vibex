@@ -417,7 +417,7 @@
     const waiting = list.filter(open);
     const shown = (orderView === "check" ? waiting : list).slice().sort((a, b) => Number(Boolean(open(b))) - Number(Boolean(open(a))));
     const left = (t) => { const ms = t - Date.now(), h = Math.floor(ms / 36e5), m = Math.max(0, Math.floor((ms % 36e5) / 6e4)); return ms <= 0 ? "Piece about to go back on sale" : `Piece held for ${h ? `${h}h ` : ""}${m}m more`; };
-    const wa = (o) => { const n = String(o.phone || "").replace(/\D/g, "").slice(-10); return n.length === 10 ? `https://wa.me/91${n}?text=${encodeURIComponent(`Hi ${o.name}, this is Vibe X about your order ${o.code}.`)}` : ""; };
+    const wa = (o) => { const n = String(o.phone || "").replace(/\D/g, "").slice(-10); return n.length === 10 ? `https://wa.me/91${n}?text=${encodeURIComponent(`Hi${o.noName ? "" : ` ${o.name}`}, this is Vibe X about your order ${o.code}.`)}` : ""; };
     $("tab-orders").innerHTML = `
       <div class="chips"><button class="chip ${orderView === "check" ? "on" : ""}" data-ov="check">To check ${waiting.length}</button><button class="chip ${orderView === "all" ? "on" : ""}" data-ov="all">All ${list.length}</button></div>
       <div class="scroll"><table><thead><tr><th>Date</th><th>Order</th><th>Party Name</th><th>Item</th><th class="n">Amount</th><th>Status</th><th></th></tr></thead><tbody>

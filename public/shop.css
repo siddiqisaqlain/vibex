@@ -901,6 +901,13 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .co-wait i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--red); animation: vx-wait 1.2s ease-in-out infinite; }
 @keyframes vx-wait { 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .co-wait i { animation: none; } }
+.co-name { margin: 10px 0 4px; }
+.co-name label { display: block; font-size: 13.5px; font-weight: 600; }
+.co-name label i { font-weight: 400; font-style: normal; color: var(--muted); }
+.co-name-row { display: flex; gap: 8px; margin-top: 6px; }
+.co-name-row input { flex: 1; min-width: 0; min-height: 44px; }
+.co-name-row .btn { flex: none; min-height: 44px; padding: 0 16px; }
+.co-name-ok { margin: 10px 0 4px; }
 
 /* ---- Bag, sign-in and account (bag.js, account.js) ---- */
 .vx-hdr { display: flex; align-items: center; gap: 2px; margin-left: auto; }

@@ -493,8 +493,12 @@ async function createOrder(req, res) {
   let me = customerOf(req);
   if (!payWindow.isOpen(PAY_WINDOW)) return send(res, 409, { error: payWindow.closedText(PAY_WINDOW) });
   if (tooMany(clientIp(req))) return send(res, 429, { error: "Too many attempts. Please wait a few minutes." });
-  const name = String(b.name || "").replace(/\s+/g, " ").trim().slice(0, 60);
+  const given = String(b.name || "").replace(/\s+/g, " ").trim().slice(0, 60);
   const phone = normalisePhone(b.phone);
+  // The number-only form (checkout.js, arm "b") asks for the name on the pay screen instead. Until then
+  // the order goes by the last four digits, and noName keeps that off bills, greetings and the site.
+  const noName = !given && b.nameLater === true && Boolean(phone);
+  const name = noName ? `Customer ${phone.slice(-4)}` : given;
   const delivery = b.delivery === "ship" ? "ship" : "pickup";
   const address = String(b.address || "").trim().slice(0, 300);
   const city = String(b.city || "").trim().slice(0, 60);
@@ -515,7 +519,7 @@ async function createOrder(req, res) {
   if (q.problems.length) return send(res, 409, { error: q.problems.length === 1 ? `${q.problems[0].name || "One piece"}: ${q.problems[0].text}.` : "Some pieces in your bag changed. Please check your bag.", problems: q.problems });
   // Coins, only while the shop has redeeming switched on, and never more than the cap.
   const coinsUsed = me && b.useCoins ? accounts.usable(me, q.goods) : 0;
-  if (!me) { const made = accounts.create({ name }); me = made.customer; setSession(req, res, made.token); }
+  if (!me) { const made = accounts.create({ name: given }); me = made.customer; setSession(req, res, made.token); }
   const orders = loadOrders();
   const lines = q.lines.map(({ _p, image, ...l }) => l);
   const order = {
@@ -524,13 +528,14 @@ async function createOrder(req, res) {
     lot: lines[0].lot, ...(lines.length === 1 && lines[0].size ? { size: lines[0].size } : {}),
     goods: q.goods, ...(coinsUsed ? { coinsUsed } : {}), amount: q.goods - coinsUsed + q.shipping,
     ...(q.shipping ? { shipping: q.shipping, kg: q.chargedKg } : {}),
-    name, phone, delivery, address, city, pin, ...(b.hideName ? { hideName: true } : {}),
+    name, ...(noName ? { noName: true } : {}), phone, delivery, address, city, pin, ...(b.hideName ? { hideName: true } : {}),
+    ...(b.form === "a" || b.form === "b" ? { form: b.form } : {}),
     status: "awaiting_payment", createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + ORDER_WINDOW_MS).toISOString(),
   };
   orders.push(order);
   saveOrders(orders);
   if (coinsUsed) accounts.spend(me.id, coinsUsed, order.code);
-  accounts.setAddress(me.id, { name, phone, delivery, address, city, pin });
+  accounts.setAddress(me.id, { name: given, phone, delivery, address, city, pin });
   // Nobody else can pay for a last piece during the window.
   const items = load();
   let first = null;
@@ -541,7 +546,29 @@ async function createOrder(req, res) {
   }
   save(items);
   orderAlert(order, first);
-  send(res, 200, { id: order.id, code: order.code, amount: order.amount, goods: order.goods, coinsUsed, lot: order.lot, shipping: q.shipping, left: ORDER_WINDOW_MS, lines: lines.length });
+  send(res, 200, { id: order.id, code: order.code, amount: order.amount, goods: order.goods, coinsUsed, lot: order.lot, shipping: q.shipping, left: ORDER_WINDOW_MS, lines: lines.length, ...(noName ? { noName: true } : {}) });
+}
+
+// "Hi Aamir," or just "Hi," while the order has no name yet.
+const hiTo = (o) => (o.noName ? "Hi" : `Hi ${o.name}`);
+
+// The name for a number-only order, given on the pay screen. Once only: a name already on the order stays.
+async function orderName(req, res, id) {
+  let b;
+  try { b = JSON.parse(await readBody(req, 2 * 1024)); } catch { return send(res, 400, { error: "Something went wrong. Please try again." }); }
+  // No flood guard here: it needs the order's own unguessable id and changes one thing, once.
+  const name = String(b.name || "").replace(/\s+/g, " ").trim().slice(0, 60);
+  if (!name) return send(res, 400, { error: "Please add your name." });
+  const orders = loadOrders(), o = orders.find((x) => x.id === id);
+  if (!o) return send(res, 404, { error: "Order not found." });
+  if (!o.noName) return send(res, 200, { ok: true, name: o.name });
+  o.name = name; delete o.noName;
+  saveOrders(orders);
+  if (o.customerId) accounts.setAddress(o.customerId, { name, phone: o.phone, delivery: o.delivery, address: o.address, city: o.city, pin: o.pin });
+  // The bill may already be written (the shop confirmed first): put the name on it too.
+  if (o.invoice) { const all = billing.loadInvoices(), inv = all.find((x) => x.id === o.invoice); if (inv && inv.customer && !inv.customer.name) { inv.customer.name = name; billing.saveInvoices(all); } }
+  // No second WhatsApp alert: the shop sees the name in the portal and in its confirm reply.
+  send(res, 200, { ok: true, name });
 }
 
 // "Pay now" pages from before the payment window are still open in some phones: nothing they send counts.
@@ -549,12 +576,12 @@ const refused = (res) => send(res, 409, { error: "Please refresh this page and o
 
 function orderAlert(o, p) {
   const where = o.delivery === "ship" ? `🚚 Ship to: ${o.address}, ${o.city} ${o.pin}` : "🏬 Pickup at the store";
-  const hello = encodeURIComponent(`Hi ${o.name}, Vibe X here about your order ${o.code} (${o.productName}).`);
+  const hello = encodeURIComponent(`${hiTo(o)}, Vibe X here about your order ${o.code} (${o.productName}).`);
   sendToOwner({
     id: crypto.randomBytes(6).toString("hex"), at: new Date().toISOString(), kind: "order",
     summary: { kind: "order", ref: o.code },
     image: (p && p.image) || null,
-    text: `💰 *New order ${o.code}: ${Math.round(ORDER_WINDOW_MS / 60e3)} minutes to confirm*\n${linesText(o)}\n*Total ${inr(o.amount)}*${o.coinsUsed ? ` (${inr(o.coinsUsed)} paid in coins)` : ""}${o.shipping ? ` (includes ${inr(o.shipping)} courier for ${o.kg} kg)` : ""}\n\n👤 ${o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 Look for note ${o.code}\n\nThe customer is on the payment screen now. When ${inr(o.amount)} reaches your bank, reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
+    text: `💰 *New order ${o.code}: ${Math.round(ORDER_WINDOW_MS / 60e3)} minutes to confirm*\n${linesText(o)}\n*Total ${inr(o.amount)}*${o.coinsUsed ? ` (${inr(o.coinsUsed)} paid in coins)` : ""}${o.shipping ? ` (includes ${inr(o.shipping)} courier for ${o.kg} kg)` : ""}\n\n👤 ${o.noName ? "Name not given yet (number-only form)" : o.name}\n📞 ${prettyPhone(o.phone)}\n${where}\n🧾 Look for note ${o.code}\n\nThe customer is on the payment screen now. When ${inr(o.amount)} reaches your bank, reply:\n*confirm ${o.code}* or *cancel ${o.code}*\n\nMessage customer: https://wa.me/91${o.phone}?text=${hello}`,
   });
 }
 
@@ -719,7 +746,7 @@ function orderCommand(text) {
     saveOrders(orders);
     if (o.customerId) accounts.undo(o.customerId, o.code);
     if (lapsed) return `❌ ${o.code} closed. If ${o.name} did pay, refund ${inr(o.amount)} to ${prettyPhone(o.phone)}.`;
-    return `❌ ${o.code} cancelled. ${orderLines(o).length > 1 ? "Its pieces are" : `“${o.productName}” is`} back on sale.\nTell the customer: ${hello(`Hi ${o.name}, Vibe X here. We couldn't find your payment for order ${o.code}. Could you send the payment screenshot?`)}`;
+    return `❌ ${o.code} cancelled. ${orderLines(o).length > 1 ? "Its pieces are" : `“${o.productName}” is`} back on sale.\nTell the customer: ${hello(`${hiTo(o)}, Vibe X here. We couldn't find your payment for order ${o.code}. Could you send the payment screenshot?`)}`;
   }
   if (o.status === "confirmed") return `${o.code} is already confirmed.`;
   if (o.status === "cancelled") return `${o.code} was cancelled. Ask the customer to order again.`;
@@ -734,7 +761,7 @@ function orderCommand(text) {
   const sale = billing.sell(sellLines, {
     source: "website", order: o.code, holdFor: o.code, payment: "upi",
     charges: o.shipping ? [{ label: `Courier (${o.kg} kg)`, amount: o.shipping }] : [],
-    customer: { name: o.name, phone: o.phone, address: o.delivery === "ship" ? `${o.address}, ${o.city} ${o.pin}` : "" },
+    customer: { name: o.noName ? "" : o.name, phone: o.phone, address: o.delivery === "ship" ? `${o.address}, ${o.city} ${o.pin}` : "" },
   });
   if (sale.error && o.status === "lapsed") return `⚠️ Can't confirm ${o.code}: “${o.productName}” has gone since the order lapsed.\nIf ${o.name} paid, refund ${inr(o.amount)} to ${prettyPhone(o.phone)}, then send *cancel ${o.code}*.`;
   if (sale.error) return `⚠️ Can't confirm ${o.code}: ${sale.error}\nIf the customer has paid, refund them and send *cancel ${o.code}*.`;
@@ -747,7 +774,7 @@ function orderCommand(text) {
   const next = o.delivery === "ship" ? (SHOP.policy?.photoBeforeDispatch ? "📸 Send them a photo of this exact piece on WhatsApp, as the website promises. Then pack it for shipping" : "Pack it for shipping") : "Keep it aside for pickup";
   const after = sale.products.find((x) => x.id === o.productId);
   const marked = orderLines(o).length > 1 ? `${orderLines(o).length} pieces marked sold` : `“${o.productName}” marked ${after.status === "sold" ? "SOLD" : `sold (${after.quantity} left)`}`;
-  return `✅ ${o.code} confirmed. ${marked}.\n🧾 Bill ${sale.invoice.number}: ${billUrl(sale.invoice)}\n${next}. The customer's screen already shows it's confirmed.\nMessage them: ${hello(`Hi ${o.name}, Vibe X here. Payment received for ${o.code} (${o.productName}). ${o.delivery === "ship" ? "We'll share tracking once it ships." : "It's ready for pickup at the store."}`)}`;
+  return `✅ ${o.code} confirmed. ${marked}.\n🧾 Bill ${sale.invoice.number}: ${billUrl(sale.invoice)}\n${next}. The customer's screen already shows it's confirmed.\nMessage them: ${hello(`${hiTo(o)}, Vibe X here. Payment received for ${o.code} (${o.productName}). ${o.delivery === "ship" ? "We'll share tracking once it ships." : "It's ready for pickup at the store."}`)}`;
 }
 
 // ---- Owner key ----
@@ -939,7 +966,21 @@ function isLastPiece(p, size) {
 const lab = require("./lib/lab")({ STORE });
 const REC_RATE = Math.max(0, Math.min(100, Number(process.env.REC_RATE ?? 25))); // % of visits recorded
 SHOP.recRate = REC_RATE; // for the privacy page
-const analytics = createAnalytics({ onEvent: (ev) => lab.see(ev), STORE, productName: (id) => load().find((p) => p.id === id)?.name || id, productNames: () => Object.fromEntries(load().map((p) => [p.id, p.name])) });
+// The number-only checkout form against the usual one: who opened each, who reached the pay screen, who paid.
+// One count per visitor, from the site's own events (checkout carries the form in x).
+const FORM_TEST = path.join(STORE, "form-test.json");
+let formTally = readJson(FORM_TEST, { arms: {}, pay: {}, paid: {} }), formDirty = false;
+function formSee(ev) {
+  if (ev.e === "checkout" && (ev.x === "a" || ev.x === "b") && ev.v && !formTally.arms[ev.v]) { formTally.arms[ev.v] = ev.x; formDirty = true; }
+  else if ((ev.e === "details" || ev.e === "paid") && formTally.arms[ev.v]) { const k = ev.e === "details" ? "pay" : "paid"; if (!formTally[k][ev.v]) { formTally[k][ev.v] = 1; formDirty = true; } }
+}
+function formResult() {
+  const out = { a: { opened: 0, reachedPay: 0, paid: 0 }, b: { opened: 0, reachedPay: 0, paid: 0 } };
+  for (const [v, arm] of Object.entries(formTally.arms)) { out[arm].opened++; if (formTally.pay[v]) out[arm].reachedPay++; if (formTally.paid[v]) out[arm].paid++; }
+  return { a: { label: "Name and number", ...out.a }, b: { label: "Number only", ...out.b } };
+}
+setInterval(() => { if (formDirty) { writeJson(FORM_TEST, formTally); formDirty = false; } }, 15e3).unref();
+const analytics = createAnalytics({ onEvent: (ev) => { lab.see(ev); formSee(ev); }, STORE, productName: (id) => load().find((p) => p.id === id)?.name || id, productNames: () => Object.fromEntries(load().map((p) => [p.id, p.name])) });
 // SIGTERM (a deploy or restart): see shutdown() next to the server below.
 
 // ---- Customer accounts (lib/accounts.js): bag, wishlist, address, orders, coins ----
@@ -2064,7 +2105,7 @@ function liveReply(product, win) {
 // How the "just bought" banner names a buyer: first name and city, nothing else. A website buyer can
 // tick to stay anonymous; a counter buyer stays anonymous unless the bill was ticked to show them.
 function buyerLabel(sale, order, invoice) {
-  const shown = order ? (order.hideName ? "" : order.name) : invoice?.showName ? invoice.customer?.name : "";
+  const shown = order ? (order.hideName || order.noName ? "" : order.name) : invoice?.showName ? invoice.customer?.name : "";
   const word = String(shown || "").trim().split(/\s+/)[0];
   const name = /^\p{L}{2,20}$/u.test(word) ? word[0].toUpperCase() + word.slice(1).toLowerCase() : "";
   const shipped = order?.delivery === "ship" ? String(order.city || "").trim() : "";
@@ -2395,6 +2436,7 @@ async function billingRoute(req, res, route, url, who, body, reply, post, get) {
     save(r.items);
     return send(res, 200, { preview: false, report: r.report });
   }
+  if (get && route === "form-test") return send(res, 200, formResult());
   if (get && route === "dashboard") {
     return send(res, 200, { ...books.dashboard(), today: billing.today(), attention: attention() });
   }
@@ -2520,8 +2562,9 @@ async function handle(req, res) {
       if (req.method === "POST" && p === "/api/enquiry") return await handleEnquiry(req, res);
       if (req.method === "POST" && p === "/api/orders") return await createOrder(req, res);
       if (p.startsWith("/api/account/")) return await accountApi(req, res, p.slice("/api/account/".length));
-      const om = /^\/api\/orders\/([a-f0-9]{16})(\/paid|\/cancel)?$/.exec(p);
+      const om = /^\/api\/orders\/([a-f0-9]{16})(\/paid|\/cancel|\/name)?$/.exec(p);
       if (om && req.method === "POST" && om[2] === "/paid") return refused(res);
+      if (om && req.method === "POST" && om[2] === "/name") return await orderName(req, res, om[1]);
       if (om && req.method === "POST" && om[2]) return orderCancel(res, om[1]);
       if (om && req.method === "GET" && !om[2]) {
         const o = loadOrders().find((x) => x.id === om[1]);

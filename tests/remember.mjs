@@ -19,7 +19,7 @@ async function run() {
   const { product } = await (await fetch(base + "/api/billing/items", { method: "POST", headers: { "Content-Type": "application/json", "x-owner-key": "k" }, body: JSON.stringify({ name: "Puma jacket", price: 2400, quantity: 3 }) })).json();
   const f = path.join(dir, "products.json"), all = JSON.parse(fs.readFileSync(f, "utf8"));
   const p = all.find((x) => x.id === product.id); p.image = "/logo.jpg"; delete p.hidden; fs.writeFileSync(f, JSON.stringify(all));
-  const page = `${base}/p/${encodeURIComponent(product.id)}`;
+  const page = `${base}/p/${encodeURIComponent(product.id)}?form=a`; // the usual form (numberonly.mjs covers the other)
   const b = await browser({ name: "iPhone", width: 390, height: 844, mobile: true, ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" }, 9786);
   const openCheckout = async () => {
     await b.nav(page);

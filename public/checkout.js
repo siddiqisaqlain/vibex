@@ -15,6 +15,22 @@ window.VXCheckout = (() => {
 
   let dlg = null, state = null, poll = null, clock = null, closing = null, fx = null;
 
+  // Two order forms, half of visitors each: "a" asks for name and number, "b" asks for the number only and
+  // takes the name on the pay screen. The same visitor always gets the same one. ?form=a or ?form=b pins it.
+  function formArm() {
+    try {
+      const asked = new URLSearchParams(location.search).get("form");
+      if (asked === "a" || asked === "b") localStorage.setItem("vx-form", asked);
+      const pinned = localStorage.getItem("vx-form");
+      if (pinned === "a" || pinned === "b") return pinned;
+      const v = JSON.parse(localStorage.getItem("vx-a") || "{}").v || "";
+      if (!/^[a-f0-9]{16}$/.test(v)) return "a";
+      let h = 2166136261;
+      for (const c of v + "form1") { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+      return (h >>> 0) % 100 < 50 ? "a" : "b";
+    } catch { return "a"; }
+  }
+
   const COPY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>`;
 
   function upiLink(amount, note) {
@@ -72,6 +88,7 @@ window.VXCheckout = (() => {
   function stepDetails(err = "") {
     const { esc } = O();
     const f = state.form, goods = state.goods;
+    const short = state.arm === "b";
     const C = S.policy?.courier;
     const shipNote = C?.perKg ? `${C.insideKashmirPerKg ? `${O().rupees(C.insideKashmirPerKg)}/kg inside Kashmir, ` : ""}${O().rupees(C.perKg)}/kg outside Kashmir, shown before you pay.` : PAY.shippingFee == null ? "Courier charge depends on your location. We'll tell you the exact amount on WhatsApp before dispatch; if you don't want to pay it, cancel for a full refund." : PAY.shippingFee === 0 ? "Free shipping." : `Shipping: ${O().rupees(PAY.shippingFee)}.`;
     const coinBox = state.coinsUsable > 0
@@ -80,9 +97,9 @@ window.VXCheckout = (() => {
     shell(`${steps(1)}${bagRows()}
       <form class="co-form" novalidate>
         <h2>Your details</h2>
-        <p class="co-next">Takes 30 seconds. Next you pay by UPI, and we confirm on WhatsApp.</p>
+        <p class="co-next">${short ? "Just your number." : "Takes 30 seconds."} Next you pay by UPI, and we confirm on WhatsApp.</p>
         <label>WhatsApp number<div class="ask-phone"><span>+91</span><input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="98765 43210" maxlength="20" value="${esc(f.phone || "")}" required></div></label>
-        <label>Your name<input name="name" autocomplete="name" maxlength="60" value="${esc(f.name || "")}" required></label>
+        ${short ? (f.name ? `<input type="hidden" name="name" value="${esc(f.name)}">` : "") : `<label>Your name<input name="name" autocomplete="name" maxlength="60" value="${esc(f.name || "")}" required></label>`}
         <fieldset class="co-choice"><legend>How do you want it?</legend>
           <label><input type="radio" name="delivery" value="pickup" ${f.delivery === "pickup" ? "checked" : ""}><span><b>Pick up in Srinagar</b><small>Collect from the store</small></span></label>
           <label><input type="radio" name="delivery" value="ship" ${f.delivery === "ship" ? "checked" : ""}><span><b>Deliver to me</b><small>Anywhere in India. ${esc(shipNote)}</small></span></label>
@@ -97,11 +114,11 @@ window.VXCheckout = (() => {
         </div>
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
         <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
-        <label class="co-hide"><input type="checkbox" name="hideName" value="1" ${f.hideName ? "checked" : ""}><span>Don't show my name on the site</span></label>
+        ${short && !f.name ? "" : `<label class="co-hide"><input type="checkbox" name="hideName" value="1" ${f.hideName ? "checked" : ""}><span>Don't show my name on the site</span></label>`}
         ${coinBox}
         <button class="order co-cta" type="submit">Continue to payment · ${O().rupees(goods)}</button>
         ${waOrder()}
-        <p class="consent">We use your name and number only for this order and its delivery. Unless you tick the box, the site may show your first name and city with what you bought. Your details are also kept on this device, so you don't type them next time. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
+        <p class="consent">${short && !f.name ? "We use your number only for this order and its delivery." : "We use your name and number only for this order and its delivery. Unless you tick the box, the site may show your first name and city with what you bought."} Your details are also kept on this device, so you don't type them next time. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
       </form>`);
     const form = dlg.querySelector("form");
     O().keepDetails(form);
@@ -138,7 +155,7 @@ window.VXCheckout = (() => {
       btn.disabled = true;
       btn.textContent = "One moment…";
       try {
-        const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...state.form, useCoins: Boolean(state.form.useCoins), holdToken: window.VXVisit?.s, lines: state.bag }) });
+        const res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...state.form, useCoins: Boolean(state.form.useCoins), holdToken: window.VXVisit?.s, lines: state.bag, form: state.arm, ...(short ? { nameLater: true } : {}) }) });
         const out = await res.json().catch(() => ({}));
         if (res.status === 409 && out.problems && window.VXBag) { dlg.close(); window.VXBag.openSheet(); return; }
         if (!res.ok) throw new Error(out.error || "Couldn't start the order. Please try again.");
@@ -146,7 +163,7 @@ window.VXCheckout = (() => {
         state.endsAt = Date.now() + out.left;
         state.ranOut = false;
         window.VXTrack?.("details", { pr: state.lines[0].productId, n: goods, k: state.lines.length });
-        window.VXOrder.rememberName(state.form.name);
+        if (state.form.name) window.VXOrder.rememberName(state.form.name);
         stepPay();
       } catch (ex) {
         window.VXTrack?.("formerr", { x: ex.message });
@@ -202,7 +219,26 @@ window.VXCheckout = (() => {
       <div class="co-pay">${body}</div>
       ${window.VXVisit?.arm === "off" ? "" : `<p class="co-small co-promise"><b>Real, or your money back.</b> Cancel any time before dispatch for a full refund.</p>`}
       <p class="co-wait"><i aria-hidden="true"></i>Waiting for Vibe X to see your payment. Keep this page open, it updates by itself.</p>
+      ${o.noName ? `<form class="co-name" novalidate><label>Name for the order <i>(optional)</i><span class="co-name-row"><input name="name" autocomplete="name" maxlength="60" enterkeyhint="done" value="${esc(state.nameDraft || "")}"><button type="submit" class="btn btn-line">Save</button></span></label><p class="ask-err" role="alert" hidden></p></form>` : o.nameSaved ? `<p class="co-small co-name-ok">✓ Order is in the name of <b>${esc(o.nameSaved)}</b>.</p>` : ""}
       <button type="button" class="co-back" data-back>← Change details</button>`);
+    const nf = dlg.querySelector(".co-name");
+    if (nf) {
+      nf.elements.name.addEventListener("input", (e) => { state.nameDraft = e.target.value; });
+      nf.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = nf.elements.name.value.replace(/\s+/g, " ").trim(), er = nf.querySelector(".ask-err"), btn = nf.querySelector("button");
+        if (!name) { nf.elements.name.focus(); return; }
+        btn.disabled = true; er.hidden = true;
+        try {
+          const res = await fetch(`/api/orders/${o.id}/name`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+          const out = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(out.error || "Couldn't save. Please try again.");
+          o.noName = false; o.nameSaved = out.name || name; state.form.name = o.nameSaved; state.nameDraft = "";
+          O().rememberDetails({ name: o.nameSaved }); O().rememberName(o.nameSaved);
+          nf.outerHTML = `<p class="co-small co-name-ok">✓ Order is in the name of <b>${esc(o.nameSaved)}</b>.</p>`;
+        } catch (ex) { er.textContent = ex.message; er.hidden = false; btn.disabled = false; }
+      });
+    }
     startClock();
     watch();
   }
@@ -423,10 +459,10 @@ window.VXCheckout = (() => {
     // The account first (it follows the customer's cookie), then what this browser remembers from a form.
     const dev = O().savedDetails();
     const saved = { name: a.name || me?.name || dev.name || "", phone: a.phone || me?.phone || dev.phone || "", delivery: a.delivery || dev.delivery || "", address: a.address || dev.address || "", city: a.city || dev.city || "", pin: a.pin || dev.pin || "" };
-    state = { bag, lines: q.lines, goods: q.goods, coinsUsable: q.coinsUsable || 0, coinsBalance: q.coinsBalance || 0, form: state && state.form ? { ...state.form } : saved, order: null, tab: "upi" };
+    state = { bag, lines: q.lines, goods: q.goods, coinsUsable: q.coinsUsable || 0, coinsBalance: q.coinsBalance || 0, form: state && state.form ? { ...state.form } : saved, order: null, tab: "upi", arm: formArm() };
     if (payOpen()) stepDetails(); else stepClosed();
     dlg.showModal();
-    window.VXTrack?.("checkout", { pr: q.lines[0].productId, n: q.goods, k: q.lines.length });
+    window.VXTrack?.("checkout", { pr: q.lines[0].productId, n: q.goods, k: q.lines.length, x: state.arm });
   }
   // Without the bag script (old pages): one piece, straight to checkout.
   function open(p) {
