@@ -1,0 +1,13 @@
+# Vibe X edge: a small Cloudflare Worker in front of vibexindia.com. It passes every request straight to the
+# shop on Render, and only steps in when Render can't answer (the minute after each push, while the shop
+# restarts): a visitor opening a page then gets the shop's own "back in a moment" page, which reloads
+# itself, instead of a bare "502 Bad Gateway".
+# Deploy: cd edge && npx wrangler deploy      Remove: npx wrangler delete (the site goes back to how it was)
+name = "vibex-edge"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = false
+routes = [{ pattern = "vibexindia.com/*", zone_name = "vibexindia.com" }]
+
+[observability]
+enabled = true
