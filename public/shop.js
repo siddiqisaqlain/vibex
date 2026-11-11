@@ -393,7 +393,7 @@
       <span><b>${esc(p.name)}</b>${p.price ? rupees(p.price) : ""}</span></a>`;
     $("looks").innerHTML = tile(list[0], true) + `<div class="looks-small">${list.slice(1).map((p) => tile(p)).join("")}</div>`;
     // store photo: four pieces from the rack
-    $("store-pic").innerHTML = list.slice(0, 4).map((p) => `<a href="${pdp(p)}"><img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy"></a>`).join("") + `<span>Khanyaar, Srinagar</span>`;
+    $("store-pic").innerHTML = list.slice(0, 4).map((p) => `<a href="${pdp(p)}"><img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy"></a>`).join("") + `<a class="store-loc" href="${esc(S.maps || "#visit")}" target="_blank" rel="noopener">Get directions ↗ · Khanyaar, Srinagar</a>`;
   }
 
   // ---- the rack ----
