@@ -56,14 +56,22 @@ async function run() {
     await b.tap(".co-form input[name=delivery][value=pickup]");
     await b.tap(".co-form .co-cta");
     ok(await b.until(`!!document.querySelector(".co-pay")`), `number and pick up are enough to reach the pay screen ${await b.js(`document.querySelector(".ask-err")?.textContent || ""`)}`);
-    ok(await b.until(`!!document.querySelector(".co-name input[name=name]")`), "the pay screen asks for a name, marked optional");
-    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "numberonly-pay.png"));
+    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "pay-first.png"));
+    ok(await b.js(`document.querySelector(".co-later").hidden === true`), "the name box and WhatsApp button stay out of the way at first");
+    await sleep(2500);
+    ok(await b.js(`document.querySelector(".co-later").hidden === true`), "and they stay hidden until the customer starts paying");
+    // Starting to pay: copying the UPI ID from "Other ways to pay" (tapping an app button would leave the page).
+    await b.tap(".co-qr-more summary");
+    await b.tap(".co-qr-more [data-copy]");
+    ok(await b.until(`document.querySelector(".co-later").hidden === false && !!document.querySelector(".co-name input[name=name]")`, 4000), "once they start paying, the name box (optional) and the WhatsApp button appear");
+    ok(await b.js(`!document.querySelector(".co-sum") && !document.querySelector(".co-upi-lead") && !document.querySelector(".co-amount .co-copy")`), "the pay screen shows the price box alone: no breakdown line, no hint line");
+    const up = await b.js(`(()=>{const a=document.querySelector("[data-co-updates]");return a?{href:decodeURIComponent(a.href),h:a.getBoundingClientRect().height}:null})()`);
+    ok(up && /wa\.me\/\d+\?text=.*VX-\d{4}/.test(up.href) && up.h >= 44, `the pay screen offers updates on WhatsApp with the order code written in (${up && up.href.slice(0, 90)})`);
+    if (process.env.SHOTS) { await b.js(`document.querySelector(".co-name").scrollIntoView({block:"center"})`); await b.shot(path.join(process.env.SHOTS, "numberonly-pay.png")); }
     const code = await b.js(`document.querySelector(".co-amount") && [...document.querySelectorAll(".mono")].map(e=>e.textContent).find(t=>/^VX-\\d{4}$/.test(t))`);
     o = orders().find((x) => x.phone === "9876500032" && x.status === "awaiting_payment");
     ok(o && o.noName && o.form === "b", `the shop has the order before any name (${o && o.code})`);
-    // Switching the payment tab mustn't lose what was typed.
     await b.fill(".co-name input[name=name]", "Zaid");
-    if (await b.js(`document.querySelectorAll("[data-tab]").length > 1`)) { await b.tap("[data-tab]:not([aria-selected=true])"); ok(await b.js(`document.querySelector(".co-name input[name=name]").value === "Zaid"`), "the half-typed name survives a tab switch"); }
     await b.tap(".co-name button[type=submit]");
     ok(await b.until(`!!document.querySelector(".co-name-ok")`), "saving shows a confirmation in place of the box");
     o = orders().find((x) => x.id === o.id);

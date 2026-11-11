@@ -182,45 +182,52 @@ window.VXCheckout = (() => {
     return `<a class="co-wa" href="https://wa.me/${O().esc(S.whatsapp)}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener" data-co-wa>Rather order on WhatsApp? Message us →</a>`;
   }
 
+  // One tap opens a chat with the shop, with the order code already written. When the customer sends it,
+  // the shop has their real WhatsApp number and name beside the order, and a chat to send updates in.
+  const WA_ICON = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"/></svg>`;
+  function waUpdates(o, paid) {
+    if (!S.whatsapp) return "";
+    const text = paid ? `Hi Vibe X, my order ${o.code} (${title()}) is confirmed. Please send my updates here.` : `Hi Vibe X, I've placed order ${o.code} (${title()}). Please send my updates here.`;
+    return `<a class="co-updates" href="https://wa.me/${O().esc(S.whatsapp)}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener" data-co-updates>${WA_ICON}<span><b>Get order updates on WhatsApp</b><small>Opens a chat with the shop. Just press send.</small></span></a>`;
+  }
+
   // ---------- Step 2: pay ----------
-  function stepPay(tab = state.tab || "upi") {
+  // As little as possible: the amount, one tap to pay, and a line that says we're watching for it.
+  // Everything else (QR on a phone, UPI ID, pay to number, bank) sits behind "Other ways to pay".
+  // The name box and the WhatsApp button come up only once they've had time to pay.
+  function stepPay() {
     const { esc, rupees } = O();
-    state.tab = tab;
     const o = state.order;
     const note = `${o.code} ${o.lot}`;
-    // Only the payment options the shop has filled in (shop.json → pay).
-    const tabs = [["upi", "UPI / QR"], ["bank", "Bank transfer"], ["number", "Pay to number"]]
-      .filter(([k]) => k !== "bank" || (PAY.bank && PAY.bank.accountNumber))
-      .filter(([k]) => k !== "number" || PAY.phone);
     const field = (label, value, mono = true) =>
       `<div class="co-field"><span>${label}</span><b class="${mono ? "mono" : ""}">${esc(value)}</b><button type="button" class="co-copy" data-copy="${esc(value)}" aria-label="Copy ${label}">${COPY}<em>Copy</em></button></div>`;
-    let body = "";
-    if (tab === "upi") {
-      const link = upiLink(o.amount, note);
-      const qr = PAY.qrImage ? `<img src="${esc(PAY.qrImage)}" alt="Vibe X payment QR">` : qrSvg(link);
-      const qrBox = `<div class="co-qr">${qr}<p>Scan with GPay, PhonePe, Paytm or any UPI app.${PAY.qrImage ? ` Enter <b>${rupees(o.amount)}</b>.` : " The amount fills in by itself."}</p></div>`;
-      body = isPhone
-        ? `<p class="co-small co-upi-lead">Tap your app. The amount and note fill in by themselves.</p>${upiButtons(link)}
-          <details class="co-qr-more"><summary>Paying from another phone? Show the QR</summary>${qrBox}${field("UPI ID", PAY.upiId)}</details>`
-        : `${qrBox}${field("UPI ID", PAY.upiId)}`;
-    } else if (tab === "bank") {
-      body = field("Account name", PAY.bank.accountName, false) + field("Account number", PAY.bank.accountNumber) + field("IFSC", PAY.bank.ifsc) +
-        `<p class="co-small">${esc(PAY.bank.bankName)}. IMPS, NEFT or UPI to account all work.</p>`;
-    } else {
-      body = field("GPay / PhonePe / Paytm", PAY.phone) + `<p class="co-small">Send to this number in any payments app. The name should show as <b>${esc(PAY.payee)}</b>.</p>`;
-    }
-    shell(`${steps(2)}
+    const link = upiLink(o.amount, note);
+    const qr = PAY.qrImage ? `<img src="${esc(PAY.qrImage)}" alt="Vibe X payment QR">` : qrSvg(link);
+    const qrBox = `<div class="co-qr">${qr}<p>Scan with any UPI app.${PAY.qrImage ? ` Enter <b>${rupees(o.amount)}</b>.` : ""}</p></div>`;
+    const others = `${isPhone ? qrBox : ""}${field("Amount", String(o.amount))}${field("UPI ID", PAY.upiId)}
+      ${PAY.phone ? field("GPay / PhonePe / Paytm number", PAY.phone) + `<p class="co-small">The name should show as <b>${esc(PAY.payee)}</b>.</p>` : ""}
+      ${PAY.bank && PAY.bank.accountNumber ? field("Account name", PAY.bank.accountName, false) + field("Account number", PAY.bank.accountNumber) + field("IFSC", PAY.bank.ifsc) + `<p class="co-small">${esc(PAY.bank.bankName)}. IMPS, NEFT or UPI to account all work.</p>` : ""}
+      <p class="co-small">Add <b class="mono">${esc(o.code)}</b> in the payment note so we can match it.</p>`;
+    const extras = `${o.noName ? `<form class="co-name" novalidate><label>Name for the order <i>(optional)</i><span class="co-name-row"><input name="name" autocomplete="name" maxlength="60" enterkeyhint="done" value="${esc(state.nameDraft || "")}"><button type="submit" class="btn btn-line">Save</button></span></label><p class="ask-err" role="alert" hidden></p></form>` : o.nameSaved ? `<p class="co-small co-name-ok">✓ Order is in the name of <b>${esc(o.nameSaved)}</b>.</p>` : ""}${waUpdates(o)}`;
+    shell(`<div class="co-paynow">
       ${PAY.demo ? `<p class="co-demo">Demo payment details. Don't send real money.</p>` : ""}
-      <p class="co-timer">Pay within <b data-clock></b></p>
-      <div class="co-amount"><span>Pay exactly</span><b>${rupees(o.amount)}</b><button type="button" class="co-copy" data-copy="${o.amount}" aria-label="Copy amount">${COPY}<em>Copy</em></button></div>
-      ${o.shipping || o.coinsUsed ? `<p class="co-small">${rupees(o.goods)} for ${state.lines.length > 1 ? `${state.lines.length} pieces` : "the piece"}${o.coinsUsed ? ` − ${rupees(o.coinsUsed)} coins` : ""}${o.shipping ? ` + ${rupees(o.shipping)} courier` : ""}.</p>` : ""}
-      <p class="co-small">${isPhone && tab === "upi" ? "Scanning the QR or typing the UPI ID? " : ""}Add <b class="mono">${esc(o.code)}</b> in the payment note so we can match it.</p>
-      <div class="co-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === tab}">${l}</button>`).join("")}</div>
-      <div class="co-pay">${body}</div>
-      ${window.VXVisit?.arm === "off" ? "" : `<p class="co-small co-promise"><b>Real, or your money back.</b> Cancel any time before dispatch for a full refund.</p>`}
-      <p class="co-wait"><i aria-hidden="true"></i>Waiting for Vibe X to see your payment. Keep this page open, it updates by itself.</p>
-      ${o.noName ? `<form class="co-name" novalidate><label>Name for the order <i>(optional)</i><span class="co-name-row"><input name="name" autocomplete="name" maxlength="60" enterkeyhint="done" value="${esc(state.nameDraft || "")}"><button type="submit" class="btn btn-line">Save</button></span></label><p class="ask-err" role="alert" hidden></p></form>` : o.nameSaved ? `<p class="co-small co-name-ok">✓ Order is in the name of <b>${esc(o.nameSaved)}</b>.</p>` : ""}
-      <button type="button" class="co-back" data-back>← Change details</button>`);
+      <div class="co-amount"><span>Pay</span><b>${rupees(o.amount)}</b></div>
+      <div class="co-pay">${isPhone ? upiButtons(link) : qrBox}</div>
+      <p class="co-wait"><i aria-hidden="true"></i><span>Waiting for payment · <b data-clock></b></span></p>
+      <div class="co-later" ${state.later ? "" : "hidden"}>${extras}</div>
+      <details class="co-qr-more"><summary>Other ways to pay</summary>${others}</details>
+      <p class="co-foot"><span class="mono">Order ${esc(o.code)}</span><button type="button" class="co-back" data-back>Change details</button></p>
+    </div>`);
+    // The name box and the WhatsApp button come up only once they have started paying: a tap on a UPI app,
+    // or a copied UPI ID / number / amount. A QR scan from another phone can't be seen, so on a computer
+    // they also come up after half a minute.
+    const later = () => { state.later = true; const box = dlg.querySelector(".co-later"); if (box) box.hidden = false; };
+    if (!state.later) {
+      dlg.querySelector(".co-paynow").addEventListener("click", (e) => { if (e.target.closest("[data-upi], [data-copy]")) setTimeout(later, 600); });
+      clearTimeout(state.laterTimer);
+      if (!isPhone) state.laterTimer = setTimeout(later, 30000);
+    }
+    dlg.querySelector(".co-qr-more").addEventListener("toggle", (e) => { if (e.target.open) window.VXTrack?.("pay_tab", { x: "other" }); });
     const nf = dlg.querySelector(".co-name");
     if (nf) {
       nf.elements.name.addEventListener("input", (e) => { state.nameDraft = e.target.value; });
@@ -400,7 +407,7 @@ window.VXCheckout = (() => {
     stopWatching();
     state.order = null; // finished: Order now must start afresh, not reopen this payment
     if (confirmed) {
-      shell(`<div class="co-done is-ok"><h2 class="co-thanks">Thanks For The Purchase</h2><p class="mono co-code">Order ${esc(o.code)}</p></div>`);
+      shell(`<div class="co-done is-ok"><h2 class="co-thanks">Thanks For The Purchase</h2><p class="mono co-code">Order ${esc(o.code)}</p>${waUpdates(o, true)}</div>`);
       // Counted here, not on a button: a sale is a sale once the shop has the money.
       window.VXTrack?.("paid", { pr: state.lines[0].productId, n: o.goods - (o.coinsUsed || 0), fp: o.goods, k: state.lines.length });
       window.VXBag?.ordered(state.lines);
@@ -440,8 +447,9 @@ window.VXCheckout = (() => {
       dlg.addEventListener("close", () => { stopWatching(); stopFx(); window.VXTrack?.("co_close"); });
       dlg.addEventListener("click", (e) => {
         if (e.target === dlg || e.target.closest("[data-close]")) return dlg.close();
-        const t = e.target.closest("[data-tab]"); if (t) { window.VXTrack?.("pay_tab", { x: t.dataset.tab }); return stepPay(t.dataset.tab); }
+        
         const c = e.target.closest("[data-copy]"); if (c) return copyText(c);
+        if (e.target.closest("[data-co-updates]")) clearTimeout(closing); // the thank-you stays up while they are in WhatsApp
         if (e.target.closest("[data-back]")) {
           stopWatching();
           if (state.order) fetch(`/api/orders/${state.order.id}/cancel`, { method: "POST" }).catch(() => {});
@@ -459,7 +467,7 @@ window.VXCheckout = (() => {
     // The account first (it follows the customer's cookie), then what this browser remembers from a form.
     const dev = O().savedDetails();
     const saved = { name: a.name || me?.name || dev.name || "", phone: a.phone || me?.phone || dev.phone || "", delivery: a.delivery || dev.delivery || "", address: a.address || dev.address || "", city: a.city || dev.city || "", pin: a.pin || dev.pin || "" };
-    state = { bag, lines: q.lines, goods: q.goods, coinsUsable: q.coinsUsable || 0, coinsBalance: q.coinsBalance || 0, form: state && state.form ? { ...state.form } : saved, order: null, tab: "upi", arm: formArm() };
+    state = { bag, lines: q.lines, goods: q.goods, coinsUsable: q.coinsUsable || 0, coinsBalance: q.coinsBalance || 0, form: state && state.form ? { ...state.form } : saved, order: null, later: false, arm: formArm() };
     if (payOpen()) stepDetails(); else stepClosed();
     dlg.showModal();
     window.VXTrack?.("checkout", { pr: q.lines[0].productId, n: q.goods, k: q.lines.length, x: state.arm });
