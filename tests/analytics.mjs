@@ -409,6 +409,20 @@ await check("the checkout's Or order on WhatsApp link is counted on its own: sho
   assert.match(h.label, /Or order on WhatsApp/);
 });
 
+await check("each visitor has an id, a first-time or returning label, and their visits together", () => {
+  const day = Date.parse("2026-11-11T06:00:00Z"), ev = (v, s, e, x = {}) => ({ t: day + (x.dt || 0), v, s, e, p: "/", ...x });
+  const d = summarise([
+    ev("aaaaaaaa11111111", "s1", "page", { dev: "Phone", br: "Chrome", nw: 1 }), ev("aaaaaaaa11111111", "s1", "page", { p: "/p/j1", pr: "j1", dt: 1000 }),
+    ev("aaaaaaaa11111111", "s2", "page", { dev: "Phone", br: "Chrome", nw: 0, dt: 3600e3 }), ev("aaaaaaaa11111111", "s2", "checkout", { pr: "j1", dt: 3601e3 }), ev("aaaaaaaa11111111", "s2", "paid", { pr: "j1", n: 2400, dt: 3602e3 }),
+    ev("bbbbbbbb22222222", "s3", "page", { dev: "Computer", br: "Safari", nw: 0, dt: 500 }), ev("bbbbbbbb22222222", "s3", "page", { p: "/p/j1", pr: "j1", dt: 900 }),
+  ], { from: "2026-11-11", to: "2026-11-11", name: () => "Jacket" });
+  assert.deepEqual([d.people.total, d.people.fresh, d.people.back, d.people.twice], [2, 1, 1, 1]);
+  assert.deepEqual(d.people.list.map((p) => [p.id, p.visits, p.paid, p.value, p.isNew]), [["aaaaaaaa", 2, 1, 2400, true]]);
+  const mine = d.visits.filter((v) => v.v === "aaaaaaaa").sort((a, b) => a.start - b.start);
+  assert.deepEqual(mine.map((v) => [v.nth, v.returning, v.who.visits]), [[1, false, 2], [2, true, 2]]);
+  assert.equal(d.visits.find((v) => v.v === "bbbbbbbb").returning, true);
+});
+
 await check("footfall for the newer pages, searches, and moves to WhatsApp", () => {
   const t = Date.parse("2026-11-11T06:00:00Z"), ev = (s, e, x = {}) => ({ t: t + (x.dt || 0), v: s, s, e, p: "/", ...x }), start = (s) => ev(s, "page", { dev: "Phone", br: "Chrome", nw: 1 });
   const d = summarise([

@@ -223,6 +223,10 @@
   .thr:hover{background:var(--hover)}
   .thrs{columns:2;column-gap:28px}.tw{break-inside:avoid}
   .thr time{font:11px var(--mono);color:var(--mute)}
+  .vk{display:inline-grid;place-items:center;width:15px;height:15px;margin-right:5px;border-radius:4px;font:700 9px/1 var(--mono);vertical-align:middle;background:#e3efff;color:#1d4ed8}
+  .vk.r{background:#eee7fb;color:#6d28d9}
+  .vid{display:inline;padding:1px 6px;border:1px solid var(--line);border-radius:6px;background:none;font:600 11px var(--mono);color:inherit;cursor:pointer}
+  .vid:hover{background:var(--hover)}
   .beads{display:flex;align-items:center;gap:0;overflow:hidden}
   .beads i{flex:none;width:11px;height:11px;border-radius:50%;background:var(--neutral);margin-right:7px;position:relative}
   .beads i:not(:last-child)::after{content:"";position:absolute;left:11px;top:5px;width:7px;height:1px;background:var(--neutral)}
@@ -1003,22 +1007,30 @@
       return `<div class="where">${parts.map((s) => `<i style="flex:${s.n} 1 0" data-tip="${esc(s.x)}: ${esc(dur(s.n))}"></i>`).join("")}</div><span class="sub2">Most time: ${esc(longest.x)}, ${esc(dur(longest.n))}</span>`;
     };
     const once = (v) => shownSteps(v).length <= 1;
-    const F = { all: (v) => !once(v), once, stuck: (v) => v.friction, bought: (v) => v.value || v.outcome === "Paid", left: (v) => v.outcome === "Left checkout" };
+    const F = { all: (v) => !once(v), once, stuck: (v) => v.friction, bought: (v) => v.value || v.outcome === "Paid", left: (v) => v.outcome === "Left checkout", fresh: (v) => !v.returning && !once(v), back: (v) => v.returning };
     const gone = d.visits.filter(once).length;
-    const list = d.visits.filter(F[state.visitFilter]);
-    const row = (v) => { const shown = shownSteps(v); return `<div class="tw"><div class="thr" data-open="${esc(v.s)}" role="button" tabindex="0" data-tip="${esc(v.source)}, ${esc(v.device)}: ${esc(v.outcome)}"><time>${esc(clock(v.start))}</time><div class="beads">${shown.slice(0, 40).map((s) => `<i class="${beadOf(s)}"></i>`).join("")}</div></div>
-      <div class="vd hide" id="j-${esc(v.s)}"><span class="sub2">${esc(stamp(v.start))} · ${esc(v.source)} · ${esc(v.device)}${v.returning ? " · returning" : ""} · ${esc(dur(v.engaged))} · ${esc(v.outcome)}</span>${timeBar(v)}<ol class="journey">${v.steps.filter((s) => s.e !== "section").map((s) => `<li class="${tone(s.e)}"><time>${clock(s.t)}</time>${esc((WORD[s.e] || (() => s.e))(s))}</li>`).join("")}</ol></div></div>`; };
-    $("v-visits").innerHTML = card("Every visit is a thread", `
-      <div class="chips" style="margin-bottom:10px">${[["all", "All"], ["stuck", "Got stuck"], ["left", "Left checkout"], ["bought", "Bought"], ["once", "Left at once"]].map(([k, l]) => `<button type="button" data-vf="${k}" class="${state.visitFilter === k ? "on" : ""}">${l}</button>`).join("")}</div>
+    // One visitor picked: every visit of theirs in these dates, whatever the filter.
+    const who = state.visitWho, mine = who ? d.visits.filter((v) => v.v === who) : [];
+    const list = who ? mine : d.visits.filter(F[state.visitFilter]);
+    const idTag = (v) => `<button type="button" class="vid" data-who="${esc(v.v)}" data-tip="Show every visit by this visitor">#${esc(v.v)}</button>`;
+    const kind = (v) => (v.returning ? "Returning visitor" : "First-time visitor");
+    const P = d.people || { total: 0, fresh: 0, back: 0, twice: 0, list: [] };
+    const whoCard = () => { const w = mine[0]?.who; if (!w) return `<p class="empty">No visits by #${esc(who)} in these dates.</p>`; return `<div class="facts" style="margin:0 0 10px">${fact("Visitor", `#${who}`, w.isNew ? "first came in these dates" : "had been here before these dates")}${fact("Visits in these dates", num(w.visits), w.visits > 1 ? `${stamp(w.first)} to ${stamp(w.last)}` : stamp(w.first))}${fact("Orders paid", num(w.paid), w.value ? inr(w.value) : "")}${fact("Device", mine[0].device || "", mine[0].source || "")}</div><p class="sub2" style="margin:0 0 8px">The number is a random one kept in their browser. It is not connected to a name or phone number. <button type="button" class="vid" data-who="">Show everyone</button></p>`; };
+    const row = (v) => { const shown = shownSteps(v); return `<div class="tw"><div class="thr" data-open="${esc(v.s)}" role="button" tabindex="0" data-tip="${esc(v.source)}, ${esc(v.device)}: ${esc(v.outcome)}"><time>${esc(clock(v.start))}</time><div class="beads"><b class="vk ${v.returning ? "r" : "n"}" data-tip="${kind(v)}${v.who?.visits > 1 ? `, visit ${v.nth} of ${v.who.visits} in these dates` : ""}">${v.returning ? "R" : "N"}</b>${shown.slice(0, 40).map((s) => `<i class="${beadOf(s)}"></i>`).join("")}</div></div>
+      <div class="vd hide" id="j-${esc(v.s)}"><span class="sub2">${kind(v)} ${idTag(v)}${v.who?.visits > 1 ? ` · visit ${v.nth} of ${v.who.visits} in these dates` : ""}${v.who?.paid ? ` · ${num(v.who.paid)} paid order${v.who.paid === 1 ? "" : "s"}` : ""}</span><span class="sub2">${esc(stamp(v.start))} · ${esc(v.source)} · ${esc(v.device)} · ${esc(dur(v.engaged))} · ${esc(v.outcome)}</span>${timeBar(v)}<ol class="journey">${v.steps.filter((s) => s.e !== "section").map((s) => `<li class="${tone(s.e)}"><time>${clock(s.t)}</time>${esc((WORD[s.e] || (() => s.e))(s))}</li>`).join("")}</ol></div></div>`; };
+    const back = P.list.length ? card("People who came more than once, or bought", `<p class="sub2" style="margin:0 0 8px">${num(P.total)} people in these dates: ${num(P.fresh)} first-timers, ${num(P.back)} who had been before. ${num(P.twice)} came more than once in these dates. Press a number to see all of that person's visits.</p>${table("people", [{ h: "Visitor", f: (r) => `#${r.id}` }, { h: "First time?", f: (r) => (r.isNew ? "First-timer" : "Returning") }, { h: "Visits", k: "visits", n: 1 }, { h: "First seen", f: (r) => stamp(r.first) }, { h: "Last seen", f: (r) => stamp(r.last) }, { h: "Paid orders", k: "paid", n: 1 }, { h: "Spent", f: (r) => (r.value ? inr(r.value) : ""), n: 1 }], P.list)}<div class="chips" style="margin-top:8px">${P.list.slice(0, 24).map((r) => `<button type="button" class="vid" data-who="${esc(r.id)}">#${esc(r.id)} · ${num(r.visits)}×${r.paid ? " · bought" : ""}</button>`).join("")}</div>`) : "";
+    $("v-visits").innerHTML = (who ? card(`Visitor #${esc(who)}`, whoCard()) : "") + card(who ? "Their visits, newest first" : "Every visit is a thread", `
+      <div class="chips" style="margin-bottom:10px${who ? ";display:none" : ""}">${[["all", "All"], ["fresh", "First-timers"], ["back", "Returning"], ["stuck", "Got stuck"], ["left", "Left checkout"], ["bought", "Bought"], ["once", "Left at once"]].map(([k, l]) => `<button type="button" data-vf="${k}" class="${state.visitFilter === k ? "on" : ""}">${l}</button>`).join("")}</div>
       <div class="key" style="margin:0 0 8px"><span><i style="background:var(--neutral)"></i>Looking around</span><span><i></i>A product</span><span><i style="border-radius:2px"></i>Checkout</span><span><i class="r" style="border-radius:2px"></i>Stuck</span><span><i class="g"></i>Bought</span></div>
       ${state.visitFilter === "all" && gone ? `<p class="sub2" style="margin:0 0 8px">${num(gone)} more opened one page and left.</p>` : ""}
-      ${list.length ? `<div class="thrs">${list.map(row).join("")}</div>` : `<p class="empty">No visits match.</p>`}${d.visits.length >= 200 ? `<p class="sub2">From the latest 200 visits in these dates.</p>` : ""}`);
+      ${list.length ? `<div class="thrs">${list.map(row).join("")}</div>` : `<p class="empty">No visits match.</p>`}${d.visits.length >= 200 ? `<p class="sub2">From the latest 200 visits in these dates.</p>` : ""}`) + (who ? "" : back);
+    $("v-visits").querySelectorAll("[data-who]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); state.visitWho = b.dataset.who; renderVisits(d); $("v-visits").scrollIntoView({ block: "start" }); }));
     $("v-visits").querySelectorAll("[data-vf]").forEach((b) => (b.onclick = () => { state.visitFilter = b.dataset.vf; renderVisits(d); }));
     $("v-visits").querySelectorAll("[data-open]").forEach((tr) => { tr.onclick = () => $(`j-${tr.dataset.open}`).classList.toggle("hide"); tr.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tr.click(); } }; });
   }
 
   // ---- page control ----
-  const state = { view: "now", from: today(), to: today(), data: null, visitFilter: "all", formKind: "checkout", seg: "", took: 0, pCat: "all", pSort: "views", pFind: "", pOpen: "" };
+  const state = { view: "now", from: today(), to: today(), data: null, visitFilter: "all", visitWho: "", formKind: "checkout", seg: "", took: 0, pCat: "all", pSort: "views", pFind: "", pOpen: "" };
   const segQ = () => (state.seg ? `&seg=${encodeURIComponent(state.seg)}` : "");
   const RENDER = { pred: renderPred, fix: renderFix, loop: renderLoop, form: renderForm, traffic: renderTraffic, pages: renderPages, behave: renderBehave, products: renderProducts, chats: renderChats, visits: renderVisits };
   function show(v) {
