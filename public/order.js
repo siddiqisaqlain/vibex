@@ -15,6 +15,35 @@ window.VXOrder = (() => {
   function rememberName(full) {
     try { const n = firstName(full); if (n && !localStorage.getItem("vx-name")) localStorage.setItem("vx-name", n); } catch { /* private mode */ }
   }
+  // Name, number and address typed into a form, kept in this browser only so nobody types them twice.
+  // An autofilled "+91 98765 43210" is trimmed to the ten digits the box expects.
+  const DETAILS_KEY = "vx-details", DETAIL_FIELDS = ["name", "phone", "delivery", "address", "city", "pin"];
+  function savedDetails() {
+    try { const d = JSON.parse(localStorage.getItem(DETAILS_KEY) || "{}"); return d && typeof d === "object" ? d : {}; } catch { return {}; }
+  }
+  function rememberDetails(d) {
+    try {
+      const keep = savedDetails();
+      for (const k of DETAIL_FIELDS) { const v = String(d[k] ?? "").trim().slice(0, 300); if (v) keep[k] = v; }
+      localStorage.setItem(DETAILS_KEY, JSON.stringify(keep));
+    } catch { /* private mode */ }
+  }
+  function forgetDetails() { try { localStorage.removeItem(DETAILS_KEY); } catch { /* private mode */ } }
+  function tidyPhone(el) {
+    let d = el.value.replace(/\D/g, "");
+    if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
+    else if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
+    else return;
+    el.value = d;
+  }
+  // Tidies the number as it arrives and saves what has been typed a moment after the last key.
+  function keepDetails(form) {
+    let t = null;
+    const save = () => rememberDetails(Object.fromEntries(new FormData(form)));
+    const on = (e) => { if (e.target.name === "phone") tidyPhone(e.target); clearTimeout(t); t = setTimeout(save, 400); };
+    form.addEventListener("input", on);
+    form.addEventListener("change", on);
+  }
   const S = window.SHOP;
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const rupees = (n) => "₹" + Number(n).toLocaleString("en-IN");
@@ -71,6 +100,7 @@ window.VXOrder = (() => {
       dialog.addEventListener("click", (e) => { if (e.target === dialog || e.target.closest("[data-close]")) dialog.close(); });
     }
     const pic = p.image ? `<img src="${esc(p.image)}" alt="">` : window.productArt(p, hash(p.id));
+    const mine = savedDetails();
     dialog.innerHTML = `
       <form class="ask-form" novalidate>
         <button type="button" class="ask-x" data-close aria-label="Close">×</button>
@@ -78,17 +108,19 @@ window.VXOrder = (() => {
           <div><span class="brand">${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><span class="mono">${p.price ? rupees(p.price) : "Ask"} · ${lot(p)}</span></div></div>
         <h2>Enquire on WhatsApp</h2>
         <p class="ask-sub">Ask about size, condition or shipping. Leave your number and Vibe X will WhatsApp you, usually within the hour.</p>
-        <label>Your name<input name="name" autocomplete="name" maxlength="60" required></label>
-        <label>WhatsApp number<div class="ask-phone"><span>+91</span><input name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" placeholder="98765 43210" maxlength="14" required></div></label>
+        <label>Your name<input name="name" autocomplete="name" maxlength="60" value="${esc(mine.name || "")}" required></label>
+        <label>WhatsApp number<div class="ask-phone"><span>+91</span><input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="98765 43210" maxlength="20" value="${esc(mine.phone || "")}" required></div></label>
         <label>Your question <i>(optional)</i><input name="note" maxlength="300" placeholder="e.g. Will it fit size M? Can you ship to Delhi?"></label>
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
         <p class="ask-err" role="alert" hidden></p>
         <button class="order ask-send" type="submit">${WA}Send enquiry</button>
-        <p class="consent">We use your name and number only to reply about this piece. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
+        <p class="consent">We use your name and number only to reply about this piece. They are also kept on this device, so you don't type them next time. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
       </form>`;
     const form = dialog.querySelector("form");
+    keepDetails(form);
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      tidyPhone(form.elements.phone);
       const err = form.querySelector(".ask-err");
       const btn = form.querySelector(".ask-send");
       const data = Object.fromEntries(new FormData(form));
@@ -116,7 +148,7 @@ window.VXOrder = (() => {
       }
     });
     dialog.showModal();
-    form.querySelector("input[name=name]").focus();
+    form.querySelector(mine.name && mine.phone ? "input[name=note]" : mine.name ? "input[name=phone]" : "input[name=name]").focus();
   }
 
   function copy(text) {
@@ -180,5 +212,5 @@ window.VXOrder = (() => {
     });
   }
 
-  return { firstName, rememberName, button, install, toast, lot, rupees, esc, hash, pageUrl };
+  return { firstName, rememberName, savedDetails, rememberDetails, forgetDetails, keepDetails, tidyPhone, button, install, toast, lot, rupees, esc, hash, pageUrl };
 })();

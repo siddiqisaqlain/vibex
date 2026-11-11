@@ -185,7 +185,7 @@
         acts.insertAdjacentHTML("beforeend", `<a href="#rack" data-jump="All">See what's new →</a>`);
         acts.lastElementChild.addEventListener("click", close);
       }
-      if (name) action(acts, "Not you?", () => { keep(NAME_KEY, null); hello(); wait(); }, true);
+      if (name) action(acts, "Not you?", () => { (keep(NAME_KEY, null), window.VXOrder?.forgetDetails()); hello(); wait(); }, true);
       else action(acts, "What should we call you?", ask, Boolean(fresh));
     }
 
