@@ -136,13 +136,17 @@ window.VXCheckout = (() => {
         ${short && !f.name ? "" : `<label class="co-hide"><input type="checkbox" name="hideName" value="1" ${f.hideName ? "checked" : ""}><span>Don't show my name on the site</span></label>`}
         ${coinBox}
         <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
-        <button class="order co-cta" type="submit">Pay · ${O().rupees(goods)}</button>
+        <button class="order co-cta" type="submit">Place Order</button>
         ${waOrder()}
         <p class="consent">${short && !f.name ? "Your number is used only for this order, and kept on this device for next time." : "Your name and number are used only for this order, and kept on this device for next time. Unless you tick the box, the site may show your first name and city with what you bought."} <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
       </form>
     </div>`);
     const form = dlg.querySelector("form");
     O().keepDetails(form);
+    // What is typed stays if the box is closed and opened again on the same page (the saved copy only loads on a fresh page).
+    const hold = () => { state.form = { ...state.form, ...Object.fromEntries(new FormData(form)), hideName: form.elements.hideName?.checked ? "1" : "" }; if (form.elements.useCoins) state.form.useCoins = form.elements.useCoins.checked ? "1" : ""; };
+    form.addEventListener("input", hold);
+    form.addEventListener("change", hold);
     // "Or order on WhatsApp" stays out of the way of Pay. It comes up for someone who has stalled: 20 seconds
     // on this form without continuing, or an error. Once shown it stays. Shown and pressed are both counted.
     const showWa = () => { const a = dlg.open && dlg.querySelector("[data-co-wa]"); if (!a || state.waShown || state.order) return; state.waShown = true; a.hidden = false; window.VXTrack?.("nudge", { x: "wa_order" }); };
@@ -181,7 +185,6 @@ window.VXCheckout = (() => {
       row("[data-bill-coins]", coinsOff() > 0, null, `− ${rupees(coinsOff())}`);
       row("[data-bill-total]", Boolean(label) || coinsOff() > 0 || state.lines.length > 1, null, rupees(total));
       box.textContent = text; box.hidden = !text;
-      form.querySelector(".co-cta").textContent = `Pay · ${rupees(total)}`;
     }
     form.elements.pin.addEventListener("input", showFee);
     showFee();

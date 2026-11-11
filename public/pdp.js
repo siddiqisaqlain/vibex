@@ -219,8 +219,6 @@
       ${related.length ? `<section class="related"><h2>More ${esc(p.category.toLowerCase())}</h2><div class="related-row">${related.map(mini).join("")}</div></section>` : ""}`;
     if (p.status === "available") countPromise();
     // The full promise sits below the fold, so its first line goes where the thumb is.
-    // On a phone the price can sit below the first screen, so it rides on the button too (shop.css).
-    if (price && !from) root.querySelector(".pdp-info .order-now")?.insertAdjacentHTML("beforeend", `<span class="order-price"> · ${rupees(price)}</span>`);
     if (root.querySelector(".vx-promise")) root.querySelector(".pdp-info .actions")?.insertAdjacentHTML("afterbegin", `<button type="button" class="vx-sure" data-promise>Real, or your money back${P.changeOfMindDays ? ` · ${esc(P.changeOfMindDays)}-day returns` : ""}</button>`);
   }
 
