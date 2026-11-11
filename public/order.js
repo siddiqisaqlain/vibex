@@ -110,9 +110,10 @@ window.VXOrder = (() => {
       document.body.appendChild(sizes);
       sizes.addEventListener("click", (e) => {
         if (e.target === sizes || e.target.closest("[data-close]")) return sizes.close();
-        const b = e.target.closest("[data-size]");
+        const b = e.target.closest("[data-qsize]"); // not data-size: on the home page that is the rack's size filter
+        e.stopPropagation();
         if (!b) return;
-        const now = sizesFor.get(sizesFor.id), o = now?.status === "available" && (now.options || []).find((x) => x.size === b.dataset.size && x.left !== 0);
+        const now = sizesFor.get(sizesFor.id), o = now?.status === "available" && (now.options || []).find((x) => x.size === b.dataset.qsize && x.left !== 0);
         sizes.close();
         if (o) place({ ...now, price: o.price, sizes: o.size, chosenSize: o.size }, "rack"); // else it sold while the sheet was open
       });
@@ -125,7 +126,7 @@ window.VXOrder = (() => {
       <div class="ask-item"><div class="ask-thumb ${p.image ? "" : "art-bg"}">${pic}</div>
         <div><span class="brand">${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><span class="mono">${multiPrice(p) ? "From " : ""}${rupees(p.price)}</span></div></div>
       <h2>Select size</h2>
-      <div class="vx-size-grid" role="group" aria-label="Select size">${p.options.map((o) => `<button type="button" class="vx-size" data-size="${esc(o.size)}" ${o.left === 0 ? "disabled" : ""}><b>${esc(o.size)}</b>${multiPrice(p) && o.left !== 0 ? `<span>${rupees(o.price)}</span>` : ""}${left(o) ? `<span class="${o.left >= 1 && o.left <= 3 ? "low" : ""}">${left(o)}</span>` : ""}</button>`).join("")}</div>
+      <div class="vx-size-grid" role="group" aria-label="Select size">${p.options.map((o) => `<button type="button" class="vx-size" data-qsize="${esc(o.size)}" ${o.left === 0 ? "disabled" : ""}><b>${esc(o.size)}</b>${multiPrice(p) && o.left !== 0 ? `<span>${rupees(o.price)}</span>` : ""}${left(o) ? `<span class="${o.left >= 1 && o.left <= 3 ? "low" : ""}">${left(o)}</span>` : ""}</button>`).join("")}</div>
       <p class="co-small">Tap your size and it goes in your bag.</p>
       <a class="pdp-size-help" href="${esc(pageUrl(p))}">See all photos and details</a>
     </div>`;

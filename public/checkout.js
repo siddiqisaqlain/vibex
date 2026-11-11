@@ -80,7 +80,7 @@ window.VXCheckout = (() => {
     }
     return `<ul class="co-lines">${lines.map((l) => {
       const pic = l.image ? `<img src="${esc(l.image)}" alt="">` : window.productArt?.({ id: l.productId, name: l.productName }, hash(l.productId)) || "";
-      return `<li><span class="co-lthumb">${pic}</span><span class="co-lname">${esc(l.productName)}${l.size ? ` <i>${esc(l.size)}</i>` : ""}</span><b class="mono">${rupees(l.price * (l.qty || 1))}</b></li>`;
+      return `<li><span class="co-lthumb">${pic}</span><span class="co-lname">${esc(l.productName)}${l.size ? ` <i>${esc(l.size)}</i>` : ""}</span><b class="mono">${rupees(l.price * (l.qty || 1))}</b>${state.order ? "" : `<button type="button" class="co-lrm" data-co-rm="${esc(l.productId)}" data-rm-size="${esc(l.size || "")}" aria-label="Remove ${esc(l.productName)}">Remove</button>`}</li>`;
     }).join("")}</ul>`;
   }
   const title = () => state.lines.length === 1 ? state.lines[0].productName : `${state.lines[0].productName} + ${state.lines.length - 1} more`;
@@ -453,6 +453,18 @@ window.VXCheckout = (() => {
     }
   }
 
+  // Changed their mind about one piece while filling the form: it goes, the total follows, and what they typed stays.
+  async function dropLine(id, size) {
+    if (state.order || !window.VXBag) return;
+    const f = dlg.querySelector(".co-form");
+    if (f) state.form = { ...state.form, ...Object.fromEntries(new FormData(f)) };
+    window.VXBag.remove(id, size);
+    const q = await window.VXBag.quote();
+    if (!q.lines?.length) return dlg.close();
+    state.bag = q.lines.map((l) => ({ id: l.productId, size: l.size || "", qty: l.qty || 1 }));
+    state.lines = q.lines; state.goods = q.goods; state.coinsUsable = q.coinsUsable || 0; state.coinsBalance = q.coinsBalance || 0;
+    stepDetails();
+  }
   function openBag(q, me) {
     if (!dlg) {
       dlg = document.createElement("dialog");
@@ -463,6 +475,7 @@ window.VXCheckout = (() => {
         if (e.target === dlg || e.target.closest("[data-close]")) return dlg.close();
         
         const c = e.target.closest("[data-copy]"); if (c) return copyText(c);
+        const rm = e.target.closest("[data-co-rm]"); if (rm) return dropLine(rm.dataset.coRm, rm.dataset.rmSize || "");
         if (e.target.closest("[data-co-updates]")) clearTimeout(closing); // the thank-you stays up while they are in WhatsApp
         if (e.target.closest("[data-back]")) {
           stopWatching();

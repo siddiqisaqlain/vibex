@@ -109,7 +109,7 @@ window.VXBag = (() => {
     const { esc, rupees } = O();
     if (!bar) {
       bar = document.createElement("div");
-      bar.className = "vx-addbar"; bar.setAttribute("role", "status");
+      bar.className = `vx-addbar${document.querySelector(".pdp") ? " on-pdp" : ""}`; bar.setAttribute("role", "status");
       document.body.appendChild(bar);
       bar.addEventListener("click", (e) => {
         if (e.target.closest("[data-checkout]")) { hideBar(); return checkout(); }
