@@ -64,7 +64,7 @@ async function run() {
     await b.tap(".co-qr-more summary");
     await b.tap(".co-qr-more [data-copy]");
     ok(await b.until(`document.querySelector(".co-later").hidden === false && !!document.querySelector(".co-name input[name=name]")`, 4000), "once they start paying, the name box (optional) and the WhatsApp button appear");
-    ok(await b.js(`!document.querySelector(".co-sum") && !document.querySelector(".co-upi-lead") && !document.querySelector(".co-amount .co-copy")`), "the pay screen shows the price box alone: no breakdown line, no hint line");
+    ok(await b.js(`!document.querySelector(".co-sum") && !document.querySelector(".co-upi-lead") && !document.querySelector(".co-amount .co-copy")`), "a pick-up order shows the amount alone: no breakdown line, no hint line");
     const up = await b.js(`(()=>{const a=document.querySelector("[data-co-updates]");return a?{href:decodeURIComponent(a.href),h:a.getBoundingClientRect().height}:null})()`);
     ok(up && /wa\.me\/\d+\?text=.*VX-\d{4}/.test(up.href) && up.h >= 44, `the pay screen offers updates on WhatsApp with the order code written in (${up && up.href.slice(0, 90)})`);
     if (process.env.SHOTS) { await b.js(`document.querySelector(".co-name").scrollIntoView({block:"center"})`); await b.shot(path.join(process.env.SHOTS, "numberonly-pay.png")); }
@@ -72,6 +72,11 @@ async function run() {
     o = orders().find((x) => x.phone === "9876500032" && x.status === "awaiting_payment");
     ok(o && o.noName && o.form === "b", `the shop has the order before any name (${o && o.code})`);
     await b.fill(".co-name input[name=name]", "Zaid");
+    const off = async () => Number(await b.js(`document.querySelector("[data-ring]").getAttribute("stroke-dashoffset")`));
+    const off1 = await off(); await sleep(2200); const off2 = await off();
+    ok(off2 > off1 && off1 > 0, `the countdown ring keeps shrinking as the time runs down (${off1.toFixed(2)} then ${off2.toFixed(2)})`);
+    ok(await b.js(`document.querySelectorAll("[data-ring]").length === 2 && new Set([...document.querySelectorAll("[data-ring]")].map(c=>c.getAttribute("stroke-dashoffset"))).size === 1`), "the filled area inside the ring shrinks in step with it");
+    if (process.env.SHOTS) { await b.js(`document.querySelector(".co-ring").scrollIntoView({block:"center"})`); await b.shot(path.join(process.env.SHOTS, "ring.png")); }
     await b.tap(".co-name button[type=submit]");
     ok(await b.until(`!!document.querySelector(".co-name-ok")`), "saving shows a confirmation in place of the box");
     o = orders().find((x) => x.id === o.id);
@@ -91,6 +96,26 @@ async function run() {
       const bills2 = await (await fetch(base + "/api/billing/invoices", { headers: { "x-owner-key": "k" } })).json();
       ok(bills2.invoices.find((x) => x.id === after.invoice).customer.name === "Late Name", "a name given after the shop confirmed goes onto the bill");
     } else console.log("SKIP confirm through the portal route (" + JSON.stringify(conf).slice(0, 80) + ")");
+
+    // A delivery order: the total is higher than the piece, so one small line says why.
+    await b.js(`localStorage.removeItem("vx-details")`);
+    ok(await openCheckout("?form=b"), "form b opens for a delivery order");
+    await b.js(`(()=>{const e=document.querySelector(".co-form input[name=phone]");e.value="";})()`);
+    await b.fill(".co-form input[name=phone]", "9876500034");
+    await b.tap(".co-form input[name=delivery][value=ship]");
+    await b.fill(".co-form input[name=address]", "12 Lal Chowk");
+    await b.fill(".co-form input[name=city]", "Delhi");
+    await b.fill(".co-form input[name=pin]", "110001");
+    await sleep(800);
+    await b.tap(".co-form .co-cta");
+    if (await b.until(`!!document.querySelector(".co-paynow")`)) {
+      const sum = await b.js(`document.querySelector(".co-sum")?.textContent || ""`);
+      ok(/courier/.test(sum) || !(await b.js(`/\+/.test(document.querySelector(".co-amount b").textContent)`)) && sum === "", `a delivery order explains its total in one line (“${sum}”)`);
+      if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "pay-delivery.png"));
+      await b.tap("[data-back]");
+      await sleep(400);
+    } else ok(false, "delivery order reached the pay screen " + (await b.js(`document.querySelector(".ask-err")?.textContent || ""`)));
+    await b.js(`localStorage.removeItem("vx-details")`);
 
     // Returning customer on form b: the name is known, so it is sent and never asked.
     ok(await openCheckout("?form=b"), "form b opens for a returning customer");

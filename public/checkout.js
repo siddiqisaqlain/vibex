@@ -39,10 +39,16 @@ window.VXCheckout = (() => {
     return `upi://pay?${q.toString().replace(/\+/g, "%20")}`;
   }
 
+  // Each app gets its own button in its own colours, with a small mark drawn here (no image files):
+  // Google's four-colour G, PhonePe's "पे" on purple, Paytm's two-tone name. The marks that are words
+  // are drawn by the stylesheet, so a screen reader hears only the app's name.
+  const G_MARK = `<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>`;
+  const APP_MARK = { GPay: G_MARK, PhonePe: "", Paytm: "", other: "" };
   function upiButtons(link) {
     const { esc } = O();
     const query = link.slice(link.indexOf("?"));
-    return `<div class="co-upi-apps">${UPI_APPS.map(([name, base]) => `<a class="btn btn-ink" href="${esc(base + query)}" data-upi="${name}">${name}</a>`).join("")}<a class="btn btn-line" href="${esc(link)}" data-upi="other">Other UPI app</a></div>`;
+    const one = (name, href, key) => `<a class="btn co-app co-app-${key.toLowerCase()}" href="${esc(href)}" data-upi="${key}"><i class="co-ic" aria-hidden="true">${APP_MARK[key] || ""}</i>${name}</a>`;
+    return `<div class="co-upi-apps">${UPI_APPS.map(([name, base]) => one(name, base + query, name)).join("")}${one("Other UPI app", link, "other")}</div>`;
   }
 
   function qrSvg(text) {
@@ -79,8 +85,9 @@ window.VXCheckout = (() => {
   }
   const title = () => state.lines.length === 1 ? state.lines[0].productName : `${state.lines[0].productName} + ${state.lines.length - 1} more`;
 
-  function shell(inner) {
-    dlg.innerHTML = `<div class="co"><button type="button" class="ask-x" data-close aria-label="Close">×</button>${inner}</div>`;
+  // The pay screen has no cross: tapping outside the box, or "Change details", leaves it.
+  function shell(inner, cross = true) {
+    dlg.innerHTML = `<div class="co">${cross ? `<button type="button" class="ask-x" data-close aria-label="Close">×</button>` : ""}${inner}</div>`;
     if (fx) dlg.appendChild(fx.canvas); // a status update mustn't cut the celebration short
   }
 
@@ -161,6 +168,7 @@ window.VXCheckout = (() => {
         if (!res.ok) throw new Error(out.error || "Couldn't start the order. Please try again.");
         state.order = out;
         state.endsAt = Date.now() + out.left;
+        state.windowMs = out.left;
         state.ranOut = false;
         window.VXTrack?.("details", { pr: state.lines[0].productId, n: goods, k: state.lines.length });
         if (state.form.name) window.VXOrder.rememberName(state.form.name);
@@ -212,12 +220,14 @@ window.VXCheckout = (() => {
     shell(`<div class="co-paynow">
       ${PAY.demo ? `<p class="co-demo">Demo payment details. Don't send real money.</p>` : ""}
       <div class="co-amount"><span>Pay</span><b>${rupees(o.amount)}</b></div>
-      <div class="co-pay">${isPhone ? upiButtons(link) : qrBox}</div>
-      <p class="co-wait"><i aria-hidden="true"></i><span>Waiting for payment · <b data-clock></b></span></p>
+      ${o.shipping || o.coinsUsed ? `<p class="co-small co-sum">${rupees(o.goods)}${o.coinsUsed ? ` − ${rupees(o.coinsUsed)} coins` : ""}${o.shipping ? ` + ${rupees(o.shipping)} courier` : ""}</p>` : ""}
+      ${isPhone ? "" : `<div class="co-pay">${qrBox}</div>`}
+      <div class="co-ring" role="timer" aria-label="Time left to pay"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="co-ring-track" cx="50" cy="50" r="44"/><circle class="co-ring-area" data-ring cx="50" cy="50" r="23.5" pathLength="100" stroke-dasharray="100.4 100" stroke-dashoffset="0"/><circle class="co-ring-left" data-ring cx="50" cy="50" r="44" pathLength="100" stroke-dasharray="100.4 100" stroke-dashoffset="0"/></svg><b data-clock></b></div>
       <div class="co-later" ${state.later ? "" : "hidden"}>${extras}</div>
-      <details class="co-qr-more"><summary>Other ways to pay</summary>${others}</details>
+      ${isPhone ? `<div class="co-pay">${upiButtons(link)}</div>` : ""}
+      <details class="co-qr-more"><summary>${isPhone ? "Show QR" : "Other ways to pay"}</summary>${others}</details>
       <p class="co-foot"><span class="mono">Order ${esc(o.code)}</span><button type="button" class="co-back" data-back>Change details</button></p>
-    </div>`);
+    </div>`, false);
     // The name box and the WhatsApp button come up only once they have started paying: a tap on a UPI app,
     // or a copied UPI ID / number / amount. A QR scan from another phone can't be seen, so on a computer
     // they also come up after half a minute.
@@ -256,6 +266,9 @@ window.VXCheckout = (() => {
     const tick = () => {
       const ms = Math.max(0, state.endsAt - Date.now()), s = Math.ceil(ms / 1000), el = dlg.querySelector("[data-clock]");
       if (el) { el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; el.classList.toggle("low", s <= 60); }
+      // The ring empties as the time runs out.
+      // (two shapes: the line round the edge, and the filled slice inside it)
+      for (const ring of dlg.querySelectorAll("[data-ring]")) { ring.setAttribute("stroke-dashoffset", String(100.4 * (1 - Math.max(0, Math.min(1, ms / (state.windowMs || ms || 1)))))); ring.classList.toggle("low", s <= 60); }
     };
     tick();
     clock = setInterval(tick, 1000);

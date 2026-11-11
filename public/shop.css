@@ -909,18 +909,41 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .co-name-row .btn { flex: none; min-height: 44px; padding: 0 16px; }
 .co-name-ok { margin: 10px 0 4px; }
 /* The pay screen: one number, one choice, quiet everything else. */
-.co-paynow { display: flex; flex-direction: column; gap: 18px; padding-top: 26px; }
-.co-paynow .co-amount { display: block; padding: 22px 16px 24px; border-radius: 18px; text-align: center; }
-.co-paynow .co-amount span { display: block; margin-bottom: 8px; font: 500 13px/1 var(--body, system-ui, sans-serif); letter-spacing: .02em; text-transform: none; color: #a8a49b; }
-.co-paynow .co-amount b { display: block; font: 600 40px/1 var(--body, system-ui, sans-serif); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.co-paynow .co-upi-apps { grid-template-columns: 1fr; gap: 0; border: 1px solid var(--line-2); border-radius: 16px; overflow: hidden; background: #fff; }
-.co-paynow .co-upi-apps .btn { justify-content: space-between; min-height: 58px; padding: 0 18px; border: 0; border-radius: 0; background: none; color: var(--ink); font: 500 17px/1 var(--body, system-ui, sans-serif); text-align: left; box-shadow: none; }
-.co-paynow .co-upi-apps .btn + .btn { border-top: 1px solid var(--line); }
-.co-paynow .co-upi-apps .btn::after { content: "›"; font-size: 22px; line-height: 1; color: #b9b5ab; }
-.co-paynow .co-upi-apps .btn:active { background: var(--paper-2, #f1efe9); }
-.co-paynow .co-upi-apps .btn[data-upi=other] { color: var(--muted); }
+.co-paynow { display: flex; flex-direction: column; gap: 18px; padding-top: 8px; }
+.co-paynow .co-amount { display: block; padding: 4px 0 0; border-radius: 0; background: none; color: var(--ink); text-align: center; }
+.co-paynow .co-amount span { display: block; margin-bottom: 6px; font: 500 14px/1 var(--body, system-ui, sans-serif); letter-spacing: .01em; text-transform: none; color: var(--muted); }
+.co-paynow .co-amount b { display: block; font: 600 38px/1 var(--body, system-ui, sans-serif); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.co-paynow .co-sum { margin: -10px 0 0; text-align: center; color: var(--muted); }
+.co-paynow .co-upi-apps { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.co-paynow .co-app { flex-direction: column; justify-content: center; gap: 8px; min-width: 0; min-height: 92px; padding: 12px 6px; border: 0; border-radius: 16px; font: 600 14.5px/1 var(--body, system-ui, sans-serif); text-align: center; box-shadow: none; transition: transform .12s ease, filter .12s ease; }
+.co-paynow .co-app:active { transform: scale(.97); filter: brightness(.95); }
+.co-paynow .co-app-other { grid-column: 1 / -1; flex-direction: row; gap: 12px; min-height: 56px; padding: 0 16px; font-size: 16px; }
+.co-ic { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: #fff; font-style: normal; overflow: hidden; }
+.co-ic svg { width: 22px; height: 22px; display: block; }
+.co-app-gpay { background: #fff; color: #1f1f1f; box-shadow: inset 0 0 0 1px #dadce0 !important; }
+.co-app-gpay .co-ic { background: #f1f3f4; }
+.co-app-phonepe { background: #5f259f; color: #fff; }
+.co-app-phonepe .co-ic { background: #fff; }
+.co-app-phonepe .co-ic::before { content: "पे"; font: 700 21px/1 system-ui, "Noto Sans Devanagari", sans-serif; color: #5f259f; }
+.co-app-paytm { background: #00baf2; color: #fff; }
+.co-app-paytm .co-ic::before { content: "pay"; font: 800 11.5px/1 system-ui, sans-serif; letter-spacing: -.03em; color: #002970; }
+.co-app-paytm .co-ic::after { content: "tm"; font: 800 11.5px/1 system-ui, sans-serif; letter-spacing: -.03em; color: #00baf2; }
+.co-app-paytm .co-ic { display: flex; align-items: center; justify-content: center; }
+.co-app-other { background: var(--paper-2, #f1efe9); color: var(--ink); }
+.co-app-other .co-ic::before { content: "UPI"; font: 800 11px/1 system-ui, sans-serif; font-style: italic; color: #4b4b4b; }
 .co-paynow .co-qr { grid-template-columns: 1fr; justify-items: center; gap: 12px; text-align: center; }
 .co-paynow .co-qr svg, .co-paynow .co-qr img { width: 220px; height: 220px; border: 0; border-radius: 16px; }
+.co-ring { position: relative; width: 112px; height: 112px; margin: 2px auto; }
+.co-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
+.co-ring circle { fill: none; stroke-width: 6; }
+.co-ring-track { stroke: rgba(233, 46, 48, .12); }
+.co-ring circle.co-ring-area { stroke-width: 47; stroke: rgba(233, 46, 48, .16); transition: stroke-dashoffset 1s linear, stroke .3s; }
+.co-ring circle.co-ring-area.low { stroke: rgba(233, 46, 48, .28); }
+.co-ring-left { stroke: rgba(233, 46, 48, .5); stroke-linecap: butt; transition: stroke-dashoffset 1s linear, stroke .3s; }
+.co-ring-left.low { stroke: rgba(233, 46, 48, .95); }
+.co-ring b { position: absolute; inset: 0; display: grid; place-items: center; font: 600 24px/1 var(--body, system-ui, sans-serif); letter-spacing: -.01em; font-variant-numeric: tabular-nums; color: rgba(200, 34, 36, .8); }
+.co-ring b.low { color: var(--red); }
+@media (prefers-reduced-motion: reduce) { .co-ring-left, .co-ring circle.co-ring-area { transition: none; } }
 .co-paynow .co-wait { justify-content: center; margin: 0; padding: 0; border: 0; font-size: 14px; color: var(--muted); }
 .co-paynow .co-wait i { width: 8px; height: 8px; }
 .co-paynow .co-wait b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
