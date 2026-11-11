@@ -277,6 +277,7 @@ window.VXCheckout = (() => {
   function stepExpired() {
     const { esc } = O(), o = state.order;
     state.ranOut = true;
+    window.VXTrack?.("pay", { x: "late" });
     clearInterval(clock);
     const text = `Hi Vibe X, I paid for order ${o.code} (${title()}). Here's my payment screenshot.`;
     shell(`${steps(2)}

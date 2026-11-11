@@ -793,6 +793,11 @@ async function analyticsDigest(days) {
     leftCheckoutAt: r.abandonAt || {},
     stuck: top(r.stuck, 8, ({ kind, where, label, visits }) => ({ kind, where, label, visits })),
     products: top(r.products, 10, ({ name, views, clicks, checkout, paid, conv }) => ({ name, views, taps: clicks, checkout, paid, conv })),
+    shelf: r.shelf, categories: r.categories,
+    pages: (r.footfall || []).map(({ label, visits, people, medianTime, exitRate, buyers }) => ({ label, visits, people, medianTime, exitRate, buyers })),
+    features: (r.features || []).map(({ label, people, share, buyers }) => ({ label, people, share, buyers })),
+    searches: top(r.searches, 10, ({ key, people, none }) => ({ term: key, people, foundNothing: none })),
+    whatsapp: r.chats ? { people: r.chats.people, taps: r.chats.taps, from: r.chats.places.map(({ label, n }) => ({ label, n })) } : null,
     sources: top(r.sources, 6, ({ key, n, paid, conv }) => ({ key, visits: n, paid, conv })),
     devices: top(r.devices, 4, ({ key, n, paid, conv, frictionRate }) => ({ key, visits: n, paid, conv, frictionRate })),
     delivery: r.delivery, payTabs: r.payTabs, speed: r.speed, ratings: r.ratings,
@@ -980,7 +985,18 @@ function formResult() {
   return { a: { label: "Name and number", ...out.a }, b: { label: "Number only", ...out.b } };
 }
 setInterval(() => { if (formDirty) { writeJson(FORM_TEST, formTally); formDirty = false; } }, 15e3).unref();
-const analytics = createAnalytics({ onEvent: (ev) => { lab.see(ev); formSee(ev); }, STORE, productName: (id) => load().find((p) => p.id === id)?.name || id, productNames: () => Object.fromEntries(load().map((p) => [p.id, p.name])) });
+// Names for the analytics page. Several listed pieces can share a name (eleven "Uspa Sweater"), so those carry their lot too.
+let anNames = { at: 0, map: {} };
+function analyticsNames() {
+  if (Date.now() - anNames.at < 5000) return anNames.map;
+  const list = load(), key = (p) => String(p.name || "").trim().toLowerCase(), times = {};
+  for (const p of list) if (isPublic(p)) times[key(p)] = (times[key(p)] || 0) + 1;
+  anNames = { at: Date.now(), map: Object.fromEntries(list.map((p) => [p.id, isPublic(p) && times[key(p)] > 1 ? `${p.name} · ${lotOf(p)}` : p.name])) };
+  return anNames.map;
+}
+// Everything listed on the website right now, so a piece nobody has looked at still shows up in the report.
+const analyticsCatalog = () => { const names = analyticsNames(); return load().filter(isPublic).map((p) => ({ id: p.id, name: names[p.id] || p.name, code: lotOf(p), category: p.category || "", subcategory: p.subcategory || "", price: p.price || 0, stock: billing.stockOf(p), status: p.status || "", image: p.image || "", wardrobe: Boolean(p.wardrobe), createdAt: p.createdAt || "" })); };
+const analytics = createAnalytics({ onEvent: (ev) => { lab.see(ev); formSee(ev); }, STORE, productName: (id) => analyticsNames()[id] || id, productNames: analyticsNames, catalog: analyticsCatalog });
 // SIGTERM (a deploy or restart): see shutdown() next to the server below.
 
 // ---- Customer accounts (lib/accounts.js): bag, wishlist, address, orders, coins ----

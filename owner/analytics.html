@@ -196,8 +196,28 @@
   .pb{position:absolute;transform:translate(-50%,-50%);border-radius:50%;padding:0;border:2px solid var(--card);background:var(--hover);overflow:hidden;cursor:pointer;display:grid;place-items:center;font:600 13px var(--mono);color:var(--ink2);box-shadow:0 0 0 1px var(--line)}
   .pb img{width:100%;height:100%;object-fit:cover;display:block}
   .pb.sold{box-shadow:0 0 0 2px var(--green)}.pb.cold{box-shadow:0 0 0 2px var(--red)}.pb.sel{outline:2px solid var(--ink);outline-offset:2px}
-  #pDetail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:14px;align-items:center}
-  #pDetail h3{margin:0;font-size:18px;letter-spacing:-.02em}
+  /* every product on the website, one row each */
+  .tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  .tools .chips{flex:1 1 300px}.tools input[type=search]{flex:1 1 160px;min-width:0;padding:7px 10px;border:1px solid var(--line);border-radius:3px;background:var(--card);min-height:36px;font-size:14px}
+  .pl{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:4px 10px;align-items:center;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:8px 2px;cursor:pointer;min-height:56px}
+  .pl:hover,.pl.sel{background:var(--hover)}
+  .pl .pic{width:46px;height:46px;border-radius:3px;overflow:hidden;background:var(--hover);display:grid;place-items:center;font:600 12px var(--mono);color:var(--mute);grid-row:1/3}
+  .pl .pic img{width:100%;height:100%;object-fit:cover;display:block}
+  .pl .nm{min-width:0}.pl .nm b{display:block;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pl .nm small{display:block;font:11px var(--mono);color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pl .nums{font:12px var(--mono);color:var(--ink2);text-align:right;white-space:nowrap}.pl .nums b{font-weight:600;color:var(--ink);font-size:14px}
+  .pl .trk{grid-column:2/4;height:5px;display:flex;gap:2px}.pl .trk i{display:block;height:5px;border-radius:0 3px 3px 0;background:var(--neutral);min-width:0}.pl .trk i.o{background:var(--ink)}.pl .trk i.g{background:var(--green);min-width:4px}
+  .pd{padding:6px 2px 14px 58px;border-top:1px dashed var(--line)}
+  /* footfall */
+  .ff{border-top:1px solid var(--line);padding:12px 0;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr);gap:6px 18px;align-items:center}
+  .ff:first-of-type{border-top:0}
+  .ff h3{margin:0;font-size:16px;letter-spacing:-.01em}.ff .big{font:600 26px/1.1 var(--mono);letter-spacing:-.04em}
+  .ff .sub2{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:3px 14px}
+  .ff svg{height:44px}
+  .new{font:600 10px var(--mono);background:var(--ink);color:var(--paper);border-radius:2px;padding:1px 5px;margin-left:6px;vertical-align:2px}
+  .chat{border-top:1px solid var(--line);padding:10px 0}.chat .bub{margin:0 0 4px;border-radius:10px 10px 2px 10px;background:var(--greenBg)}
+  .chat .bub.none{background:var(--hover);color:var(--mute)}
+  @media (max-width:860px){.ff{grid-template-columns:minmax(0,1fr)}.pd{padding-left:2px}}
   /* visits as threads */
   .thr{display:grid;grid-template-columns:62px minmax(0,1fr);gap:8px;align-items:center;padding:4px 2px;cursor:pointer;border-bottom:1px solid var(--line);min-height:32px}
   .thr:hover{background:var(--hover)}
@@ -243,12 +263,12 @@
   <div class="range" id="range">
     <button data-d="0">Today</button><button data-d="6">7 days</button><button data-d="29">30 days</button><button data-d="89">90 days</button>
     <input type="date" id="from" aria-label="From date"><input type="date" id="to" aria-label="To date">
-    <select id="seg" class="seg-pick" aria-label="Who to show"><option value="">Everyone</option><option value="dev:Phone">Phones</option><option value="dev:Computer">Computers</option><option value="new:1">New visitors</option><option value="new:0">Returning</option><option value="src:Instagram">From Instagram</option><option value="src:Search">From search</option><option value="src:Direct or shared link">Direct or shared</option></select>
+    <select id="seg" class="seg-pick" aria-label="Who to show"><option value="">Everyone</option><option value="dev:Phone">Phones</option><option value="dev:Computer">Computers</option><option value="new:1">New visitors</option><option value="new:0">Returning</option><option value="src:Instagram">From Instagram</option><option value="src:Facebook">From Facebook</option><option value="src:WhatsApp">From WhatsApp</option><option value="src:Search">From search</option><option value="src:Direct or shared link">Direct or shared</option></select>
   </div>
 </header>
 <nav class="tabs" id="tabs" aria-label="Sections">
   <button data-v="now">Shop floor</button><button data-v="fix">Fix first</button><button data-v="pred">Predict</button><button data-v="loop">The leak</button><button data-v="form">Order form</button><button data-v="traffic">Traffic</button>
-  <button data-v="behave">Scroll map</button><button data-v="products">Products</button><button data-v="visits">Visits</button>
+  <button data-v="pages">Pages</button><button data-v="behave">Scroll map</button><button data-v="products">Products</button><button data-v="chats">WhatsApp</button><button data-v="visits">Visits</button>
 </nav>
 <main>
   <section class="view" id="v-now"></section>
@@ -257,8 +277,10 @@
   <section class="view" id="v-loop"></section>
   <section class="view" id="v-form"></section>
   <section class="view" id="v-traffic"></section>
+  <section class="view" id="v-pages"></section>
   <section class="view" id="v-behave"></section>
   <section class="view" id="v-products"></section>
+  <section class="view" id="v-chats"></section>
   <section class="view" id="v-visits"></section>
 </main>
 <div id="tip" class="hide" role="status"></div>
@@ -345,11 +367,14 @@
 
   // ---- words for what people did ----
   const WORD = {
-    page: (e) => `opened ${e.product || (e.p === "/" ? "the home page" : e.p)}`, pclick: (e) => `tapped ${e.product || "a product"}`, filter: (e) => `filtered by ${e.x}`, wa: () => "went to WhatsApp", ig: () => "went to Instagram", map: () => "opened directions", call: () => "pressed call",
+    page: (e) => `opened ${e.product || (e.p === "/" ? "the home page" : e.p)}`, pclick: (e) => `tapped ${e.product || "a product"}`, filter: (e) => `filtered by ${e.x}`, wa: (e) => `went to WhatsApp${e.note ? `, with the message "${e.note}"` : ""}`, ig: () => "went to Instagram", map: () => "opened directions", call: () => "pressed call",
     video: () => "played the video", yt: () => "went to YouTube", copy: (e) => `copied ${e.x || "payment details"}`, bag_add: (e) => `added to bag: ${e.product || ""}`, signin: (e) => `signed in with ${e.x === "google" ? "Google" : "WhatsApp"}`, wish: (e) => `${e.x === "off" ? "unsaved" : "saved"} ${e.product || "a piece"}`, checkout: (e) => `started checkout: ${e.product || ""}${e.ms ? `, after ${dur(e.ms)} on the page` : ""}`, details: (e) => `finished their details${e.ms ? ` in ${dur(e.ms)}` : ""}`, pay_tab: (e) => `switched payment to ${e.x}`,
     paid: (e) => `paid${e.n ? ` ${inr(e.n)}` : ""}: ${e.product || ""}${e.ms ? `, took ${dur(e.ms)}` : ""}`, abandon: (e) => `left checkout at the ${e.x === "pay" ? "payment" : "details"} step${e.f ? ` (${e.f})` : ""}`, rage: (e) => `pressed again and again: ${e.x}`, dead: (e) => `pressed something that did nothing: ${e.x}`, invalid: (e) => `was stopped by the form: ${e.x}`, formerr: (e) => `saw an error: ${e.x}`, err: (e) => `hit a site error: ${e.x}`,
     nudge: (e) => (e.ctl ? `would have seen help: ${e.x}` : `was shown help: ${e.x}`), nudge_tap: (e) => `pressed the help: ${e.x}`, sec: (e) => `spent ${dur(e.n)} on ${e.x}`, field: (e) => `spent ${dur(e.n)} in ${e.x}${e.del ? `, corrected ${e.del}×` : ""}${e.fl === 0 ? ", left it empty" : ""}`, tap: (e) => `pressed ${e.x}`, choice: (e) => `chose ${e.r === "ship" ? "delivery" : "pick up"}`,
     enq_open: (e) => `opened enquiry: ${e.product || ""}`, enq: (e) => `sent an enquiry: ${e.product || ""}`, fb: (e) => `gave feedback: ${e.r}${e.note ? ` "${e.note}"` : ""}`, section: (e) => `reached ${e.x}`, leave: () => "left",
+    pay: (e) => ({ app: `pressed ${e.r && e.r !== "other" ? e.r : "a UPI app"} to pay`, qr: "opened the payment QR", copy: "copied the payment details", other: "opened Other ways to pay", wa: "pressed Get order updates on WhatsApp", name: "started typing their name on the pay screen", screen: "went back to UPI", away: "left the page while paying (likely in their UPI app)", back: "came back to the page, waiting for the shop", late: "ran out of time to pay" }[e.x] || "was paying"),
+    search: (e) => `searched "${e.x}"${e.n === 0 ? ", nothing found" : e.n ? `, ${e.n} found` : ""}`, bag_view: () => "opened the bag", bag_checkout: () => "pressed Checkout in the bag", wardrobe_teaser: () => "pressed the Wardrobe card",
+    wd: (e) => ({ open: `picked up ${e.product || "a piece"} in The Wardrobe`, card: "opened a card on the Wardrobe's top shelf", drawer: "opened a fragrance drawer", order: `went from The Wardrobe to ${e.product || "a product"}` }[e.x] || "used The Wardrobe"),
   };
   const FRICTION = ["rage", "dead", "invalid", "formerr", "err", "abandon"];
   const tone = (e) => (FRICTION.includes(e) ? "bad" : ["paid", "enq"].includes(e) ? "good" : "");
@@ -358,11 +383,13 @@
   // The shop as connected tanks. One person is one droplet; thousands run together into pools that flow from room
   // to room. Rooms swell as people arrive and shrink as they leave, and press one to open it up.
   const ROOMS = [
-    ...[["hero", "Top of the page"], ["stats", "Why Vibe X"], ["feat", "Featured"], ["rack", "Fresh off the truck"], ["find", "Find your fit"], ["looks-sec", "Just landed"], ["how", "How it works"], ["visit", "The store"], ["latest", "Latest video"]].map(([k, label]) => ({ key: `z:${k}`, label, group: "home" })),
+    ...[["hero", "Top of the page"], ["stats", "Why Vibe X"], ["feat", "Featured"], ["wardrobe-teaser", "The Wardrobe card"], ["rack", "Fresh off the truck"], ["find", "Find your fit"], ["looks-sec", "Just landed"], ["how", "How it works"], ["visit", "The store"], ["latest", "Latest video"]].map(([k, label]) => ({ key: `z:${k}`, label, group: "home" })),
     ...[["name", "Name"], ["phone", "Phone number"], ["delivery", "Pick up or deliver"], ["address", "Address"], ["city", "City"], ["pin", "PIN code"], ["hideName", "Hide my name"]].map(([k, label]) => ({ key: `f:${k}`, label, group: "form" })),
-    { key: "pay", label: "Paying", group: "end" }, { key: "sold", label: "Sold", group: "end" }, { key: "left", label: "Walked out", group: "end" }, { key: "back", label: "Other pages", group: "end" },
+    { key: "pay", label: "Looking at how to pay", group: "pay" }, { key: "pay:app", label: "In their UPI app", group: "pay" }, { key: "pay:manual", label: "Other ways: QR, UPI ID, bank", group: "pay" }, { key: "pay:back", label: "Waiting for the shop to confirm", group: "pay" }, { key: "pay:late", label: "Time ran out", group: "pay" },
+    { key: "sold", label: "Sold", group: "end" }, { key: "left", label: "Walked out", group: "end" },
+    { key: "pg:wardrobe", label: "The Wardrobe", group: "pages" }, { key: "pg:bag", label: "Bag", group: "pages" }, { key: "pg:account", label: "My account", group: "pages" }, { key: "back", label: "Policies and other", group: "pages" },
   ];
-  const GROUPS = { home: "Home page", products: "Products", form: "Order form", end: "The end" };
+  const GROUPS = { home: "Home page", products: "Products", pages: "Other pages", form: "Order form", pay: "Paying", end: "The end" };
   const water = { on: false, rooms: new Map(), drops: [], k: 1, focus: "", mode: "live", wide: true, W: 0, H: 0, edges: [], total: 0, slot: -1, replay: null, playing: false, last: 0, pos: 0, products: [], colors: null, day: "" };
   const still = () => matchMedia("(prefers-reduced-motion:reduce)").matches;
   const SCALE = 2, MAX_DROPS = () => (water.wide ? 1400 : 700);
@@ -374,15 +401,16 @@
   function roomFor(key) {
     let r = water.rooms.get(key);
     if (!r && key.startsWith("p:")) r = water.rooms.get(water.products.includes(key) ? key : "p:other");
-    if (!r) r = water.rooms.get(key.startsWith("z:") ? "z:hero" : key.startsWith("f:") ? "f:name" : "back"); // nobody goes missing from the count
+    if (!r) r = water.rooms.get(key.startsWith("z:") ? "z:hero" : key.startsWith("f:") ? "f:name" : key.startsWith("pay") ? "pay" : "back"); // nobody goes missing from the count
     return r;
   }
+  const otherLabel = (list) => { const n = list.filter((p) => p.listed).length - 7; return n > 0 ? `The other ${n} products` : "Other products"; };
   function setProducts(list) {
     const keys = list.slice(0, 7).map((p) => `p:${p.id}`);
     if (keys.join() === water.products.join() && water.rooms.size) return;
     water.products = keys;
     const had = water.rooms, next = new Map();
-    const seed = [...ROOMS.slice(0, 9), ...list.slice(0, 7).map((p) => ({ key: `p:${p.id}`, label: p.name, group: "products" })), { key: "p:other", label: "Other products", group: "products" }, ...ROOMS.slice(9)];
+    const seed = [...ROOMS.filter((r) => r.group === "home"), ...list.slice(0, 7).map((p) => ({ key: `p:${p.id}`, label: p.name, group: "products" })), { key: "p:other", label: otherLabel(list), group: "products" }, ...ROOMS.filter((r) => r.group !== "home")];
     for (const r of seed) next.set(r.key, had.get(r.key) ? { ...had.get(r.key), label: r.label } : { ...r, n: 0, bad: 0, good: 0, time: 0, x: 0, y: 0, w: 0, h: 0, vx: 0, vy: 0, vw: 0, vh: 0, tx: 0, ty: 0, tw: 0, th: 0, fresh: true });
     water.rooms = next;
     layout();
@@ -402,7 +430,7 @@
         at += size + GAP;
       }
     };
-    const order = ["home", "products", "form", "end"].filter((g) => by[g]);
+    const order = ["home", "products", "pages", "form", "pay", "end"].filter((g) => by[g]);
     if (water.wide) {
       const colW = (g) => 0.75 + by[g].reduce((n, r) => n + weight(r), 0) * 0.28, sum_ = order.reduce((n, g) => n + colW(g), 0);
       let x = 0, spare = W - GAP * 3 * (order.length - 1) - 96 * order.length;
@@ -549,7 +577,7 @@
       <div id="waterBox" class="waterBox"><canvas id="waterCv" role="img" aria-label="The shop drawn as connected tanks of water. Each tank is a part of the site, and its size and water show how many people are in it. A list of every room follows."></canvas></div>
       <div class="deck hide" id="deck"><button type="button" id="playBtn" aria-label="Pause">❚❚</button><div class="rail"><div id="railArt"></div><input type="range" id="rail" min="0" max="1000" value="0" aria-label="Time of day"></div><time id="railT"></time></div>
       <div class="key"><span><i class="w"></i><span id="scaleKey">One drop is one person</span></span><span><i class="r"></i>Hit a problem in that room</span><span><i class="g"></i>Bought</span><span>Press any room to open it</span><span id="lostKey" class="hide"></span></div><div id="whoBox"></div></div>
-      <div id="roomBox"></div><div class="card" id="listCard"><div id="listBox"></div></div>`;
+      <div id="payBox"></div><div id="roomBox"></div><div class="card" id="listCard"><div id="listBox"></div></div>`;
     $("modes").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; const m = b.dataset.m; m === "live" ? goLive() : m === "all" ? showPeriod() : startReplay(Number(m)); };
     $("playBtn").onclick = () => { if (water.playing) pauseReplay(); else playReplay(); };
     $("rail").oninput = (e) => { pauseReplay(); water.pos = Number(e.target.value) / 1000; applySlot(); };
@@ -574,7 +602,7 @@
     water.mode = m === "live" ? "live" : m === "all" ? "all" : "replay";
     $("modes").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.m === String(m)));
     $("deck").classList.toggle("hide", water.mode !== "replay");
-    $("listCard").classList.toggle("hide", water.mode !== "live");
+    $("listCard").classList.toggle("hide", water.mode !== "live"); $("payBox").classList.toggle("hide", water.mode !== "live");
     $("whoBox").textContent = "";
   }
   function goLive() { pauseReplay(); water.replay = null; modeOn("live"); tick(); }
@@ -632,8 +660,8 @@
     if (z && key.startsWith("z:")) facts.push(fact("Reached this section", `${z.reach}%`), fact("Stopped to read", `${z.readRate}%`, "4 seconds or more"), fact("Came back to it", `${z.backRate}%`), fact("Saw of the section", `${z.seenDepth}%`), fact("Scrolled back up", `${z.reversals}×`, "per person"));
     if (z && key.startsWith("f:")) facts.push(fact("Before first key", dur(z.hesitate), "looking at the box"), fact("Keys pressed", num(z.keys), "per person"), fact("Corrected it", num(z.corrected)), fact("Pasted", num(z.pasted)), fact("Filled by the phone", num(z.autofilled)), fact("Came back to it", num(z.refocused)), fact("Still wrong on leaving", num(z.invalid)), fact("Error messages", num(z.errors)), fact("Left empty", num(z.empty)), fact("Quit here", num(z.quit)));
     const pr = key.startsWith("p:") && key !== "p:other" ? d.products.find((x) => `p:${x.id}` === key) : null;
-    if (pr) facts.push(fact("Saw it in the rack", num(pr.seen), `on screen ${dur(pr.seenTime)}`), fact("Tapped after seeing", `${pr.tapRate}%`), fact("Pressed Order now", num(pr.checkout)), fact("Bought", num(pr.paid), `could be ${pr.convRange.low} to ${pr.convRange.high}%`), fact("Sales", inr(pr.value)), fact("Chats", num(pr.chat)));
-    if (key === "pay") { const s = d.stepTimes.range?.paying; if (s) facts.push(fact("Slowest", dur(s.slowest))); }
+    if (pr) facts.push(fact("Saw it in the rack", num(pr.seen), `on screen ${dur(pr.seenTime)}`), fact("Tapped after seeing", `${pr.tapRate}%`), fact("Added to bag", num(pr.checkout)), fact("Bought", num(pr.paid), `could be ${pr.convRange.low} to ${pr.convRange.high}%`), fact("Sales", inr(pr.value)), fact("Chats", num(pr.chat)));
+    if (key.startsWith("pay")) { const s = d.stepTimes.range?.paying; if (s) facts.push(fact("Slowest", dur(s.slowest))); }
     const press = key.startsWith("z:") ? d.presses.filter((x) => x.label.startsWith(`${r.label}:`)).slice(0, 8).map((x) => ({ label: x.label.slice(r.label.length + 2), n: x.n })) : [];
     const after = p.next.map((x) => ({ label: x.label, n: x.n }));
     box.innerHTML = card("", `${head}<div class="facts">${facts.join("")}</div>
@@ -646,7 +674,7 @@
     renderRoom();
     if (key && innerWidth < 720) $("roomBox")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
-  const whereNow = (p) => (p.boxLabel ? `Filling in ${p.boxLabel}, ${dur(p.boxFor)} so far` : p.zoneLabel ? `${p.zoneLabel}, ${dur(p.zoneFor)} so far` : p.since < 8000 ? "Just arrived" : "Browsing");
+  const whereNow = (p) => (p.pay ? `${p.pay}, ${dur(p.payFor)} so far` : p.boxLabel ? `Filling in ${p.boxLabel}, ${dur(p.boxFor)} so far` : p.zoneLabel ? `${p.zoneLabel}, ${dur(p.zoneFor)} so far` : p.since < 8000 ? "Just arrived" : "Browsing");
   function renderNow(l) {
     $("nowCount").textContent = num(l.active);
     if (state.view !== "now") return;
@@ -658,6 +686,8 @@
     if (!water.rooms.size) setProducts([]);
     setRooms(l.rooms || {}, Object.entries(l.edges || {}).map(([k, n]) => { const [a, b] = k.split(">"); return { a, b, n }; }));
     $("planSay").textContent = l.active ? (l.active === 1 ? "person in the shop right now." : "people in the shop right now.") : "The shop is quiet right now. Try Whole period, or replay today.";
+    const payers = l.people.filter((p) => p.pay);
+    $("payBox").innerHTML = payers.length ? card(`Paying right now: ${payers.length}`, payers.map((p) => `<div class="chat" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><b>${esc(p.pay)}</b><div class="sub2">${esc(p.buying || p.label)}${p.amount ? ` · ${inr(p.amount)}` : ""} · ${esc(p.device || "")}, ${esc(p.source || "")}</div></div><div class="sub2" style="text-align:right">${esc(dur(p.payFor))} in this spot<br>${esc(dur(p.payTotal))} on payment</div></div>`).join("")) : "";
     keepOpen($("listBox"), `${l.feed.length ? `<ul class="ticker">${l.feed.slice(0, 4).map((e) => `<li class="${tone(e.e)}"><time>${clock(e.t)}</time><span>${esc((WORD[e.e] || (() => e.e))(e))}</span></li>`).join("")}</ul>` : ""}
       ${more(table("people", [{ h: "Who", k: "id" }, { h: "Viewing", html: (r) => `${esc(r.label)}${r.step ? ` <span class="tag">${esc(r.step)}</span>` : ""}${r.friction ? ` <span class="tag bad">stuck ${r.friction}×</span>` : ""}` }, { h: "Chance of buying", f: (r) => (r.chance === null ? "" : `${r.chance}%`), n: 1 }, { h: "Exactly where", f: whereNow }, { h: "From", k: "source" }, { h: "Device", f: (r) => `${r.device || ""}, ${r.browser || ""}` }, { h: "Here for", f: (r) => dur(r.since), n: 1 }, { h: "Pages", k: "pages", n: 1 }, { h: "Scrolled", f: (r) => `${r.scroll}%`, n: 1 }, { h: "", f: (r) => (r.returning ? "returning" : "new") }], l.people, "Nobody here at the moment."), l.active > l.people.length ? `See ${l.people.length} of ${num(l.active)} people, those stuck first` : "See everyone as a list")}`);
   }
@@ -767,6 +797,8 @@
     const DEL = { pickup: "Pick up in Srinagar", ship: "Deliver to me" };
     keepOpen($("v-form"), `${card("How long buying takes", chain)}
       ${card("", `${sw}${head}${list.length ? list.map(fb).join("") : `<p class="empty">Nobody has used this form in these dates yet.</p>`}${list.length ? more(table(`form-${kind}`, cols, list)) : ""}`)}
+      ${d.formTest?.some((a) => a.opened) ? card("Form test: which order form gets more people to payment?", `${table("form-test", [{ h: "Form", k: "label" }, { h: "Opened it", k: "opened", n: 1 }, { h: "Reached payment", k: "reachedPay", n: 1 }, { h: "Rate", f: (r) => `${r.payRate}%`, n: 1 }, { h: "Paid", k: "paid", n: 1 }], d.formTest)}<p class="sub2" style="margin-top:8px">${d.formTest[0].proven ? "The difference in reaching payment looks real." : "Too early to call: the difference could still be chance."} Half of visitors get each form.</p>`) : ""}
+      ${card("Inside the payment step", d.payStages?.length ? `${bars(d.payStages.map((r) => ({ label: r.label, n: r.n, val: `${num(r.n)} people${r.paid ? ` · ${num(r.paid)} paid` : ""}` })), { val: (r) => r.val })}<p class="sub2" style="margin-top:8px">Counted from the day this update went live.</p>` : `<p class="empty">Nobody has reached payment since this started being recorded.</p>`)}
       <div class="grid">${card("Pick up or deliver", d.delivery?.length ? segments(d.delivery.map((r) => ({ label: DEL[r.key] || r.key, n: r.n, c: r.key === "ship" ? "var(--ink)" : "var(--neutral)" }))) : `<p class="empty">No choices yet.</p>`)}${card("How they pay", bars((d.payTabs || []).map((r) => ({ label: r.key, n: r.n }))))}</div>`);
     $("v-form").querySelectorAll("[data-fk]").forEach((b) => (b.onclick = () => { state.formKind = b.dataset.fk; renderForm(d); }));
   }
@@ -835,7 +867,7 @@
       ${[0, 2, 4, 6, 8].map((v) => `<span class="tick" style="left:${Math.max(1, Math.min(98, v * 12.5))}%">${v}s</span>`).join("")}</div>`;
   }
   function renderBehave(d) {
-    const A = { wa: "Went to WhatsApp", ig: "Went to Instagram", map: "Opened directions", call: "Pressed call", video: "Played the video", yt: "Went to YouTube", filter: "Used a filter", copy: "Copied payment details", enq_open: "Opened enquiry", enq: "Sent an enquiry" };
+    const A = { wa: "Went to WhatsApp", ig: "Went to Instagram", map: "Opened directions", call: "Pressed call", video: "Played the video", yt: "Went to YouTube", filter: "Used a filter", copy: "Copied payment details", enq_open: "Opened enquiry", enq: "Sent an enquiry", search: "Searched", bag_add: "Added to bag", bag_view: "Opened the bag", bag_checkout: "Pressed Checkout in the bag", wish: "Saved to wishlist", teaser: "Pressed the Wardrobe card", wd_open: "Picked up a Wardrobe piece", wd_card: "Opened a Wardrobe shelf card", wd_drawer: "Opened a fragrance drawer", wd_order: "Went from Wardrobe to a product" };
     const acts = Object.entries(d.acts).map(([k, n]) => ({ label: A[k] || k, n })).sort((a, b) => b.n - a.n);
     const S = ["Quarter way", "Halfway", "Three quarters", "To the end"];
     const base = (page) => Math.max(1, d.pages.filter((p) => (page === "Home page" ? p.path === "/" : p.path.startsWith("/p/"))).reduce((n, p) => n + p.visits, 0));
@@ -854,44 +886,108 @@
       ${card("Every page", more(table("pages", [{ h: "Page", k: "label" }, { h: "Views", k: "views", n: 1 }, { h: "People", k: "visits", n: 1 }, { h: "Avg time", f: (r) => dur(r.avgTime), n: 1 }, { h: "Arrived here", k: "lands", n: 1 }, { h: "Left from here", k: "exits", n: 1 }, { h: "Left rate", f: (r) => `${r.exitRate}%`, n: 1 }], d.pages, "No visits yet.")))}`);
   }
 
-  // ---- products: the shelf map ----
-  let catalog = null;
-  async function getCatalog() {
-    if (catalog) return catalog;
-    try { const r = await fetch("/api/products"); const list = await r.json(); catalog = Object.fromEntries(list.map((p) => [p.id, p])); } catch { catalog = {}; }
-    return catalog;
-  }
+  // ---- products: everything listed on the website, looked at or not ----
+  const initials = (name) => esc((name || "?").split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase());
+  const stockWord = (p) => (p.status === "sold" || p.stock === 0 ? "sold out" : p.status === "hold" ? "on hold" : p.stock === null ? "" : `${num(p.stock)} left`);
+  const funnelOf = (p) => [{ label: "Came onto someone's screen", n: p.seen || 0 }, { label: "Opened its page", n: p.views }, { label: "Added to bag", n: p.checkout }, { label: "Bought", n: p.paid }];
   function productDetail(p) {
-    const box = $("pDetail"); if (!box || !p) return;
     const top = Math.max(p.seen || 0, p.views, 1);
-    box.innerHTML = `<div><h3>${esc(p.name)}</h3><p class="sub2">${inr(p.value)} · ${dur(p.avgTime)} on its page · ${p.seen ? `${dur(p.seenTime)} on screen in the rack · ${p.tapRate}% of those who saw it tapped · ` : ""}${p.enq} enquiries · ${p.chat} chats</p></div><div>${bars([{ label: "Saw it in the rack", n: p.seen || 0 }, { label: "Opened it", n: p.views }, { label: "Pressed Order now", n: p.checkout }, { label: "Bought", n: p.paid }], { max: top })}</div>`;
-    document.querySelectorAll(".pb").forEach((b) => b.classList.toggle("sel", b.dataset.p === p.id));
+    const said = !p.views && !p.seen ? "Nobody has had this piece on their screen in these dates. It may be too far down the rack." : !p.views ? `${num(p.seen)} people had it on screen and nobody opened it. The photo, name or price isn't pulling them in.` : p.views >= 10 && !p.checkout ? "People open it and stop there. Check the price, photos and size details on its page." : "";
+    return `<div class="pd" id="pd-${esc(p.id)}">${said ? `<p class="pinFix" style="margin:0 0 8px">${esc(said)}</p>` : ""}<div class="grid" style="margin:0"><div>${bars(funnelOf(p), { max: top })}</div>
+      <div class="facts" style="margin:0">${fact("Time on its page", dur(p.avgTime), "per person")}${fact("Tapped after seeing", `${p.tapRate}%`, p.seen ? `on screen ${dur(p.seenTime)}` : "")}${fact("Sales", inr(p.value), p.views ? `${p.conv}% of viewers bought` : "")}${fact("WhatsApp and Instagram", num(p.chat), "moves to chat")}${fact("Enquiries", num(p.enq))}${fact("Left checkout", num(p.abandon))}${p.wardrobe ? fact("Picked up in Wardrobe", num(p.wd)) : ""}</div></div>
+      ${p.listed ? `<p class="sub2" style="margin-top:8px"><a href="/p/${esc(p.id)}" target="_blank" rel="noopener" style="color:inherit">Open its page ↗</a></p>` : ""}</div>`;
   }
-  async function renderProducts(d) {
-    const cat = await getCatalog();
-    const list = d.products.filter((p) => p.views > 0);
-    const tableHtml = table("products", [{ h: "Product", k: "name" }, { h: "Saw it", k: "seen", n: 1 }, { h: "On screen", f: (r) => dur(r.seenTime), n: 1 }, { h: "Tapped", f: (r) => `${r.tapRate}%`, n: 1 }, { h: "People viewed", k: "views", n: 1 }, { h: "Avg time", f: (r) => dur(r.avgTime), n: 1 }, { h: "Pressed Order", k: "checkout", n: 1 }, { h: "Left checkout", k: "abandon", n: 1 }, { h: "Enquiries", k: "enq", n: 1 }, { h: "Chats", k: "chat", n: 1 }, { h: "Orders", k: "paid", n: 1 }, { h: "Value", f: (r) => inr(r.value), n: 1 }, { h: "Viewed to order", f: (r) => `${r.conv}%`, n: 1 }], d.products, "No product views yet.");
-    if (!list.length) { $("v-products").innerHTML = card("The shelf map", `<p class="empty">No product views yet.</p>`); return; }
+  function shelfMap(list) {
+    if (!list.length) return `<p class="empty">Nobody has opened a product here in these dates.</p>`;
     const Vmax = Math.max(...list.map((p) => p.views)), Vmin = Math.min(...list.map((p) => p.views)), Vfloor = Math.max(0, Vmin - (Vmax - Vmin || Vmax) * 0.15), vx = (v) => ((v - Vfloor) / Math.max(1, Vmax - Vfloor)) * 90 + 5, Cmax = Math.max(...list.map((p) => p.conv), 5), Hmax = Math.max(...list.map((p) => p.value), 1);
     const sorted = (k) => [...list].map((p) => p[k]).sort((a, b) => a - b), med = (k) => sorted(k)[Math.floor(list.length / 2)];
     const mx = vx(med("views")), my = 100 - ((med("conv") / Cmax) * 88 + 6);
     // spread out any photos that land on each other; hover still gives the true numbers
     const bw = Math.min($("v-products").clientWidth || innerWidth, 1140) - 70, bh = innerWidth < 860 ? 380 : 440;
-    const small = bw < 500 ? 0.66 : 1; // room for every photo on a phone
+    const small = (bw < 500 ? 0.66 : 1) * (list.length > 30 ? 0.72 : list.length > 18 ? 0.85 : 1); // room for every photo
     const dots = list.map((p) => ({ p, r: (19 + Math.sqrt(p.value / Hmax) * 21) * small, x: (vx(p.views) / 100) * bw, y: (100 - ((p.conv / Cmax) * 88 + 6)) / 100 * bh }));
     for (let it = 0; it < 40; it++) for (let i = 0; i < dots.length; i++) for (let j = i + 1; j < dots.length; j++) {
       const a = dots[i], b = dots[j], dx = b.x - a.x, dy = b.y - a.y, gap = a.r + b.r + 3, dist = Math.hypot(dx, dy) || 1;
       if (dist < gap) { const push = (gap - dist) / 2, ux = dx / dist, uy = dy / dist; a.x -= ux * push; a.y -= uy * push; b.x += ux * push; b.y += uy * push; }
     }
     for (const q of dots) { q.x = Math.max(q.r, Math.min(bw - q.r, q.x)); q.y = Math.max(q.r, Math.min(bh - q.r, q.y)); }
-    const pb = (q) => { const c = cat[q.p.id], m = q.p; const word = m.paid ? "sold" : m.views >= 10 && !m.checkout ? "cold" : ""; return `<button type="button" class="pb ${word}" data-p="${esc(m.id)}" aria-label="${esc(m.name)}" data-tip="${esc(m.name)}: ${m.views} looked, ${m.paid} bought" style="left:${(q.x / bw) * 100}%;top:${(q.y / bh) * 100}%;width:${q.r * 2}px;height:${q.r * 2}px">${c?.image ? `<img src="${esc(c.image)}" alt="" loading="lazy">` : esc((m.name || "?").split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase())}</button>`; };
-    keepOpen($("v-products"), `${card("The shelf map", `<div class="pm"><span class="mid" style="left:${mx}%;top:0;bottom:0;width:1px"></span><span class="mid" style="top:${my}%;left:0;right:0;height:1px"></span>
+    const pb = (q) => { const m = q.p, word = m.paid ? "sold" : m.views >= 10 && !m.checkout ? "cold" : ""; return `<button type="button" class="pb ${word}" data-p="${esc(m.id)}" aria-label="${esc(m.name)}" data-tip="${esc(m.name)}: ${m.views} looked, ${m.paid} bought" style="left:${(q.x / bw) * 100}%;top:${(q.y / bh) * 100}%;width:${q.r * 2}px;height:${q.r * 2}px">${m.image ? `<img src="${esc(m.image)}" alt="" loading="lazy">` : initials(m.name)}</button>`; };
+    return `<div class="pm"><span class="mid" style="left:${mx}%;top:0;bottom:0;width:1px"></span><span class="mid" style="top:${my}%;left:0;right:0;height:1px"></span>
         <span class="q" style="left:0;top:0">Hidden gems</span><span class="q" style="right:0;top:0;text-align:right">Stars</span><span class="q" style="left:0;top:${my}%">Quiet</span><span class="q" style="right:0;top:${my}%;text-align:right">Admired, not bought</span>
         ${dots.sort((a, b) => b.r - a.r).map(pb).join("")}<span class="ax" style="bottom:-20px;right:0">more people look →</span><span class="ax" style="left:-20px;top:50%;transform:rotate(-90deg) translateX(-50%);transform-origin:left top">more of them buy →</span></div>
-        <div class="key"><span><i class="g"></i>Has sold</span><span><i class="r"></i>10+ looks, nobody tried to buy</span><span>Bigger = more sales value</span></div>`)}
-      ${card("", `<div id="pDetail"></div>${more(tableHtml)}`)}`);
-    document.querySelectorAll(".pb").forEach((b) => (b.onclick = () => productDetail(list.find((p) => p.id === b.dataset.p))));
-    productDetail(list[0]);
+        <div class="key"><span><i class="g"></i>Has sold</span><span><i class="r"></i>10+ looks, nobody added it to the bag</span><span>Bigger = more sales value</span><span>Press a photo for its numbers</span></div>`;
+  }
+  const PSORT = { views: ["Most opened", (a, b) => b.views - a.views || b.seen - a.seen], seen: ["Most seen in the rack", (a, b) => b.seen - a.seen], bag: ["Most added to bag", (a, b) => b.checkout - a.checkout || b.views - a.views], paid: ["Most sold", (a, b) => b.paid - a.paid || b.value - a.value], least: ["Least looked at", (a, b) => a.views - b.views || a.seen - b.seen], fresh: ["Newest on the site", (a, b) => String(b.listedAt).localeCompare(String(a.listedAt))], price: ["Price, high to low", (a, b) => b.price - a.price], name: ["Name", (a, b) => a.name.localeCompare(b.name)] };
+  function renderProducts(d) {
+    const sh = d.shelf, known = sh.listed > 0, on = (p) => p.listed || !known;
+    const cats = d.categories.map((c) => c.key);
+    const F = { all: on, never: (p) => p.listed && !p.views, wardrobe: (p) => p.listed && p.wardrobe, out: (p) => p.listed && (p.status === "sold" || p.stock === 0), gone: (p) => known && !p.listed };
+    for (const c of cats) F[`c:${c}`] = (p) => p.listed && (p.category || "Other") === c;
+    if (!F[state.pCat]) state.pCat = "all";
+    const count = (k) => d.products.filter(F[k]).length;
+    const chip = (k, label) => (k === "all" || count(k) ? `<button type="button" data-pc="${esc(k)}" class="${state.pCat === k ? "on" : ""}">${esc(label)} ${num(count(k))}</button>` : "");
+    const find = state.pFind.trim().toLowerCase();
+    const list = d.products.filter(F[state.pCat]).filter((p) => !find || `${p.name} ${p.code} ${p.category} ${p.subcategory}`.toLowerCase().includes(find)).sort(PSORT[state.pSort][1]);
+    const top = Math.max(1, ...list.map((p) => Math.max(p.seen, p.views)));
+    const row = (p) => {
+      const tag = !p.views && !p.seen ? `<span class="tag bad">never on a screen</span>` : !p.views ? `<span class="tag bad">never opened</span>` : "";
+      const sub = [p.price ? inr(p.price) : "", [p.category, p.subcategory].filter(Boolean).join(", "), p.listed ? stockWord(p) : "no longer on the website", p.wardrobe ? "in The Wardrobe" : "", !known || /LOT/.test(p.name) ? "" : p.code].filter(Boolean).join(" · ");
+      return `<button type="button" class="pl ${state.pOpen === p.id ? "sel" : ""}" data-p="${esc(p.id)}" aria-expanded="${state.pOpen === p.id}"><span class="pic">${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy">` : initials(p.name)}</span><span class="nm"><b>${esc(p.name)}</b><small>${esc(sub)}</small></span>
+        <span class="nums">${tag || `<b>${num(p.views)}</b> opened${p.checkout ? ` · ${num(p.checkout)} bag` : ""}${p.paid ? ` · <b style="color:var(--green)">${num(p.paid)} sold</b>` : ""}`}</span>
+        <span class="trk" data-tip="${esc(p.name)}: ${num(p.seen)} saw it, ${num(p.views)} opened it, ${num(p.paid)} bought"><i style="width:${(Math.max(0, p.seen - p.views) / top) * 100}%"></i><i class="o" style="width:${(p.views / top) * 100}%"></i>${p.paid ? `<i class="g" style="width:${(p.paid / top) * 100}%"></i>` : ""}</span></button>${state.pOpen === p.id ? productDetail(p) : ""}`;
+    };
+    const catTop = Math.max(1, ...d.categories.map((c) => c.views));
+    const catRows = d.categories.map((c) => `<div class="src" data-tip="${esc(c.key)}: ${num(c.products)} products, ${num(c.views)} looks, ${num(c.paid)} sold"><span class="lab">${esc(c.key)} <span class="sub2">${num(c.products)}</span></span><span class="tr"><span class="all" style="flex:0 0 ${(c.views / catTop) * 86}%"></span>${c.paid ? `<span class="buy" style="flex:0 0 ${Math.max(1, (c.paid / catTop) * 86)}%"></span>` : ""}</span><span class="val">${num(c.views)} looks${c.never ? `, ${num(c.never)} unopened` : ""}</span></div>`).join("");
+    const cols = [{ h: "Product", k: "name" }, { h: "Lot", k: "code" }, { h: "Category", k: "category" }, { h: "Kind", k: "subcategory" }, { h: "Price", k: "price", n: 1 }, { h: "Stock", f: (r) => (r.listed ? r.stock ?? "" : "not listed"), n: 1 }, { h: "On screen (people)", k: "seen", n: 1 }, { h: "On screen for", f: (r) => dur(r.seenTime), n: 1 }, { h: "Tapped", f: (r) => `${r.tapRate}%`, n: 1 }, { h: "Opened (people)", k: "views", n: 1 }, { h: "Avg time", f: (r) => dur(r.avgTime), n: 1 }, { h: "Added to bag", k: "checkout", n: 1 }, { h: "Left checkout", k: "abandon", n: 1 }, { h: "Enquiries", k: "enq", n: 1 }, { h: "Chats", k: "chat", n: 1 }, { h: "Orders", k: "paid", n: 1 }, { h: "Value", f: (r) => inr(r.value), n: 1 }, { h: "Viewed to order", f: (r) => `${r.conv}%`, n: 1 }];
+    const hero = (label, val, sub, cls = "") => `<div class="hero"><small>${esc(label)}</small><b>${esc(val)}</b><i class="${cls}">${esc(sub)}</i></div>`;
+    const typing = document.activeElement?.id === "pFind", caret = typing ? document.activeElement.selectionStart : 0;
+    keepOpen($("v-products"), `${known ? `<div class="heroes">${hero("On the website now", num(sh.listed), `${num(d.categories.length)} categor${d.categories.length === 1 ? "y" : "ies"}`)}${hero("Opened by someone", num(sh.opened), `${Math.round((sh.opened / sh.listed) * 100)}% of the shelf`)}${hero("Never opened", num(sh.never), sh.unseen ? `${num(sh.unseen)} never on a screen` : "all were at least seen", sh.never ? "dn" : "up")}${hero("Sold online", num(sh.sold), "different products")}</div>` : ""}
+      ${d.categories.length ? card("By category", `${catRows}${more(table("categories", [{ h: "Category", k: "key" }, { h: "Products", k: "products", n: 1 }, { h: "Opened", k: "opened", n: 1 }, { h: "Never opened", k: "never", n: 1 }, { h: "On screen", k: "seen", n: 1 }, { h: "Looks", k: "views", n: 1 }, { h: "Added to bag", k: "bag", n: 1 }, { h: "Chats", k: "chat", n: 1 }, { h: "Orders", k: "paid", n: 1 }, { h: "Value", f: (r) => inr(r.value), n: 1 }], d.categories))}`) : ""}
+      ${card("Every product", `<div class="tools"><div class="chips">${chip("all", "All")}${cats.map((c) => chip(`c:${c}`, c)).join("")}${chip("never", "Never opened")}${chip("wardrobe", "In The Wardrobe")}${chip("out", "Sold out")}${chip("gone", "No longer listed")}</div>
+          <input type="search" id="pFind" placeholder="Find a product or lot" aria-label="Find a product" value="${esc(state.pFind)}"><select id="pSort" class="seg-pick" aria-label="Sort by">${Object.entries(PSORT).map(([k, [l]]) => `<option value="${k}" ${state.pSort === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>
+        <div class="key" style="margin:0 0 6px"><span><i style="background:var(--neutral)"></i>Saw it in the rack</span><span><i></i>Opened it</span><span><i class="g"></i>Bought</span><span>Press a row for more</span></div>
+        <div id="pList">${list.length ? list.map(row).join("") : `<p class="empty">No products match.</p>`}</div>${more(table("products", cols, list, "No products."), `See these ${num(list.length)} as a table`)}`)}
+      ${card("The shelf map", shelfMap(list.filter((p) => p.views > 0).slice(0, 60)))}`);
+    const again = () => renderProducts(d);
+    $("v-products").querySelectorAll("[data-pc]").forEach((b) => (b.onclick = () => { state.pCat = b.dataset.pc; state.pOpen = ""; again(); }));
+    $("pSort").onchange = (e) => { state.pSort = e.target.value; again(); };
+    $("pFind").oninput = (e) => { state.pFind = e.target.value; again(); };
+    if (typing) { $("pFind").focus(); $("pFind").setSelectionRange(caret, caret); }
+    $("v-products").querySelectorAll(".pl").forEach((b) => (b.onclick = () => { state.pOpen = state.pOpen === b.dataset.p ? "" : b.dataset.p; again(); }));
+    $("v-products").querySelectorAll(".pb").forEach((b) => (b.onclick = () => { state.pOpen = b.dataset.p; again(); document.querySelector(`.pl[data-p="${CSS.escape(b.dataset.p)}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" }); }));
+  }
+
+  // ---- pages: footfall through every part of the site ----
+  function spark(vals, d) {
+    const W = 300, H = 44, top = Math.max(1, ...vals), n = vals.length, x = (i) => (n < 2 ? W / 2 : (i / (n - 1)) * W), y = (v) => H - 3 - (v / top) * (H - 8);
+    if (n < 2) return "";
+    const line = vals.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" "), w = W / n;
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Visits over time"><path d="${line} L${W} ${H} L0 ${H} Z" fill="var(--ink)" opacity=".07"/><path d="${line}" fill="none" stroke="var(--ink)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>${vals.map((v, i) => `<rect x="${Math.max(0, x(i) - w / 2)}" y="0" width="${w}" height="${H}" fill="transparent" data-tip="${esc(d.oneDay ? `${d.trend[i]?.key}:00` : d.trend[i]?.key)}: ${num(v)} visits"/>`).join("")}</svg>`;
+  }
+  function renderPages(d) {
+    const NEWER = new Set(["wardrobe", "bag", "account"]);
+    const ff = d.footfall.map((f) => `<div class="ff"><div><h3>${esc(f.label)}${NEWER.has(f.key) ? `<span class="new">NEWER</span>` : ""}</h3><div class="big">${num(f.people)} <span class="sub2">people</span></div></div><div>${spark(f.trend, d)}</div>
+      <div class="sub2"><span>${num(f.visits)} visits, ${f.share}% of all</span><span>${num(f.views)} page views</span><span>typically ${dur(f.medianTime)} there</span><span>${num(f.lands)} arrived here first</span><span>${num(f.exits)} left the site from here (${f.exitRate}%)</span><span>${num(f.buyers)} went on to order</span></div></div>`).join("");
+    const missing = [["wardrobe", "The Wardrobe"], ["bag", "Bag"], ["account", "My account"]].filter(([k]) => !d.footfall.some((f) => f.key === k)).map(([, l]) => l);
+    const feats = d.features.map((f) => ({ label: f.label, n: f.people, val: `${num(f.people)} people · ${f.share}% of visits${f.buyers ? ` · ${num(f.buyers)} ordered` : ""}` }));
+    const W = d.wardrobe, sq = d.searches;
+    keepOpen($("v-pages"), `${card("Footfall, page by page", `${ff || `<p class="empty">No visits in these dates yet.</p>`}${missing.length && d.totals.visits ? `<p class="sub2" style="margin-top:8px">Nobody opened ${esc(missing.join(", "))} in these dates.</p>` : ""}
+        ${d.footfall.length ? more(table("footfall", [{ h: "Page", k: "label" }, { h: "People", k: "people", n: 1 }, { h: "Visits", k: "visits", n: 1 }, { h: "Of all visits", f: (r) => `${r.share}%`, n: 1 }, { h: "Page views", k: "views", n: 1 }, { h: "Typical time", f: (r) => dur(r.medianTime), n: 1 }, { h: "Arrived here", k: "lands", n: 1 }, { h: "Left from here", k: "exits", n: 1 }, { h: "Left rate", f: (r) => `${r.exitRate}%`, n: 1 }, { h: "Went on to order", k: "buyers", n: 1 }], d.footfall)) : ""}`)}
+      ${card("The newer parts of the site: is anyone using them?", `${feats.length ? bars(feats, { val: (r) => r.val }) : `<p class="empty">Nobody has used search, the bag, the wishlist or The Wardrobe in these dates.</p>`}<p class="sub2" style="margin-top:8px">Search words, Wardrobe pieces and WhatsApp messages are recorded from the day this update went live, so earlier dates show fewer.</p>`)}
+      <div class="grid">${card("What people search for", sq.length ? table("searches", [{ h: "They typed", k: "key" }, { h: "People", k: "people", n: 1 }, { h: "Times", k: "n", n: 1 }, { h: "Found", html: (r) => (r.hits ? `${num(r.hits)} pieces` : `<span class="tag bad">nothing</span>`), f: (r) => (r.hits ? r.hits : "nothing"), n: 1 }], sq, "") : `<p class="empty">No searches recorded in these dates yet.</p>`)}
+        ${card("The Wardrobe", `<div class="facts" style="margin:0 0 10px">${fact("Pressed the home page card", num(W.teaser), "people")}${fact("Came into The Wardrobe", num(W.visits), "visits")}${fact("Picked up a piece", num(W.opened), W.visits ? `${Math.round((W.opened / W.visits) * 100)}% of them` : "")}${fact("Went on to a product", num(W.toProduct))}${fact("Ordered", num(W.buyers))}</div>${W.pieces.length ? `<h3 class="h3">Pieces picked up</h3>${bars(W.pieces.slice(0, 12))}` : `<p class="sub2">No piece has been picked up in these dates yet.</p>`}`)}</div>
+      ${card("Every page", table("pages", [{ h: "Page", k: "label" }, { h: "Views", k: "views", n: 1 }, { h: "People", k: "visits", n: 1 }, { h: "Avg time", f: (r) => dur(r.avgTime), n: 1 }, { h: "Arrived here", k: "lands", n: 1 }, { h: "Left from here", k: "exits", n: 1 }, { h: "Left rate", f: (r) => `${r.exitRate}%`, n: 1 }], d.pages, "No visits yet."))}`);
+  }
+
+  // ---- WhatsApp: who moved to chat, from where, and with what message ----
+  function renderChats(d) {
+    const C = d.chats;
+    const item = (c) => `<div class="chat"><div class="bub ${c.text ? "" : "none"}"><p>${c.text ? esc(c.text) : "Opened a plain chat. The site wrote no message for this link."}</p></div><span class="sub2">${esc(stamp(c.t))} · ${esc(c.where)}${c.page ? ` · ${esc(c.page)}` : ""} · ${esc(c.source || "")}, ${esc(c.device || "")}${c.bought ? " · also ordered on the site" : ""}</span></div>`;
+    keepOpen($("v-chats"), `${card("", `<p class="leakHead">${C.people ? `${num(C.people)} ${C.people === 1 ? "person" : "people"} moved to WhatsApp` : "Nobody moved to WhatsApp in these dates."}</p>
+        <p class="leakFix">The site can show who pressed a WhatsApp link, where, and the message it wrote for them. What they actually type and send goes straight into the shop's WhatsApp, and never comes back to the website. To read it, open the shop's WhatsApp at the time shown below.</p>
+        <div class="facts">${fact("People", num(C.people), `${C.share}% of visits`)}${fact("Presses", num(C.taps))}${fact("Also ordered on the site", num(C.buyers))}</div>`)}
+      <div class="grid">${card("Where they pressed it", C.places.length ? bars(C.places) : `<p class="empty">Recorded from the day this update went live.</p>`)}${card("About which product", C.products.length ? bars(C.products) : `<p class="empty">None from a product page yet.</p>`)}</div>
+      ${card("Each move to WhatsApp, newest first", `${C.list.length ? `<p class="sub2">In green: the message the site put into WhatsApp for them. They can change it before sending.</p>${C.list.map(item).join("")}${more(table("whatsapp", [{ h: "When", f: (r) => stamp(r.t) }, { h: "Where", k: "where" }, { h: "Page or product", k: "page" }, { h: "Message the site wrote", k: "text" }, { h: "Came from", k: "source" }, { h: "Device", k: "device" }, { h: "Ordered on site", f: (r) => (r.bought ? "yes" : "") }], C.list), "See as a table")}` : `<p class="empty">${C.people ? "These visits were from before messages were kept, so only the count is known." : "Nothing yet."}</p>`}`)}`);
   }
 
   // ---- visits as threads ----
@@ -921,9 +1017,9 @@
   }
 
   // ---- page control ----
-  const state = { view: "now", from: today(), to: today(), data: null, visitFilter: "all", formKind: "checkout", seg: "", took: 0 };
+  const state = { view: "now", from: today(), to: today(), data: null, visitFilter: "all", formKind: "checkout", seg: "", took: 0, pCat: "all", pSort: "views", pFind: "", pOpen: "" };
   const segQ = () => (state.seg ? `&seg=${encodeURIComponent(state.seg)}` : "");
-  const RENDER = { pred: renderPred, fix: renderFix, loop: renderLoop, form: renderForm, traffic: renderTraffic, behave: renderBehave, products: renderProducts, visits: renderVisits };
+  const RENDER = { pred: renderPred, fix: renderFix, loop: renderLoop, form: renderForm, traffic: renderTraffic, pages: renderPages, behave: renderBehave, products: renderProducts, chats: renderChats, visits: renderVisits };
   function show(v) {
     state.view = v;
     document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.v === v));
@@ -953,7 +1049,7 @@
       state.data = d; state.took = performance.now() - asked;
       if (state.view === "now" && $("waterBox")) { setProducts(d.products); timesFrom(d); renderRoom(); if (water.mode === "all") showPeriod(); }
       // Don't redraw under someone reading a visit or typing a change.
-      const busy = opened || document.activeElement?.closest?.("#chForm");
+      const busy = opened || document.activeElement?.closest?.("#chForm,#pFind") || (state.view === "products" && state.pOpen);
       if (state.view !== "now" && !busy) await RENDER[state.view](d);
     } catch (e) { if (e.message !== "key") $("dot").classList.add("off"); }
   }

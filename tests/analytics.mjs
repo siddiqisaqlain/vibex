@@ -368,6 +368,105 @@ await check("analytics stays inside its disk budget, and never touches the shop'
   assert.equal(fs.readFileSync(path.join(STORE, "orders.json"), "utf8"), "keep me");
   tiny.close();
 });
+await check("search words, Wardrobe moves and WhatsApp links are kept safely", () => {
+  assert.equal(clean({ e: "search", p: "/", x: "  Puma   jacket ", n: 3 }).x, "Puma jacket");
+  assert.equal(clean({ e: "search", p: "/", x: "call me on 98765 43210", n: 0 }).x, "call me on •••", "a number typed into search is hidden");
+  assert.equal(clean({ e: "search", p: "/", x: "a" }), null);
+  assert.equal(clean({ e: "search", p: "/", x: "x".repeat(90) }).x.length, 40);
+  assert.equal(clean({ e: "wd", p: "/wardrobe", x: "anything typed" }), null, "only known Wardrobe moves");
+  assert.deepEqual(clean({ e: "wd", p: "/wardrobe", x: "open", pr: "s1" }), { e: "wd", p: "/wardrobe", x: "open", pr: "s1" });
+  const wa = clean({ e: "wa", p: "/p/s1", pr: "s1", x: "made up place", note: "Hi Vibe X, I paid for order VX-1234. My number is 9876543210" });
+  assert.equal(wa.x, undefined); assert.match(wa.note, /VX-1234/); assert.doesNotMatch(wa.note, /9876543210/);
+  assert.deepEqual(clean({ e: "wardrobe_teaser", p: "/" }), { e: "wardrobe_teaser", p: "/" });
+});
+await check("every product on the website is in the report, looked at or not", () => {
+  const t = Date.parse("2026-11-11T06:00:00Z"), ev = (s, e, x = {}) => ({ t: t + (x.dt || 0), v: s, s, e, p: "/", ...x }), list = [];
+  for (let i = 0; i < 30; i++) list.push(ev(`v${i}`, "page", { dev: "Phone", br: "Chrome", nw: 1 }), ev(`v${i}`, "card", { pr: "j1", n: 2000 }), ev(`v${i}`, "page", { p: "/p/j1", pr: "j1", dt: 1000 }));
+  list.push(ev("v0", "bag_add", { p: "/p/j1", pr: "j1", dt: 2000 }), ev("v1", "card", { pr: "f1", n: 900 }), ev("v2", "page", { p: "/p/old", pr: "old", dt: 3000 }));
+  const catalog = [{ id: "j1", name: "Jacket", category: "Clothing", price: 9100, stock: 1 }, { id: "f1", name: "Zara Gold · LOT 11", category: "Fragrances" }, { id: "f2", name: "Zara Gold · LOT 12", category: "Fragrances" }, ...[3, 4, 5].map((i) => ({ id: `f${i}`, name: `Perfume ${i}`, category: "Fragrances" }))];
+  const d = summarise(list, { from: "2026-11-11", to: "2026-11-11", catalog, name: (id) => ({ old: "Sold jacket" }[id] || id) });
+  assert.deepEqual(d.shelf, { listed: 6, opened: 1, never: 5, unseen: 4, sold: 0, gone: 1 });
+  assert.equal(d.products.length, 7);
+  const f2 = d.products.find((p) => p.id === "f2");
+  assert.deepEqual([f2.name, f2.listed, f2.views, f2.seen], ["Zara Gold · LOT 12", true, 0, 0]);
+  assert.equal(d.products.find((p) => p.id === "old").listed, false, "a piece that's gone keeps its history, marked as gone");
+  assert.deepEqual(d.categories.map((c) => [c.key, c.products, c.opened, c.never, c.views, c.bag]), [["Clothing", 1, 1, 0, 30, 1], ["Fragrances", 5, 0, 5, 0, 0]]);
+  assert.ok(d.findings.some((f) => /5 of the 6 products on the website were never opened/.test(f.title)));
+});
+await check("footfall for the newer pages, searches, and moves to WhatsApp", () => {
+  const t = Date.parse("2026-11-11T06:00:00Z"), ev = (s, e, x = {}) => ({ t: t + (x.dt || 0), v: s, s, e, p: "/", ...x }), start = (s) => ev(s, "page", { dev: "Phone", br: "Chrome", nw: 1 });
+  const d = summarise([
+    start("a"), ev("a", "wardrobe_teaser", { dt: 500 }), ev("a", "page", { p: "/wardrobe", dt: 1000 }), ev("a", "wd", { p: "/wardrobe", x: "open", pr: "j1", dt: 2000 }), ev("a", "beat", { p: "/wardrobe", n: 9000, dt: 3000 }), ev("a", "wd", { p: "/wardrobe", x: "order", pr: "j1", dt: 3500 }),
+    ev("a", "page", { p: "/p/j1", pr: "j1", dt: 4000 }), ev("a", "bag_add", { p: "/p/j1", pr: "j1", dt: 5000 }), ev("a", "page", { p: "/bag", dt: 6000 }), ev("a", "bag_view", { p: "/bag", n: 9100, dt: 6100 }),
+    start("b"), ev("b", "search", { x: "Crocs", n: 0 }), ev("b", "wa", { x: "search", note: "Hi Vibe X! Do you have Crocs?", dt: 900 }), ev("b", "page", { p: "/account", dt: 2000 }), ev("b", "page", { p: "/returns", dt: 3000 }),
+    start("c"), ev("c", "search", { x: "crocs", n: 0 }), ev("c", "search", { x: "puma", n: 4, dt: 100 }), ev("c", "page", { p: "/p/j1", pr: "j1", dt: 200 }), ev("c", "wa", { p: "/p/j1", pr: "j1", x: "photos", note: "Hi Vibe X, can you send me real photos of Jacket? (LOT 7)", dt: 300 }),
+    start("old"), ev("old", "tap", { x: "top: WhatsApp us" }), // a visit stored before WhatsApp moves were counted
+  ], { from: "2026-11-11", to: "2026-11-11", name: () => "Jacket" });
+  const foot = Object.fromEntries(d.footfall.map((f) => [f.key, f]));
+  assert.deepEqual(Object.keys(foot), ["home", "product", "wardrobe", "bag", "account", "policy"]);
+  assert.deepEqual([foot.wardrobe.visits, foot.wardrobe.medianTime, foot.bag.visits, foot.account.people, foot.policy.exits, foot.home.lands], [1, 9000, 1, 1, 1, 4]);
+  assert.equal(foot.wardrobe.trend.reduce((a, b) => a + b, 0), 1);
+  const feat = Object.fromEntries(d.features.map((f) => [f.key, f.people]));
+  assert.deepEqual(feat, { search: 2, bag_add: 1, bag_view: 1, account: 1, teaser: 1, wardrobe: 1, wd_open: 1, wd_order: 1, wa: 3 });
+  assert.deepEqual(d.searches.map((q) => [q.key, q.people, q.none]), [["crocs", 2, 2], ["puma", 1, 0]]);
+  assert.ok(d.findings.some((f) => /2 people searched "crocs" and found nothing/.test(f.title)));
+  assert.deepEqual([d.chats.people, d.chats.taps, d.chats.list.length], [3, 3, 2]);
+  assert.deepEqual(d.chats.list.map((c) => [c.where, c.product, c.text]), [["After a search found nothing", "", "Hi Vibe X! Do you have Crocs?"], ["Asked for real photos", "Jacket", "Hi Vibe X, can you send me real photos of Jacket? (LOT 7)"]]);
+  assert.deepEqual([d.wardrobe.visits, d.wardrobe.opened, d.wardrobe.teaser, d.wardrobe.toProduct, d.wardrobe.pieces[0].n], [1, 1, 1, 1, 1]);
+  assert.equal(d.acts.wa, 2, "WhatsApp moves now show under What they press");
+  assert.ok(d.plan.some((p) => p.key === "pg:wardrobe" && p.label === "The Wardrobe") && d.plan.some((p) => p.key === "pg:bag"));
+  const visit = d.visits.find((v) => v.steps.some((s) => s.e === "wa" && /real photos/.test(s.note || "")));
+  assert.ok(visit, "the message shows in that visit's story");
+});
+await check("the live report lists the shop's products, and tells pieces with one name apart", async () => {
+  const posted = [];
+  for (const caption of ["Uspa Sweater 799 size M", "Uspa Sweater 799 size L", "Gucci Flora perfume 4999"]) {
+    const r = await fetch(`${base}/api/message`, { method: "POST", headers: { "Content-Type": "application/json", "x-owner-key": "k" }, body: JSON.stringify({ text: caption, image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" }) });
+    posted.push(r.status);
+  }
+  const list = await (await fetch(`${base}/api/products`)).json();
+  const d = await (await owner(`report?from=${day}&to=${day}`)).json();
+  assert.equal(d.shelf.listed, list.length, `posting gave ${posted}`);
+  for (const p of list) assert.ok(d.products.some((x) => x.id === p.id && x.listed), `${p.name} is in the report`);
+  const twins = list.filter((p) => list.filter((q) => q.name.toLowerCase() === p.name.toLowerCase()).length > 1);
+  for (const p of twins) assert.match(d.products.find((x) => x.id === p.id).name, /· LOT /);
+});
+await check("on the payment step, the owner sees exactly where each person is", async () => {
+  assert.equal(clean({ e: "pay", p: "/p/s1", x: "typed words" }), null);
+  assert.deepEqual(clean({ e: "pay", p: "/p/s1", x: "app", r: "GPay" }), { e: "pay", p: "/p/s1", x: "app", r: "GPay" });
+  const v = id(5), s = id(6), send = (ev) => post({ v, s, ev: ev.map((e) => ({ p: "/p/s1", ...e })) });
+  const me = async () => (await (await owner("live")).json()).people.find((p) => p.id === s.slice(0, 6));
+  await send([{ e: "page", pr: "s1", nw: 1 }, { e: "checkout", pr: "s1", n: 4500 }, { e: "details", pr: "s1", n: 4500 }]);
+  let p = await me();
+  assert.deepEqual([p.pay, p.room, p.amount], ["Looking at the payment screen", "pay", 4500]);
+  await send([{ e: "pay", x: "app", r: "PhonePe" }]);
+  p = await me(); assert.deepEqual([p.pay, p.room], ["Pressed PhonePe, still on the page", "pay:app"]);
+  await send([{ e: "pay", x: "away" }, { e: "beat", n: 1000 }]);
+  p = await me(); assert.equal(p.pay, "In PhonePe, paying");
+  const live = await (await owner("live")).json();
+  assert.equal(live.rooms["pay:app"].label, "In their UPI app");
+  await send([{ e: "pay", x: "back" }]);
+  p = await me(); assert.deepEqual([p.pay, p.room], ["Back from their app, waiting for the shop to confirm", "pay:back"]);
+  await send([{ e: "pay", x: "late" }]);
+  assert.equal((await me()).room, "pay:late");
+  const d = await (await owner(`report?from=${day}&to=${day}`)).json();
+  const st = Object.fromEntries(d.payStages.map((x) => [x.key, x.n]));
+  assert.deepEqual([st.screen, st.app, st.away, st.back, st.late, st["app:PhonePe"]], [1, 1, 1, 1, 1, 1]);
+  assert.ok(d.plan.some((x) => x.key === "pay:app") && d.plan.some((x) => x.key === "pay:back"));
+});
+await check("someone paying in their UPI app stays on the live floor while the page is in the background", () => {
+  let t = 1e12; const createAnalytics = require("../lib/analytics.js");
+  const STORE = fs.mkdtempSync(path.join(os.tmpdir(), "vibex-payaway-")), a = createAnalytics({ STORE, now: () => t });
+  const go = (s, ev) => a.ingest({ v: s, s, ev: ev.map((e) => ({ p: "/p/s1", ...e })) }, { ua: PHONE });
+  go(id(1), [{ e: "page", nw: 1 }, { e: "checkout", n: 999 }, { e: "details" }, { e: "pay", x: "app", r: "GPay" }, { e: "pay", x: "away" }]);
+  go(id(2), [{ e: "page", nw: 1 }]);
+  t += 3 * 60e3;
+  const l = a.liveNow();
+  assert.deepEqual(l.people.map((p) => p.pay), ["In GPay, paying"], "the browser has gone quiet, the payer is still shown");
+  t += 4 * 60e3;
+  assert.equal(a.liveNow().active, 0, "after the payment window they're gone");
+  a.close(); fs.rmSync(STORE, { recursive: true, force: true });
+});
 await check("a day's events survive a restart", async () => {
   await post({ v: id(7), s: id(8), ev: [{ e: "page", p: "/" }] });
   const down = new Promise((res) => srv.on("exit", res));

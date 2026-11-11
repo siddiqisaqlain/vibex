@@ -45,10 +45,18 @@
   // shop.js hands over the live stock and how to filter the rack
   window.VXSearch.connect = (getProducts, showAll) => { list = getProducts; onAll = showAll; if (!box.hidden) draw(); };
 
+  // What people look for, for the owner's analytics: sent once they stop typing, or act on the results.
+  let noteTimer = null, noted = "";
+  function note(q, n, now) {
+    clearTimeout(noteTimer);
+    const go = () => { if (q.length < 2 || q.toLowerCase() === noted) return; noted = q.toLowerCase(); window.VXTrack?.("search", { x: q.slice(0, 40), n }); };
+    if (now) go(); else noteTimer = setTimeout(go, 1500);
+  }
   function draw() {
     const q = input.value.trim();
-    if (!q) { out.innerHTML = ""; return; }
+    if (!q) { out.innerHTML = ""; clearTimeout(noteTimer); return; }
     const hits = find(list(), q);
+    note(q, hits.length);
     if (!hits.length) {
       const ask = S.whatsapp ? `https://wa.me/${S.whatsapp}?text=${encodeURIComponent(`Hi Vibe X! Do you have ${q}?`)}` : "";
       out.innerHTML = `<p class="sr-none">Nothing matches “${esc(q)}” right now.${ask ? ` <a href="${ask}" target="_blank" rel="noopener">Ask us on WhatsApp</a>, new stock lands most days.` : ""}</p>`;
@@ -80,6 +88,7 @@
   function showAll() {
     const q = input.value.trim();
     if (!q) return;
+    note(q, find(list(), q).length, true);
     close();
     input.blur();
     onAll(q);
@@ -97,7 +106,11 @@
   input.addEventListener("input", draw);
   $("search-form").addEventListener("submit", (e) => { e.preventDefault(); showAll(); });
   $("search-x").addEventListener("click", () => close(true));
-  out.addEventListener("click", (e) => { if (e.target.closest("[data-sr-all]")) showAll(); });
+  out.addEventListener("click", (e) => {
+    if (e.target.closest("[data-sr-all]")) return showAll();
+    const q = input.value.trim(); // a result or the WhatsApp link: the search they acted on
+    if (q && e.target.closest("a")) note(q, find(list(), q).length, true);
+  });
   addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !box.hidden) { close(true); return; }
     // "/" opens search on a computer, unless the customer is typing somewhere

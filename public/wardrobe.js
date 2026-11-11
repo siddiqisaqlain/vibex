@@ -684,6 +684,7 @@ function toggleDrawer(i) {
   closePanel();
   const was = openDrawer;
   openDrawer = openDrawer === i ? -1 : i;
+  if (openDrawer >= 0) track("drawer");
   if (was >= 0) sfx("drawerClose");
   if (openDrawer >= 0) sfx("drawerOpen", { delay: was >= 0 ? 0.55 : 0 });
   allDrawers.forEach((d) => { d.target = d.i === openDrawer ? 1 : 0; });
@@ -908,8 +909,11 @@ async function openInfo(it) {
   document.body.classList.add("has-panel");
   hideHint();
 }
+// For the owner's analytics: which pieces get picked up, and whether the cabinet is explored.
+function track(x, pr) { const seen = (track.seen ||= new Set()), k = `${x}|${pr || ""}`; if (seen.has(k)) return; seen.add(k); window.VXTrack?.("wd", { x, pr }); }
 function openPanel(it) {
-  if (it.deco) return openInfo(it);
+  if (it.deco) { track("card"); return openInfo(it); }
+  track("open", it.p.id);
   $("list").hidden = true;
   $("photos").hidden = false; panel.classList.remove("info");
   if (selected && selected !== it) selected.out = 0;
@@ -955,6 +959,7 @@ function closePanel() {
   document.body.classList.remove("has-panel");
 }
 $("close").addEventListener("click", closePanel);
+$("order").addEventListener("click", () => { if (selected?.p) track("order", selected.p.id); });
 {
   let sy0 = null, dy = 0;
   const start = (e) => {
