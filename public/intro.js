@@ -2,21 +2,12 @@
 // orbits (after the "An Ode to the Dead" landing), parcels arc out of Srinagar and land across the
 // country, each city raising a pin. Then the camera dives into the map, the VIBE X mark flies up into the header, and the rest of the page arrives in step.
 // Once per visit (tab); ?intro replays it. Tap or Skip to go straight to the hand-off.
-// When the map has lifted, the customer is greeted (greet() below).
 // Without the intro (repeat visits) the page still makes the same entrance.
 // Map: India's official boundary (@svg-maps/india, simplified), Mercator.
 (() => {
   const root = document.documentElement;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  // Hello to the customer once the logo has landed: the popup itself is VXGreet in shop.js.
-  const greet = () => window.VXGreet?.();
-  if (reduce) {
-    // no map for these visitors, so the greeting comes straight after the page opens
-    let first = true;
-    try { first = sessionStorage.getItem("vx-intro") !== "1"; sessionStorage.setItem("vx-intro", "1"); } catch { /* private mode */ }
-    if (first) addEventListener("load", () => setTimeout(greet, 600));
-    return;
-  }
+  if (reduce) return; // no map for these visitors
   // The page waits, hidden, for its entrance (shop.css: .vx-pre / .vx-enter). Safety net: never stay hidden.
   root.classList.add("vx-pre");
   const enter = () => {
@@ -393,7 +384,6 @@
       el.style.transition = "opacity .5s cubic-bezier(.4,0,.2,1)";
       el.style.opacity = "0";
     }, lift);
-    setTimeout(greet, lift + 1000);                         // once the logo has landed in the header
     // the VIBE X mark flies into the header logo
     const target = document.querySelector(".top .logo");
     if (target) {

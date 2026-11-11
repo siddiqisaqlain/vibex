@@ -801,42 +801,6 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .pdp-sizes .label { margin: 0 0 8px; }
 .pdp-sizes .ask-err { margin: 8px 0 0; }
 
-/* greeting, right after the opening map (intro.js) */
-
-/* The hello: a small light card in the corner, clear of the content people came for, the sale
-   notes (they wait for it: shop.js) and, on phones, the dock. */
-.vx-hi { position: fixed; z-index: 45; left: 24px; bottom: 24px; width: 316px; max-width: calc(100vw - 20px); padding: 14px 44px 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); box-shadow: 0 10px 30px rgba(18,18,18,.14); opacity: 0; transform: translateY(14px); transition: opacity .35s ease, transform .5s var(--ease); }
-.vx-hi.on { opacity: 1; transform: none; }
-.vx-hi b { display: block; font: 600 18px/1.2 var(--display); letter-spacing: -.025em; }
-.vx-hi p { margin: 4px 0 0; font: 400 13.5px/1.4 var(--body); color: var(--ink-2); }
-.vx-hi-wave { display: inline-block; margin-left: 2px; font-weight: 400; transform-origin: 70% 80%; animation: hellowave 1.5s var(--ease) .45s 1 both; }
-@keyframes hellowave { 0%, 100% { transform: rotate(0); } 15%, 45% { transform: rotate(16deg); } 30%, 60% { transform: rotate(-8deg); } 75% { transform: rotate(5deg); } }
-.vx-hi-x { position: absolute; right: 2px; top: 2px; width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; }
-.vx-hi-x:hover { color: var(--ink); }
-.vx-hi-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 8px; }
-.vx-hi-acts:empty { display: none; }
-.vx-hi-acts a, .vx-hi-acts button { display: inline-flex; align-items: center; min-height: 32px; padding: 0; border: 0; background: none; color: var(--ink); font: 500 13px/1 var(--body); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; cursor: pointer; }
-.vx-hi-acts a:hover, .vx-hi-acts button:hover { color: var(--red); text-decoration-color: currentColor; }
-.vx-hi-acts .quiet { color: var(--muted); }
-.vx-hi form { display: flex; gap: 8px; margin-top: 10px; margin-right: -28px; }
-.vx-hi input { flex: 1; min-width: 0; height: 40px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--paper); color: var(--ink); font: 400 16px/1 var(--body); } /* 16px: smaller makes iPhones zoom the page */
-.vx-hi input:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
-.vx-hi input[aria-invalid="true"] { border-color: var(--red); }
-.vx-hi form button { flex: none; height: 40px; padding: 0 14px; border: 0; border-radius: var(--r); background: var(--ink); color: var(--paper); font: 500 13px/1 var(--body); cursor: pointer; }
-/* Phones: a slim strip under the header, off the products. Top also stays clear of the keyboard when asking a name.
-   --hi-top is the header's real bottom edge (shop.js). */
-@media (max-width: 760px) {
-  .vx-hi { left: 10px; right: 10px; top: var(--hi-top, 110px); bottom: auto; width: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; min-height: 46px; padding: 6px 42px 6px 12px; border-radius: 12px; box-shadow: 0 6px 18px rgba(18,18,18,.12); transform: translateY(-10px); }
-  .vx-hi b { font-size: 15px; }
-  .vx-hi p { order: 1; flex: 1 0 100%; margin: 1px 0 0; font-size: 12.5px; line-height: 1.3; }
-  .vx-hi.short p { display: none; }
-  .vx-hi-acts { margin-top: 0; gap: 0 12px; order: 2; }
-  .vx-hi-acts a, .vx-hi-acts button { font-size: 12.5px; }
-  .vx-hi form { order: 3; flex: 1 0 100%; margin: 6px -30px 2px 0; }
-  .vx-hi-x { top: 0; right: 0; width: 42px; height: 46px; }
-}
-@media (prefers-reduced-motion: reduce) { .vx-hi { transition: opacity .2s; transform: none; } .vx-hi-wave { animation: none; } }
-
 /* Order now tapped with no size chosen: the button shakes and the sizes light up with the prompt under them. */
 @keyframes vx-jiggle { 0%, 100% { transform: translateX(0); } 15%, 55% { transform: translateX(-6px); } 35%, 75% { transform: translateX(6px); } 90% { transform: translateX(-2px); } }
 @keyframes vx-pill-ring { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 35% { box-shadow: 0 0 0 3px var(--red); } }
