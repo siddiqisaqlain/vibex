@@ -1570,14 +1570,23 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
   .trust-link b::after { content: none; }
 }
 
-/* ===== Split test, 2026-11-11: black order buttons against the green (lib/lab.js look "ink-buttons").
-   The owner felt the green on buttons was throwing customers off; a day of numbers could not say either way.
-   Half the visitors get this class on <html> (lab-client.js) and see every button that moves an order forward in
-   the shop's own black, like "Shop new in". Green stays for small reassurance: ticks, "you save", done steps.
-   On the black bag bar the button is paper instead. Whichever wins is kept from the Analytics page. ===== */
-.vx-look-ink-buttons :is(.order-now, .order-now:hover, .co-cta, .co-cta:hover, .pdp-zadd, .pdp-zadd:hover) { background: var(--ink); border-color: var(--ink); color: var(--paper); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 8px 20px rgba(18,18,18,.2); }
-.vx-look-ink-buttons .co-details :is(.co-cta, .co-cta:hover) { background: var(--ink); color: var(--paper); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 8px 20px rgba(18,18,18,.2); }
-.vx-look-ink-buttons .vx-addbar-go { background: var(--paper); border-color: var(--paper); color: var(--ink); box-shadow: none; }
-.vx-look-ink-buttons .pill.on { background: var(--ink); border-color: var(--ink); color: var(--paper); box-shadow: none; }
-.vx-look-ink-buttons .vx-size:active { background: var(--ink); color: var(--paper); }
-.vx-look-ink-buttons :is(.vx-size:hover, .vx-size:focus-visible) { border-color: var(--ink); box-shadow: inset 0 1px 0 #fff, 0 8px 18px rgba(18,18,18,.12); }
+
+/* One customer's words in a line, where someone is deciding: beside the price, above Place Order, on the pay screen. */
+.rv-one { margin: 14px 0 4px; padding: 10px 0 10px 14px; border-left: 3px solid var(--teal); }
+.rv-one blockquote { margin: 0; font: 400 15px/1.45 var(--body); color: var(--ink); overflow-wrap: anywhere; }
+.rv-one blockquote::before { content: "“"; } .rv-one blockquote::after { content: "”"; }
+.rv-one figcaption { margin-top: 4px; font: 400 12.5px/1.3 var(--body); color: var(--muted); }
+.rv-one figcaption b { font-weight: 600; color: var(--ink-2); }
+.rv-one figcaption a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.co-details .rv-one, .co-paynow .rv-one { margin: 0 2px; padding: 8px 0 8px 12px; }
+.co-details .rv-one blockquote, .co-paynow .rv-one blockquote { font-size: 14px; }
+.co-paynow .rv-one { text-align: left; }
+#pdp-reviews { scroll-margin-top: 90px; }
+
+/* Review cards show the short form; a long message opens in place. */
+.rv-card { width: min(270px, 72vw); padding: 14px 16px 13px; gap: 10px; justify-content: flex-start; }
+.rv-card blockquote { font-size: 15px; line-height: 1.45; }
+.rv-card blockquote::before { height: 18px; font-size: 32px; }
+.rv-card figcaption { margin-top: auto; }
+.rv-more { align-self: flex-start; min-height: 32px; margin: -4px 0 0; padding: 0; border: 0; background: none; font: 600 13px/1.2 var(--body); color: var(--teal); cursor: pointer; }
+.rv-row { align-items: stretch; }

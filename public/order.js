@@ -271,10 +271,30 @@ window.VXOrder = (() => {
   function reviews(limit = 12) {
     const R = window.SHOP?.reviews, list = (R?.list || []).filter((r) => r && r.text).slice(0, limit);
     if (list.length < 3) return "";
-    const card = (r) => `<figure class="rv-card"><blockquote>${esc(r.text)}</blockquote><figcaption><b>${esc(r.name || "Vibe X customer")}</b>${r.place ? `<span>${esc(r.place)}</span>` : ""}<i>on ${esc(r.via || "WhatsApp")}</i></figcaption></figure>`;
+    // Each card shows the heart of the message; a long one opens to the whole thing on a tap.
+    const card = (r) => `<figure class="rv-card"><blockquote${r.short ? ` data-short="${esc(r.short)}" data-full="${esc(r.text)}"` : ""}>${esc(r.short || r.text)}</blockquote>${r.short ? `<button type="button" class="rv-more" aria-expanded="false">Read full message</button>` : ""}<figcaption><b>${esc(r.name || "Vibe X customer")}</b>${r.place ? `<span>${esc(r.place)}</span>` : ""}<i>on ${esc(r.via || "WhatsApp")}</i></figcaption></figure>`;
     return `<div class="rv-row" tabindex="0" role="group" aria-label="Customer messages">${list.map(card).join("")}</div>
       <p class="rv-note">Messages customers sent us, in their own words.${R.source ? ` <a href="${esc(R.source)}" target="_blank" rel="noopener">See the chats on Instagram →</a>` : ""}</p>`;
   }
 
-  return { reviews, firstName, rememberName, savedDetails, rememberDetails, forgetDetails, keepDetails, tidyPhone, button, quick, install, place, toast, lot, rupees, esc, hash, pageUrl };
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest?.(".rv-more"); if (!b) return;
+    const q = b.previousElementSibling, open = b.getAttribute("aria-expanded") !== "true";
+    q.textContent = open ? q.dataset.full : q.dataset.short;
+    b.setAttribute("aria-expanded", String(open)); b.textContent = open ? "Show less" : "Read full message";
+  });
+
+  // One customer's words in a line, for the places where someone is making up their mind: beside the
+  // price, above Place Order, on the pay screen. `pick` is a spot name set in shop.json ("checkout",
+  // "pay") or a number, so one product always shows the same person. Only short messages are used.
+  function quote(pick = 0, more = "") {
+    const R = window.SHOP?.reviews, all = (R?.list || []).filter((r) => r && r.text);
+    const list = all.map((r) => ({ ...r, line: r.short || r.text })).filter((r) => r.line.length <= 110);
+    if (all.length < 3 || !list.length) return "";
+    const r = typeof pick === "string" ? list.find((x) => x.spot === pick) || list[0] : list[Math.abs(pick) % list.length];
+    const who = [r.name || "Vibe X customer", r.place].filter(Boolean).join(", ");
+    return `<figure class="rv-one"><blockquote>${esc(r.line)}</blockquote><figcaption><b>${esc(who)}</b> · on ${esc(r.via || "WhatsApp")}${more ? ` · <a href="${esc(more)}">See all ${all.length}</a>` : ""}</figcaption></figure>`;
+  }
+
+  return { reviews, quote, firstName, rememberName, savedDetails, rememberDetails, forgetDetails, keepDetails, tidyPhone, button, quick, install, place, toast, lot, rupees, esc, hash, pageUrl };
 })();

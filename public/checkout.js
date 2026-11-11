@@ -139,6 +139,7 @@ window.VXCheckout = (() => {
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
         ${short && !f.name ? "" : `<label class="co-hide"><input type="checkbox" name="hideName" value="1" ${f.hideName ? "checked" : ""}><span>Don't show my name on the site</span></label>`}
         ${coinBox}
+        ${O().quote("checkout")}
         <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
         <button class="order co-cta" type="submit">Place Order</button>
         ${waOrder()}
@@ -339,6 +340,7 @@ window.VXCheckout = (() => {
       <div class="co-later" ${state.later ? "" : "hidden"}>${extras}</div>
       ${isPhone ? `<div class="co-pay">${upiButtons(link)}</div>` : ""}
       <details class="co-qr-more"><summary>${isPhone ? "Show QR" : "Other ways to pay"}</summary>${others}</details>
+      ${O().quote("pay")}
       <p class="co-foot"><span class="mono">Order ${esc(o.code)}</span><button type="button" class="co-back" data-back>Change details</button></p>
     </div>`, false);
     // The name box and the WhatsApp button come up only once they have started paying: a tap on a UPI app,

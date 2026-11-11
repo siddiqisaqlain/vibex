@@ -230,6 +230,7 @@
             ${off ? `<s>${rupees(p.mrp)}</s><span class="off">${off}% OFF</span>` : ""}
             ${off && showPromise() ? `<span class="pdp-save">You save ${rupees(p.mrp - price)}</span>` : ""}
           </div>
+          ${p.status === "available" ? O.quote(hash(p.id), "#pdp-reviews") : ""}
           ${sizePicker(p)}
           ${sizeGuide(p)}
           ${trust(p)}
@@ -244,7 +245,7 @@
           ${promise(p)}
         </div>
       </div>
-      ${O.reviews(8) ? `<section class="related rv"><h2>What customers say</h2>${O.reviews(8)}</section>` : ""}
+      ${O.reviews(8) ? `<section class="related rv" id="pdp-reviews"><h2>What customers say</h2>${O.reviews(8)}</section>` : ""}
       ${related.length ? `<section class="related"><h2>More ${esc(p.category.toLowerCase())}</h2><div class="related-row">${related.map(mini).join("")}</div></section>` : ""}`;
     if (p.status === "available") countPromise();
     // The full promise sits below the fold, so its first line goes where the thumb is.
