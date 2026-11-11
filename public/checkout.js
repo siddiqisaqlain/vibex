@@ -101,36 +101,60 @@ window.VXCheckout = (() => {
     const coinBox = state.coinsUsable > 0
       ? `<label class="co-hide co-coins"><input type="checkbox" name="useCoins" value="1" ${f.useCoins !== "" ? "checked" : ""}><span>Use <b>${state.coinsUsable}</b> coins: ${O().rupees(state.coinsUsable)} off</span></label>`
       : state.coinsBalance > 0 ? `<p class="co-small co-coins">🪙 You have ${state.coinsBalance} coins. You can spend them when Vibe X opens coin offers.</p>` : "";
-    shell(`${steps(1)}${bagRows()}
+    // One short screen: what they're buying, how to reach them, how they want it, one button.
+    const first = state.lines[0], more = state.lines.length - 1;
+    const pic = first.image ? `<img src="${esc(first.image)}" alt="">` : window.productArt?.({ id: first.productId, name: first.productName }, O().hash(first.productId)) || "";
+    // The top of the screen is a small bill: the pieces, then delivery, then coins, then the total.
+    // Its last rows are filled in by showFee() below as the choice and the PIN change.
+    const billRows = `<p class="co-brow" data-bill-del hidden><span></span><b></b></p><p class="co-brow" data-bill-coins hidden><span>Coins</span><b></b></p><p class="co-brow co-btotal" data-bill-total hidden><span>Total</span><b></b></p>`;
+    shell(`<div class="co-details">
+      <div class="co-bill">
+        ${more ? bagRows() : `<div class="co-sumrow"><span class="co-sthumb">${pic}</span><span class="co-sname">${esc(first.productName)}${first.size ? ` <i>${esc(first.size)}</i>` : ""}</span><b>${O().rupees(goods)}</b></div>`}
+        ${billRows}
+      </div>
       <form class="co-form" novalidate>
-        <h2>Your details</h2>
-        <p class="co-next">${short ? "Just your number." : "Takes 30 seconds."} Next you pay by UPI, and we confirm on WhatsApp.</p>
-        <label>WhatsApp number<div class="ask-phone"><span>+91</span><input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="98765 43210" maxlength="20" value="${esc(f.phone || "")}" required></div></label>
-        ${short ? (f.name ? `<input type="hidden" name="name" value="${esc(f.name)}">` : "") : `<label>Your name<input name="name" autocomplete="name" maxlength="60" value="${esc(f.name || "")}" required></label>`}
-        <fieldset class="co-choice"><legend>How do you want it?</legend>
-          <label><input type="radio" name="delivery" value="pickup" ${f.delivery === "pickup" ? "checked" : ""}><span><b>Pick up in Srinagar</b><small>Collect from the store</small></span></label>
-          <label><input type="radio" name="delivery" value="ship" ${f.delivery === "ship" ? "checked" : ""}><span><b>Deliver to me</b><small>Anywhere in India. ${esc(shipNote)}</small></span></label>
+        <div class="co-group">
+          <label class="co-line"><span class="co-pre"><i class="co-wamark" aria-hidden="true">${WA_ICON}</i>+91</span><input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="WhatsApp number" aria-label="WhatsApp number" maxlength="20" value="${esc(f.phone || "")}" required></label>
+          ${short ? "" : `<label class="co-line"><input name="name" autocomplete="name" maxlength="60" placeholder="Your name" aria-label="Your name" value="${esc(f.name || "")}" required></label>`}
+        </div>
+        ${short && f.name ? `<input type="hidden" name="name" value="${esc(f.name)}">` : ""}
+        <fieldset class="co-choice co-seg"><legend class="co-sr">How do you want it?</legend>
+          <label><input type="radio" name="delivery" value="pickup" ${f.delivery === "pickup" ? "checked" : ""}><span>Pick up</span></label>
+          <label><input type="radio" name="delivery" value="ship" ${f.delivery === "ship" ? "checked" : ""}><span>Deliver</span></label>
         </fieldset>
         <div class="co-ship" ${f.delivery === "ship" ? "" : "hidden"}>
-          <label>Address<input name="address" autocomplete="street-address" maxlength="300" value="${esc(f.address || "")}" placeholder="House, street, area"></label>
-          <div class="co-row">
-            <label>City<input name="city" autocomplete="address-level2" maxlength="60" value="${esc(f.city || "")}"></label>
-            <label>PIN code<input name="pin" inputmode="numeric" autocomplete="postal-code" maxlength="6" value="${esc(f.pin || "")}"></label>
+          <div class="co-group">
+            <label class="co-line"><input name="address" autocomplete="street-address" maxlength="300" value="${esc(f.address || "")}" placeholder="House, street, area" aria-label="Address"></label>
+            <div class="co-line co-two">
+              <label><input name="city" autocomplete="address-level2" maxlength="60" value="${esc(f.city || "")}" placeholder="City" aria-label="City"></label>
+              <label><input name="pin" inputmode="numeric" autocomplete="postal-code" maxlength="6" value="${esc(f.pin || "")}" placeholder="PIN code" aria-label="PIN code"></label>
+            </div>
           </div>
           <p class="co-small co-fee" role="status" hidden></p>
         </div>
         <input name="website" tabindex="-1" autocomplete="off" class="ask-trap" aria-hidden="true">
-        <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
         ${short && !f.name ? "" : `<label class="co-hide"><input type="checkbox" name="hideName" value="1" ${f.hideName ? "checked" : ""}><span>Don't show my name on the site</span></label>`}
         ${coinBox}
-        <button class="order co-cta" type="submit">Continue to payment · ${O().rupees(goods)}</button>
+        <p class="ask-err" role="alert" ${err ? "" : "hidden"}>${esc(err)}</p>
+        <button class="order co-cta" type="submit">Pay · ${O().rupees(goods)}</button>
         ${waOrder()}
-        <p class="consent">${short && !f.name ? "We use your number only for this order and its delivery." : "We use your name and number only for this order and its delivery. Unless you tick the box, the site may show your first name and city with what you bought."} Your details are also kept on this device, so you don't type them next time. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
-      </form>`);
+        <p class="consent">${short && !f.name ? "Your number is used only for this order, and kept on this device for next time." : "Your name and number are used only for this order, and kept on this device for next time. Unless you tick the box, the site may show your first name and city with what you bought."} <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
+      </form>
+    </div>`);
     const form = dlg.querySelector("form");
     O().keepDetails(form);
+    // "Or order on WhatsApp" stays out of the way of Pay. It comes up for someone who has stalled: 20 seconds
+    // on this form without continuing, or an error. Once shown it stays. Shown and pressed are both counted.
+    const showWa = () => { const a = dlg.open && dlg.querySelector("[data-co-wa]"); if (!a || state.waShown || state.order) return; state.waShown = true; a.hidden = false; window.VXTrack?.("nudge", { x: "wa_order" }); };
+    clearTimeout(state.waTimer);
+    if (err) showWa(); else if (!state.waShown) state.waTimer = setTimeout(showWa, 20000);
+    form.querySelector("[data-co-wa]")?.addEventListener("click", () => window.VXTrack?.("nudge_tap", { x: "wa_order" }));
     form.addEventListener("change", (e) => {
-      if (e.target.name === "delivery") { form.querySelector(".co-ship").hidden = e.target.value !== "ship"; showFee(); }
+      if (e.target.name === "delivery") {
+        form.querySelector(".co-ship").hidden = e.target.value !== "ship";
+        const er = form.querySelector(".ask-err"); if (/pick up or delivery/i.test(er.textContent)) er.hidden = true;
+        showFee();
+      }
       if (e.target.name === "useCoins") showFee();
     });
     // The courier charge is shown before payment, and it comes from the server, which also sets the order's total.
@@ -138,22 +162,33 @@ window.VXCheckout = (() => {
     const coinsOff = () => (form.elements.useCoins?.checked ? state.coinsUsable : 0);
     async function showFee() {
       const { rupees } = O(), pin = form.elements.pin.value.replace(/\D/g, ""), mine = ++asked, box = form.querySelector(".co-fee");
-      let fee = 0, text = "";
-      if (form.elements.delivery.value === "ship" && /^[1-9]\d{5}$/.test(pin)) {
-        const r = await fetch("/api/account/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lines: state.bag, delivery: "ship", pin, holdToken: window.VXVisit?.s }) }).then((x) => x.json()).catch(() => null);
-        if (mine !== asked) return;
-        if (r?.shipping) { fee = r.shipping; text = `${r.inside ? `Delivery in Kashmir: ${rupees(fee)}` : `Courier to ${pin}: ${rupees(fee)}`} for ${r.kg} kg. You pay ${rupees(goods - coinsOff() + fee)} in total.`; }
-        else if (r?.inside) text = "Inside Kashmir, we'll tell you the courier charge on WhatsApp before dispatch. If you don't want to pay it, cancel for a full refund.";
+      const how = form.elements.delivery.value, unknownFee = !C?.perKg && PAY.shippingFee == null;
+      let fee = 0, text = "", label = "", value = "", soft = false;
+      if (how === "pickup") { label = "Pick up at the store"; value = "Free"; }
+      else if (how === "ship") {
+        label = "Delivery"; value = "Add your PIN code"; soft = true;
+        if (/^[1-9]\d{5}$/.test(pin)) {
+          const r = await fetch("/api/account/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lines: state.bag, delivery: "ship", pin, holdToken: window.VXVisit?.s }) }).then((x) => x.json()).catch(() => null);
+          if (mine !== asked) return;
+          if (r?.shipping) { fee = r.shipping; label = `Delivery${r.kg ? ` · ${r.kg} kg` : ""}`; value = rupees(fee); soft = false; }
+          else if (r?.inside || unknownFee) { value = "Told on WhatsApp"; text = "We'll tell you the courier charge on WhatsApp before dispatch. If you don't want to pay it, cancel for a full refund."; }
+          else if (r) { value = "Free"; soft = false; }
+        }
       }
+      const row = (sel, on, a, b2, quiet) => { const el = dlg.querySelector(sel); if (!el) return; el.hidden = !on; if (a != null) el.firstChild.textContent = a; el.lastChild.textContent = b2; el.classList.toggle("soft", Boolean(quiet)); };
+      const total = goods - coinsOff() + fee;
+      row("[data-bill-del]", Boolean(label), label, value, soft);
+      row("[data-bill-coins]", coinsOff() > 0, null, `− ${rupees(coinsOff())}`);
+      row("[data-bill-total]", Boolean(label) || coinsOff() > 0 || state.lines.length > 1, null, rupees(total));
       box.textContent = text; box.hidden = !text;
-      form.querySelector(".co-cta").textContent = `Continue to payment · ${rupees(goods - coinsOff() + fee)}`;
+      form.querySelector(".co-cta").textContent = `Pay · ${rupees(total)}`;
     }
     form.elements.pin.addEventListener("input", showFee);
     showFee();
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       // Nothing is ticked for a new customer (so the address boxes stay out of the way): ask, never guess.
-      if (!form.elements.delivery.value) { const er = form.querySelector(".ask-err"); er.textContent = "Choose pick up or delivery."; er.hidden = false; form.querySelector(".co-choice").scrollIntoView({ block: "center", behavior: "smooth" }); return; }
+      if (!form.elements.delivery.value) { const er = form.querySelector(".ask-err"); er.textContent = "Choose pick up or delivery."; er.hidden = false; showWa(); form.querySelector(".co-choice").scrollIntoView({ block: "center", behavior: "smooth" }); return; }
       O().tidyPhone(form.elements.phone);
       state.form = Object.fromEntries(new FormData(form));
       O().rememberDetails(state.form);
@@ -187,7 +222,7 @@ window.VXCheckout = (() => {
     if (!S.whatsapp) return "";
     const items = state.lines.map((l) => `${l.productName}${l.size ? ` (${l.size})` : ""} ${O().rupees(l.price * (l.qty || 1))}`).join(", ");
     const text = `Hi Vibe X, I'd like to order: ${items}.`;
-    return `<a class="co-wa" href="https://wa.me/${O().esc(S.whatsapp)}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener" data-co-wa>Rather order on WhatsApp? Message us →</a>`;
+    return `<a class="co-wa" href="https://wa.me/${O().esc(S.whatsapp)}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener" data-co-wa ${state.waShown ? "" : "hidden"}>${WA_ICON}Or order on WhatsApp</a>`;
   }
 
   // One tap opens a chat with the shop, with the order code already written. When the customer sends it,
@@ -470,7 +505,7 @@ window.VXCheckout = (() => {
       dlg = document.createElement("dialog");
       dlg.className = "ask-dialog co-dialog";
       document.body.appendChild(dlg);
-      dlg.addEventListener("close", () => { stopWatching(); stopFx(); window.VXTrack?.("co_close"); });
+      dlg.addEventListener("close", () => { stopWatching(); stopFx(); clearTimeout(state?.waTimer); window.VXTrack?.("co_close"); });
       dlg.addEventListener("click", (e) => {
         if (e.target === dlg || e.target.closest("[data-close]")) return dlg.close();
         
@@ -494,7 +529,7 @@ window.VXCheckout = (() => {
     // The account first (it follows the customer's cookie), then what this browser remembers from a form.
     const dev = O().savedDetails();
     const saved = { name: a.name || me?.name || dev.name || "", phone: a.phone || me?.phone || dev.phone || "", delivery: a.delivery || dev.delivery || "", address: a.address || dev.address || "", city: a.city || dev.city || "", pin: a.pin || dev.pin || "" };
-    state = { bag, lines: q.lines, goods: q.goods, coinsUsable: q.coinsUsable || 0, coinsBalance: q.coinsBalance || 0, form: state && state.form ? { ...state.form } : saved, order: null, later: false, arm: formArm() };
+    state = { bag, lines: q.lines, goods: q.goods, coinsUsable: q.coinsUsable || 0, coinsBalance: q.coinsBalance || 0, form: state && state.form ? { ...state.form } : saved, order: null, later: false, waShown: false, arm: formArm() };
     if (payOpen()) stepDetails(); else stepClosed();
     dlg.showModal();
     window.VXTrack?.("checkout", { pr: q.lines[0].productId, n: q.goods, k: q.lines.length, x: state.arm });

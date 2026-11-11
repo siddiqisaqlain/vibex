@@ -14,11 +14,12 @@
   --line-2: rgba(18,18,18,.22);
   --red: #e2382c;
   --red-soft: #f6dcd6;
-  /* The third colour (2026-11-11): the complement of the red on the colour wheel (hue 4 -> 184).
-     Red says act now: price cuts, Add to bag, Checkout. Teal says you're safe: it's in your bag, it's original, you save, in stock. */
-  --teal: #0c7179;
-  --teal-soft: #dbeef0;
-  --teal-bright: #73d7de;  /* on ink */
+  /* The third colour (2026-11-11): the green of the Pay button, beside black and the shop's red.
+     Red says look here: price cuts, last pieces, the countdown. Green says go, you're safe: Add to bag, Checkout, Pay, it's in your bag, it's original, you save, in stock.
+     (The names still say teal, the first third colour tried that day; every rule reads these variables.) */
+  --teal: #17803f;
+  --teal-soft: #e0f2e7;
+  --teal-bright: #7fdca6;  /* on ink */
   --green: var(--teal);
   /* names the shared checkout rules use */
   --bone: var(--paper); --bone-2: var(--paper-2); --orange: var(--red);
@@ -966,11 +967,11 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .co-paynow .co-name label { font-weight: 500; }
 .co-paynow .co-name-row input { border-radius: 12px; }
 .co-paynow .co-name-row .btn { border-radius: 12px; }
-.co-paynow .co-updates { margin: 0; border: 0; border-radius: 16px; background: #e9f8ee; }
+.co-paynow .co-updates { margin: 0; border: 0; border-radius: 16px; background: var(--teal-soft); }
 .co-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; font-size: 12px; color: var(--muted); }
 .co-foot .co-back { margin: 0; color: var(--muted); }
-.co-updates { display: flex; gap: 12px; align-items: center; margin: 12px 0 4px; padding: 12px 14px; min-height: 56px; border: 1.5px solid #1fa855; border-radius: 10px; color: var(--ink); text-decoration: none; text-align: left; }
-.co-updates svg { flex: none; width: 26px; height: 26px; color: #1fa855; }
+.co-updates { display: flex; gap: 12px; align-items: center; margin: 12px 0 4px; padding: 12px 14px; min-height: 56px; border: 1.5px solid var(--teal); border-radius: 10px; color: var(--ink); text-decoration: none; text-align: left; }
+.co-updates svg { flex: none; width: 26px; height: 26px; color: var(--teal); }
 .co-updates b { display: block; font-size: 15px; }
 .co-updates small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
 .co-done .co-updates { margin-top: 18px; background: #fff; }
@@ -1030,7 +1031,7 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .acct-otop { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; }
 .acct-otop .mono:last-child { margin-left: auto; color: var(--muted); }
 .acct-pill { font: 500 11px/1 var(--mono); padding: 5px 8px; border-radius: 999px; background: var(--paper-2); color: var(--ink-2); }
-.acct-pill.ok { background: #dcefe4; color: var(--green); }
+.acct-pill.ok { background: var(--teal-soft); color: var(--green); }
 .acct-pill.bad { background: var(--red-soft); color: #9d2a20; }
 .acct-olines { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 8px; }
 .acct-oline { display: flex; gap: 10px; align-items: center; text-decoration: none; font-size: 14px; }
@@ -1220,7 +1221,7 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 /* ---- Where the third colour lives ----
    Not flat fills: each teal surface runs from a lighter to a deeper teal, carries a thin highlight on its top edge and
    throws a teal-tinted shadow, so it sits above the paper. The red buttons get the same treatment so the two match. */
-:root { --teal-hi: #14909a; --teal-deep: #085860; --teal-glow: rgba(12,113,121,.34); --red-hi: #f04a3c; --red-deep: #c92a20; --red-glow: rgba(226,56,44,.36); }
+:root { --teal-hi: #1f9d57; --teal-deep: #0f6230; --teal-glow: rgba(23,128,63,.32); --red-hi: #f04a3c; --red-deep: #c92a20; --red-glow: rgba(226,56,44,.36); }
 .badge:first-child:not(.badge-low):not(.badge-off) { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px 6px 8px; background: linear-gradient(160deg, var(--teal-hi), var(--teal-deep)); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.28); }
 /* Fifty cards carry these, so they stay cheap to draw while the rack scrolls: no blurred shadows on the tags, one small shadow on the button. */
 .badge:first-child:not(.badge-low):not(.badge-off)::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--teal-bright); }
@@ -1231,11 +1232,13 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .vx-addbar { background: linear-gradient(180deg, #232323, #101010); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 18px 44px rgba(0,0,0,.36), 0 0 0 1px rgba(115,215,222,.22); }
 .vx-addbar b { color: var(--teal-bright); }
 .vx-addbar-pic { box-shadow: 0 0 0 2px var(--teal-hi); }
-.vx-addbar-go, .order-now, .co-cta { background: linear-gradient(180deg, var(--red-hi), var(--red-deep)); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 8px 20px var(--red-glow); }
+.order-now { background: linear-gradient(180deg, var(--red-hi), var(--red-deep)); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 8px 20px var(--red-glow); }
+/* Checkout and Pay are the green: every button on the way to paying. Add to bag keeps the red. */
+.vx-addbar-go, .co-cta, .co-cta:hover { background: linear-gradient(180deg, var(--teal-hi), var(--teal)); border-color: var(--teal); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 8px 20px var(--teal-glow); }
 .vx-added { color: var(--teal); }
-.pdp-trust { position: relative; gap: 10px; padding: 14px; border: 1px solid color-mix(in srgb, var(--teal) 28%, transparent); background: linear-gradient(145deg, #e6f4f5 0%, var(--teal-soft) 55%, #cfe7ea 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 10px 26px rgba(12,113,121,.12); }
+.pdp-trust { position: relative; gap: 10px; padding: 14px; border: 1px solid color-mix(in srgb, var(--teal) 28%, transparent); background: linear-gradient(145deg, #eaf6ee 0%, var(--teal-soft) 55%, #d2ecdb 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 10px 26px rgba(23,128,63,.12); }
 .pdp-trust li { grid-template-columns: 34px 1fr; align-items: center; column-gap: 10px; }
-.pdp-trust li > span:first-child { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(180deg, #fff, #eef8f9); color: var(--teal); font-size: 15px; box-shadow: inset 0 1px 0 #fff, 0 2px 8px rgba(12,113,121,.2); }
+.pdp-trust li > span:first-child { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(180deg, #fff, #f0f9f3); color: var(--teal); font-size: 15px; box-shadow: inset 0 1px 0 #fff, 0 2px 8px rgba(23,128,63,.2); }
 .pdp-trust b { color: var(--teal-deep); }
 .pdp-trust a, .pdp-size-help, .vx-sure { color: var(--teal); }
 .pdp-save { display: inline-flex; align-self: flex-start; flex-basis: auto; padding: 5px 10px; border-radius: 999px; background: var(--teal-soft); color: var(--teal-deep); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--teal) 22%, transparent); }
@@ -1293,3 +1296,98 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .co-lrm:hover { color: var(--red); }
 /* The paper grain blends over the whole screen on every frame, which costs phones their smooth scrolling: computers keep it. */
 @media (max-width: 900px), (pointer: coarse) { body::after { display: none; } }
+/* The details step: what they're buying, how to reach them, how they want it, one button. */
+.co-details { display: flex; flex-direction: column; gap: 18px; padding-top: 4px; }
+.co-sumrow { display: flex; align-items: center; gap: 12px; padding-right: 34px; }
+.co-sthumb { flex: none; width: 44px; height: 52px; border-radius: 10px; overflow: hidden; background: var(--paper-2, #f1efe9); position: relative; }
+.co-sthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.co-sname { flex: 1; min-width: 0; font: 500 15px/1.3 var(--body, system-ui, sans-serif); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.co-sname i { font-style: normal; color: var(--muted); }
+.co-sumrow b { flex: none; font: 600 16px/1 var(--body, system-ui, sans-serif); font-variant-numeric: tabular-nums; }
+.co-details .co-form { gap: 14px; }
+.co-details .co-group { border: 1px solid var(--line-2); border-radius: 16px; background: #fff; overflow: hidden; }
+.co-details .co-line { display: flex; flex-direction: row; align-items: center; gap: 0; margin: 0; font: inherit; text-transform: none; letter-spacing: 0; }
+.co-details .co-line + .co-line { border-top: 1px solid var(--line); }
+.co-details .co-pre { flex: none; padding: 0 2px 0 16px; font: 500 17px/1 var(--body, system-ui, sans-serif); color: var(--muted); }
+.co-details .co-form .co-group input:not([type=radio]):not([type=checkbox]) { flex: 1; min-width: 0; width: 100%; min-height: 54px; padding: 0 16px; border: 0; border-radius: 0; background: none; font: 400 17px/1.2 var(--body, system-ui, sans-serif); color: var(--ink); }
+.co-details .co-pre + input { padding-left: 8px !important; }
+.co-details .co-form .co-group input::placeholder { color: #a9a59c; }
+.co-details .co-form .co-group input:focus { outline: none; box-shadow: none; }
+.co-details .co-group:focus-within { border-color: var(--ink); }
+.co-details .co-two { display: grid; grid-template-columns: 1.3fr 1fr; }
+.co-details .co-two label { display: block; margin: 0; }
+.co-details .co-two label + label { border-left: 1px solid var(--line); }
+.co-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.co-details .co-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 4px; border-radius: 14px; background: var(--paper-2, #eceae4); }
+.co-details .co-seg label { position: relative; display: block; margin: 0; padding: 0; border: 0; border-radius: 11px; background: none; box-shadow: none; cursor: pointer; }
+.co-details .co-seg input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.co-details .co-seg span { display: grid; place-items: center; min-height: 44px; border-radius: 11px; font: 500 16px/1 var(--body, system-ui, sans-serif); text-transform: none; letter-spacing: 0; color: var(--ink-2, #444); transition: background .15s, box-shadow .15s, color .15s; }
+.co-details .co-seg label:has(input:checked) { background: none; border: 0; box-shadow: none; }
+.co-details .co-seg input:checked + span { background: #fff; color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 0 0 .5px rgba(0,0,0,.04); }
+.co-details .co-seg input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 1px; }
+.co-details .co-how { margin: -6px 2px 0; text-align: center; }
+.co-details .co-ship { gap: 10px; }
+.co-details .co-fee { margin: 0 2px; text-align: center; color: var(--ink); }
+.co-details .co-hide { flex-direction: row; align-items: center; gap: 10px; margin: 0 2px; font: 400 14px/1.3 var(--body, system-ui, sans-serif); text-transform: none; letter-spacing: 0; color: var(--ink-2, #444); }
+.co-details .co-hide input { width: 20px; height: 20px; flex: none; accent-color: var(--ink); }
+.co-details .ask-err { text-align: center; }
+.co-details .co-cta { min-height: 56px; padding: 0 16px; border-radius: 16px; font: 600 17px/1 var(--body, system-ui, sans-serif); letter-spacing: 0; text-transform: none; }
+.co-details .co-cta:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.co-details .co-cta:active { transform: scale(.985); }
+.co-details .co-wa { margin: -4px 0 0; padding: 6px 0; font-weight: 500; font-size: 15px; text-decoration: none; }
+.co-details .consent { margin: 0; font-size: 11px; }
+
+/* Colour on the details step: the shop's red for the choice and the price, WhatsApp green where WhatsApp is meant. */
+.co-details .co-sumrow { padding: 10px 44px 10px 10px; border-radius: 16px; background: #fff1ee; }
+.co-details .co-sumrow b { color: var(--red); }
+.co-details .co-pre { display: flex; align-items: center; gap: 8px; }
+.co-wamark { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--teal-soft); color: var(--teal); font-style: normal; }
+.co-wamark svg { width: 17px; height: 17px; display: block; }
+.co-details .co-group:focus-within { border-color: var(--red); box-shadow: 0 0 0 3px rgba(233, 46, 48, .12); }
+.co-details .co-seg { background: #f6ebe8; }
+.co-details .co-seg input:checked + span { background: var(--red); color: #fff; box-shadow: 0 2px 8px rgba(233, 46, 48, .3); }
+.co-details .co-fee { color: var(--teal); font-weight: 500; }
+.co-details .co-hide input { accent-color: var(--red); }
+.co-details .co-wa { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--teal); }
+.co-details .co-wa svg { width: 18px; height: 18px; }
+
+/* Pay is green: go, money, safe. Red stays for the price and for real warnings only. */
+.co-details .co-cta, .co-details .co-cta:hover { display: flex; align-items: center; justify-content: center; gap: 10px; border: 0; background: linear-gradient(180deg, var(--teal-hi), var(--teal)); color: #fff; box-shadow: 0 8px 20px var(--teal-glow); }
+.co-details .co-cta::before { content: ""; flex: none; width: 17px; height: 17px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M17 9V7A5 5 0 0 0 7 7v2H5v13h14V9h-2zm-8 0V7a3 3 0 0 1 6 0v2H9z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M17 9V7A5 5 0 0 0 7 7v2H5v13h14V9h-2zm-8 0V7a3 3 0 0 1 6 0v2H9z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.co-details .co-cta:disabled { opacity: .7; }
+.co-details .co-group:focus-within { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(23, 128, 63, .14); }
+.co-details .co-seg { background: var(--paper-2, #eceae4); }
+.co-details .co-seg input:checked + span { background: var(--ink); color: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .18); }
+.co-details .co-hide input { accent-color: var(--teal); }
+.co-details .co-wa { color: var(--ink-2, #444); }
+.co-details .co-wa svg { color: var(--teal); }
+
+/* Several pieces in the details step: the list with its Remove links, in the same soft card as a single piece. */
+.co-details .co-lines { padding: 10px 12px; border-radius: 16px; background: #fff1ee; max-height: 168px; }
+.co-details .co-lines b { color: var(--red); }
+.co-details .co-total { display: flex; justify-content: space-between; margin: -8px 4px 0; font: 600 15px/1 var(--body, system-ui, sans-serif); }
+
+/* A red outline on a box being typed in reads as a mistake: the typing outline is the green everywhere. */
+.ask-form input:focus, .co-form input:focus { outline-color: var(--teal); }
+
+/* The small bill at the top of the details step: pieces, delivery, coins, total. */
+.co-bill { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px 12px 10px; border-radius: 16px; background: #fff1ee; }
+.co-details .co-bill .co-sumrow, .co-details .co-bill .co-lines { padding: 0; border-radius: 0; background: none; }
+.co-details .co-bill .co-sumrow { padding-right: 30px; }
+.co-details .co-bill .co-lines { padding-right: 26px; }
+.co-brow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0; padding-left: 4px; font: 400 14.5px/1.3 var(--body, system-ui, sans-serif); color: var(--ink-2, #444); }
+.co-brow[hidden] { display: none; }
+.co-brow b { flex: none; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink); }
+.co-brow.soft b { font-weight: 400; color: var(--muted); }
+.co-brow.co-btotal { margin-top: 2px; padding-top: 9px; border-top: 1px solid rgba(18,18,18,.1); font-weight: 600; font-size: 16px; color: var(--ink); }
+.co-brow.co-btotal b { font-weight: 700; }
+.co-details .co-fee { color: var(--ink-2, #444); font-weight: 400; }
+
+/* Add to bag is the green too: every button that moves an order forward is one colour. */
+.order-now, .order-now:hover { background: linear-gradient(180deg, var(--teal-hi), var(--teal)); border-color: var(--teal); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 8px 20px var(--teal-glow); }
+@media (hover: none) { .order-now:hover { background: linear-gradient(180deg, var(--teal-hi), var(--teal)); border-color: var(--teal); color: #fff; } }
+
+/* The bill in checkout is a plain white card like the boxes under it: no red tint, prices in black. */
+.co-bill { background: #fff; border: 1px solid var(--line-2); }
+.co-details .co-sumrow b, .co-details .co-lines b { color: var(--ink); }
+.co-brow.co-btotal { border-top-color: var(--line); }

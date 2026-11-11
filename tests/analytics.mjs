@@ -393,6 +393,22 @@ await check("every product on the website is in the report, looked at or not", (
   assert.deepEqual(d.categories.map((c) => [c.key, c.products, c.opened, c.never, c.views, c.bag]), [["Clothing", 1, 1, 0, 30, 1], ["Fragrances", 5, 0, 5, 0, 0]]);
   assert.ok(d.findings.some((f) => /5 of the 6 products on the website were never opened/.test(f.title)));
 });
+await check("the checkout's Or order on WhatsApp link is counted on its own: shown, pressed, and where", () => {
+  assert.equal(clean({ e: "wa", p: "/p/j1", pr: "j1", x: "order", note: "Hi Vibe X, I'd like to order: Jacket." }).x, "order");
+  const t = Date.parse("2026-11-11T06:00:00Z"), ev = (s, e, x = {}) => ({ t: t + (x.dt || 0), v: s, s, e, p: "/p/j1", ...x }), start = (s) => ev(s, "page", { pr: "j1", dev: "Phone", br: "Chrome", nw: 1 });
+  const d = summarise([
+    start("a"), ev("a", "checkout", { pr: "j1", dt: 1000 }), ev("a", "nudge", { x: "wa_order", dt: 21000 }), ev("a", "nudge_tap", { x: "wa_order", dt: 23000 }), ev("a", "wa", { pr: "j1", x: "order", note: "Hi Vibe X, I'd like to order: Jacket.", dt: 23000 }),
+    start("b"), ev("b", "checkout", { pr: "j1", dt: 1000 }), ev("b", "nudge", { x: "wa_order", dt: 21000 }),
+    start("c"), ev("c", "wa", { pr: "j1", x: "updates", note: "Hi Vibe X, I've placed order VX-1234.", dt: 500 }),
+  ], { from: "2026-11-11", to: "2026-11-11", name: () => "Jacket" });
+  const place = Object.fromEntries(d.chats.places.map((r) => [r.label, r.n]));
+  assert.equal(place["Or order on WhatsApp, on the checkout form"], 1);
+  assert.equal(place["Get order updates button, while paying or after"], 1);
+  const h = d.guide.helps.find((x) => x.key === "wa_order");
+  assert.deepEqual([h.shown, h.tapped], [2, 1]);
+  assert.match(h.label, /Or order on WhatsApp/);
+});
+
 await check("footfall for the newer pages, searches, and moves to WhatsApp", () => {
   const t = Date.parse("2026-11-11T06:00:00Z"), ev = (s, e, x = {}) => ({ t: t + (x.dt || 0), v: s, s, e, p: "/", ...x }), start = (s) => ev(s, "page", { dev: "Phone", br: "Chrome", nw: 1 });
   const d = summarise([

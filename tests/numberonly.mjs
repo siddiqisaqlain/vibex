@@ -29,6 +29,16 @@ async function run() {
     if (await b.js(`!!document.querySelector("[data-checkout]") && !document.querySelector(".co-form")`)) await b.tap("[data-checkout]");
     return b.until(`!!document.querySelector(".co-form")`);
   };
+  const shotBag = async () => {
+    await b.nav(page);
+    await b.tap(".pdp-info .order-now");
+    await sleep(900);
+    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "green-addbar.png"));
+    if (await b.js(`!!document.querySelector(".vx-count, [data-bag-open], .bag-btn")`)) { await b.js(`window.VXBag && window.VXBag.openSheet && window.VXBag.openSheet()`); await sleep(700); if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "green-bag.png")); }
+    const col = await b.js(`(()=>{const e=document.querySelector(".vx-bag .co-cta, .vx-addbar-go");return e?getComputedStyle(e).backgroundImage:""})()`);
+    ok(/rgb\(23, 128, 63\)/.test(col), `the Checkout button is the green (${col.slice(0, 70)})`);
+    await b.js(`document.querySelector("dialog[open]")?.close(); localStorage.removeItem("vx-bag")`);
+  };
   try {
     // The server: a name is still required unless the form says it comes later.
     const line = { lines: [{ id: product.id, size: "", qty: 1 }], phone: "9876500031", delivery: "pickup" };
@@ -45,15 +55,25 @@ async function run() {
     ok(orders().find((x) => x.id === made.id).name === "Bilal Ahmad", "a name already on the order can't be replaced");
     await post(`/api/orders/${made.id}/cancel`, {});
 
+    await shotBag();
     // The usual form (arm a) is untouched.
     ok(await openCheckout("?form=a"), "form a opens");
     ok(await b.js(`!!document.querySelector(".co-form input[name=name]:not([type=hidden])")`), "form a still asks for the name");
+    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-a.png"));
 
     // The number-only form.
     ok(await openCheckout("?form=b"), "form b opens");
     ok(await b.js(`!document.querySelector(".co-form input[name=name]") && !!document.querySelector(".co-form input[name=phone]") && !document.querySelector(".co-form input[name=hideName]")`), "form b shows the number box and no name box");
+    ok(await b.js(`document.querySelector("[data-co-wa]").hidden === true`), "Or order on WhatsApp is out of the way at first");
+    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-empty.png"));
+    await b.tap(".co-form .co-cta"); // nothing chosen yet: the form asks, and offers the way out
+    ok(await b.until(`document.querySelector("[data-co-wa]").hidden === false && /pick up or delivery/i.test(document.querySelector(".ask-err").textContent)`, 3000), "after a stumble on the form, Or order on WhatsApp appears");
+    ok(/order/.test(await b.js(`decodeURIComponent(document.querySelector("[data-co-wa]").href)`)), "its message says what they want to order");
+    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-stalled.png"));
     await b.fill(".co-form input[name=phone]", "9876500032");
     await b.tap(".co-form input[name=delivery][value=pickup]");
+    ok(await b.until(`/Pick up at the store/.test(document.querySelector("[data-bill-del]").textContent) && /Free/.test(document.querySelector("[data-bill-del]").textContent) && document.querySelector(".co-ship").hidden`, 3000), "choosing pick up adds a free pick-up row to the bill, and keeps the address boxes away");
+    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-pickup.png"));
     await b.tap(".co-form .co-cta");
     ok(await b.until(`!!document.querySelector(".co-pay")`), `number and pick up are enough to reach the pay screen ${await b.js(`document.querySelector(".ask-err")?.textContent || ""`)}`);
     if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "pay-first.png"));
@@ -103,10 +123,15 @@ async function run() {
     await b.js(`(()=>{const e=document.querySelector(".co-form input[name=phone]");e.value="";})()`);
     await b.fill(".co-form input[name=phone]", "9876500034");
     await b.tap(".co-form input[name=delivery][value=ship]");
+    ok(await b.until(`/Add your PIN code/.test(document.querySelector("[data-bill-del]").textContent)`, 3000) && !(await b.js(`/kg inside Kashmir/.test(document.querySelector(".co-details").textContent)`)), "choosing delivery asks for the PIN in the bill, with no per-kg rates on show");
+    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-delivery-nopin.png"));
     await b.fill(".co-form input[name=address]", "12 Lal Chowk");
     await b.fill(".co-form input[name=city]", "Delhi");
     await b.fill(".co-form input[name=pin]", "110001");
     await sleep(800);
+    const bill = await b.js(`[...document.querySelectorAll(".co-brow:not([hidden])")].map(e=>e.textContent.replace(/\\s+/g," ")).join(" | ")`);
+    ok(/Delivery.*₹130/.test(bill) && /Total.*₹2,530/.test(bill) && /₹2,530/.test(await b.js(`document.querySelector(".co-cta").textContent`)), `the bill shows the delivery charge and the total, and Pay matches (${bill})`);
+    if (process.env.SHOTS) await b.shot(path.join(process.env.SHOTS, "details-b-delivery.png"));
     await b.tap(".co-form .co-cta");
     if (await b.until(`!!document.querySelector(".co-paynow")`)) {
       const sum = await b.js(`document.querySelector(".co-sum")?.textContent || ""`);
