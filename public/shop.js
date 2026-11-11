@@ -128,6 +128,9 @@
   }
   renderVideo();
 
+  // ---- what customers wrote to the shop ----
+  (() => { const html = window.VXOrder.reviews(); if (html) { $("rv-body").innerHTML = html; $("reviews").hidden = false; } })();
+
   // ---- red announcement bar: one message at a time ----
   function renderTicker() {
     const msgs = (S.claims && S.claims.ticker) || [];

@@ -266,5 +266,15 @@ window.VXOrder = (() => {
     });
   }
 
-  return { firstName, rememberName, savedDetails, rememberDetails, forgetDetails, keepDetails, tidyPhone, button, quick, install, place, toast, lot, rupees, esc, hash, pageUrl };
+  // What customers wrote to the shop (shop.json -> reviews), as a row of cards to swipe through. Their own
+  // words, first name only, and where the message came from. No stars or scores are made up.
+  function reviews(limit = 12) {
+    const R = window.SHOP?.reviews, list = (R?.list || []).filter((r) => r && r.text).slice(0, limit);
+    if (list.length < 3) return "";
+    const card = (r) => `<figure class="rv-card"><blockquote>${esc(r.text)}</blockquote><figcaption><b>${esc(r.name || "Vibe X customer")}</b>${r.place ? `<span>${esc(r.place)}</span>` : ""}<i>on ${esc(r.via || "WhatsApp")}</i></figcaption></figure>`;
+    return `<div class="rv-row" tabindex="0" role="group" aria-label="Customer messages">${list.map(card).join("")}</div>
+      <p class="rv-note">Messages customers sent us, in their own words.${R.source ? ` <a href="${esc(R.source)}" target="_blank" rel="noopener">See the chats on Instagram →</a>` : ""}</p>`;
+  }
+
+  return { reviews, firstName, rememberName, savedDetails, rememberDetails, forgetDetails, keepDetails, tidyPhone, button, quick, install, place, toast, lot, rupees, esc, hash, pageUrl };
 })();

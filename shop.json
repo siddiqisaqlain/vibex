@@ -148,5 +148,63 @@
     "_note": "Decided 2026-11-08: 1 coin per Rs 100 paid for goods (not courier), 1 coin = Rs 1, given when the owner confirms, taken back if cancelled. Spending is OFF until the owner sends 'coins on' on WhatsApp; then coins can pay up to maxPct of a bag.",
     "perRupees": 100,
     "maxPct": 10
+  },
+  "reviews": {
+    "_note": "Real messages customers sent the shop, copied word for word from the shop's own Instagram highlights (Reviews, Customer review) on 2026-11-11. First names only, and only where the shop's post showed one. Never add a message nobody sent.",
+    "source": "https://www.instagram.com/vibex.india/",
+    "list": [
+      {
+        "text": "I love your quality brother. I had bought original Levi's jeans 2 years ago. After that, I went to many shops and tried a lot, but I couldn't find anything original. … However, when I came to you, I finally saw the same original quality. Thank you.",
+        "name": "Arun",
+        "place": "Kashmir",
+        "via": "Instagram"
+      },
+      {
+        "text": "I had my doubts before I ordered because in most sites size of clothes are too small and I'm usually disappointment, but not this time!! The shipping was also really fast....thnks for being here for us",
+        "via": "WhatsApp"
+      },
+      {
+        "text": "Bhaiya I got the jeans it's just so awesome. You deserve a good review cus your quality are jst top notch 🔥",
+        "via": "WhatsApp"
+      },
+      {
+        "text": "Received today. ⭐⭐⭐⭐⭐ Quality. Excellent Product 👍👍👍",
+        "name": "Rohit",
+        "place": "Ahmedabad",
+        "via": "WhatsApp"
+      },
+      {
+        "text": "Sir bhoot vadiya quality hai. Superb sir thank you",
+        "name": "Navjot",
+        "via": "WhatsApp"
+      },
+      {
+        "text": "Hi bro, I have finally received my package, it's high quality",
+        "via": "WhatsApp"
+      },
+      {
+        "text": "Mel gaya parcel sir. quality best. ☀️ thanks",
+        "place": "Sangli",
+        "via": "WhatsApp"
+      },
+      {
+        "text": "Sir hood and sweater bhot ache h",
+        "name": "Rahul",
+        "via": "WhatsApp"
+      },
+      {
+        "text": "Bhai received parcel Masha Allah good product",
+        "name": "Afzal",
+        "via": "WhatsApp"
+      },
+      {
+        "text": "Bhai parcel received. Bhaut acha h",
+        "via": "WhatsApp"
+      },
+      {
+        "text": "I received it. Loved it",
+        "via": "WhatsApp"
+      }
+    ]
   }
 }
