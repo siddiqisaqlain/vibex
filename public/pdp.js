@@ -80,6 +80,33 @@
   }
 
   const optionsOf = (p) => p.options || [];
+  // ---- Size guides (2026-11-11): each brand's own chart, read off the brand's India site, shown on its pieces.
+  // `body` charts say who a size is made for; `garment` charts are the piece laid flat and measured.
+  // Inches first (the shop measures chest in inches), centimetres after. Never the shop's stock: that is p.sizes.
+  const GUIDES = [
+    { test: /\buspa\b|u\.?\s?s\.?\s?polo/i, title: "U.S. Polo Assn. sweaters", kind: "garment", source: "uspoloassn.in",
+      cols: ["Chest", "Length", "Shoulder"],
+      rows: [["S", "39.5 in (100 cm)", "29 in (74 cm)", "17 in (43 cm)"], ["M", "41.5 in (105 cm)", "29.5 in (75 cm)", "18 in (46 cm)"], ["L", "45 in (114 cm)", "31 in (79 cm)", "19 in (48 cm)"], ["XL", "47.5 in (121 cm)", "31.5 in (80 cm)", "20 in (51 cm)"], ["XXL", "50 in (127 cm)", "32 in (81 cm)", "21 in (53 cm)"]] },
+    { test: /\bcolumbia\b/i, title: "Columbia men's jackets", kind: "body", source: "columbiasportswear.co.in",
+      cols: ["Chest", "Waist", "Hip"],
+      rows: [["S", "35.5 in (90 cm)", "30 in (76 cm)", "36 in (91 cm)"], ["M", "37.5 in (95 cm)", "32 in (81 cm)", "38 in (96.5 cm)"], ["L", "39.5 in (100 cm)", "34 in (86 cm)", "39.75 in (101 cm)"], ["XL", "41.5 in (105 cm)", "36 in (91 cm)", "42 in (106.5 cm)"]] },
+    { test: /\bpuma\b/i, title: "Puma men's jackets", kind: "body", source: "in.puma.com",
+      cols: ["Chest", "Waist", "Hip"],
+      rows: [["S", "35 to 38 in", "30 to 33 in", "35 to 37 in"], ["M", "38 to 41 in", "33 to 36 in", "38 to 40 in"], ["L", "41 to 45 in", "36 to 39 in", "41 to 44 in"], ["XL", "45 to 48 in", "40 to 43 in", "44 to 48 in"]] },
+  ];
+  function sizeGuide(p) {
+    if (p.category !== "Clothing") return "";
+    const g = GUIDES.find((x) => x.test.test(`${p.brand || ""} ${p.name || ""}`));
+    if (!g) return "";
+    const have = new Set((p.options || []).map((o) => String(o.size).toUpperCase()));
+    return `<details class="pdp-guide"><summary>Size chart</summary>
+        <p class="pdp-guide-what">${esc(g.title)}. ${g.kind === "body" ? "Your own body measurements: pick the size whose chest matches yours." : "The sweater itself, measured flat: compare with one you own."}</p>
+        <div class="pdp-guide-scroll"><table><thead><tr><th>Size</th>${g.cols.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead>
+        <tbody>${g.rows.map((r) => `<tr${have.has(r[0]) ? ' class="have"' : ""}><th>${esc(r[0])}</th>${r.slice(1).map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+        <p class="pdp-guide-src">From the brand's own size chart (${esc(g.source)}).${g.kind === "garment" ? " A piece can differ by about half an inch." : ""}</p>
+      </details>`;
+  }
+
   // With several sizes nothing is chosen for them (2026-11-11): "Add to bag" asks for the size in a sheet,
   // so nobody bags the wrong one without noticing. A piece with one size has it chosen already.
   const LETTER = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "4XL", "5XL"];
@@ -204,6 +231,7 @@
             ${off && showPromise() ? `<span class="pdp-save">You save ${rupees(p.mrp - price)}</span>` : ""}
           </div>
           ${sizePicker(p)}
+          ${sizeGuide(p)}
           ${trust(p)}
           <p class="pdp-desc">${esc(p.description)}</p>
           <dl class="pdp-facts">

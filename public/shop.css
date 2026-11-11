@@ -1353,3 +1353,19 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .co-bill { background: #fff; border: 1px solid var(--line-2); }
 .co-details .co-sumrow b, .co-details .co-lines b { color: var(--ink); }
 .co-brow.co-btotal { border-top-color: var(--line); }
+
+/* ---- Size guide on a product page: the brand's own chart, closed until asked for (pdp.js) ---- */
+.pdp-info { min-width: 0; }
+.pdp-guide { min-width: 0; max-width: 100%; overflow: hidden; margin: 6px 0 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper, transparent); }
+.pdp-guide summary { color: var(--red); cursor: pointer; padding: 12px 14px; font: 500 11px/1.6 var(--mono); text-transform: uppercase; letter-spacing: .07em; list-style: none; display: flex; justify-content: space-between; align-items: center; min-height: 44px; box-sizing: border-box; }
+.pdp-guide summary::-webkit-details-marker { display: none; }
+.pdp-guide summary::after { content: "+"; font-size: 16px; line-height: 1; }
+.pdp-guide[open] summary::after { content: "–"; }
+.pdp-guide-what, .pdp-guide-src { margin: 0; padding: 0 14px 10px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.pdp-guide-src { padding-top: 10px; font-size: 12px; }
+.pdp-guide-scroll { overflow-x: auto; padding: 0 14px; }
+.pdp-guide table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+.pdp-guide th, .pdp-guide td { text-align: left; padding: 8px 12px 8px 0; border-top: 1px solid var(--line); font-weight: 400; }
+.pdp-guide thead th { border-top: 0; font: 500 10.5px/1.7 var(--mono); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.pdp-guide tbody th { font-weight: 600; }
+.pdp-guide tr.have th, .pdp-guide tr.have td { color: var(--teal-deep, var(--ink)); font-weight: 600; }
