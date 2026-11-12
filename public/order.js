@@ -273,8 +273,10 @@ window.VXOrder = (() => {
     if (list.length < 3) return "";
     // Each card shows the heart of the message; a long one opens to the whole thing on a tap.
     const card = (r) => `<figure class="rv-card"><blockquote${r.short ? ` data-short="${esc(r.short)}" data-full="${esc(r.text)}"` : ""}>${esc(r.short || r.text)}</blockquote>${r.short ? `<button type="button" class="rv-more" aria-expanded="false">Read full message</button>` : ""}<figcaption><b>${esc(r.name || "Vibe X customer")}</b>${r.place ? `<span>${esc(r.place)}</span>` : ""}<i>${r.bought ? `<em class="rv-bought">✓ Bought here</em> · ` : ""}${r.when ? `${esc(r.when)} · ` : ""}on ${esc(r.via || "WhatsApp")}</i></figcaption></figure>`;
-    return `<div class="rv-row" tabindex="0" role="group" aria-label="Customer messages">${list.map(card).join("")}</div>
-      <p class="rv-note">Messages customers sent us, in their own words.${R.source ? ` <a href="${esc(R.source)}" target="_blank" rel="noopener">See the chats on Instagram →</a>` : ""}</p>`;
+    // The shop's Google rating, exactly as Google shows it (shop.json -> reviews.google), with a link to every review.
+    const g = R.google, stars = g?.rating && g?.count ? `<a class="rv-google" href="${esc(g.url || "#")}" target="_blank" rel="noopener"><b>${esc(String(g.rating))}</b><span class="rv-stars" style="--pct:${Math.round(g.rating / 5 * 100)}%" aria-hidden="true">★★★★★</span><span>${esc(String(g.count))} reviews on Google</span><i>See them all →</i></a>` : "";
+    return `${stars}<div class="rv-row" tabindex="0" role="group" aria-label="Customer messages">${list.map(card).join("")}</div>
+      <p class="rv-note">What customers wrote to us and on Google, in their own words.${R.source ? ` <a href="${esc(R.source)}" target="_blank" rel="noopener">See the chats on Instagram →</a>` : ""}</p>`;
   }
 
   document.addEventListener("click", (e) => {

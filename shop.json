@@ -163,6 +163,7 @@
   "reviews": {
     "_note": "Real messages customers sent the shop, copied word for word from the shop's own Instagram highlights (Reviews, Customer review) on 2026-11-11. First names only, and only where the shop's post showed one. Never add a message nobody sent. New ones: add \"when\": \"Nov 2026\" and, only for someone who bought on this website or in the store, \"bought\": true. The owner asks for them from Online Orders > Ask for a review, which also asks permission to show the first name.",
     "source": "https://www.instagram.com/vibex.india/",
+    "google": { "_note": "Copied from the shop's Google listing on 2026-11-12: the rating and count as Google showed them, and reviews word for word under the names Google shows. The two written 1-line complaints are not shown as cards but are part of the 4.6. Update rating and count when they change.", "rating": 4.6, "count": 23, "asOf": "2026-11-12", "url": "https://share.google/oXj8INEjDVXltVxqo" },
     "list": [
       {
         "text": "I love your quality brother. I had bought original Levi's jeans 2 years ago. After that, I went to many shops and tried a lot, but I couldn't find anything original. … However, when I came to you, I finally saw the same original quality. Thank you.",
@@ -186,6 +187,33 @@
         "name": "Rohit",
         "place": "Ahmedabad",
         "via": "WhatsApp"
+      },
+      {
+        "text": "\"Fantastic selection, great prices, and excellent service! A must-visit for trendy fashion finds. Highly recommend this clothes store!\"",
+        "short": "Fantastic selection, great prices, and excellent service!",
+        "name": "Umar Rashid Lone",
+        "via": "Google"
+      },
+      {
+        "text": "Fantastic and trustworthy seller. Wonderful buying experience . Will buy again 👍🏼",
+        "name": "Ravinder Sando",
+        "via": "Google"
+      },
+      {
+        "text": "wow you will get 100% orginal prodocts in so cheap price .Best collection i ever get at @vibe x . sir woh girls ka bi start kere so that we can shop more at cheapest ❤️ love u vibe X",
+        "short": "wow you will get 100% orginal prodocts in so cheap price .Best collection i ever get at @vibe x …",
+        "name": "Kashur Swag",
+        "via": "Google"
+      },
+      {
+        "text": "Good quality readymade clothes. Nice collection.",
+        "name": "Mir Tauseef",
+        "via": "Google"
+      },
+      {
+        "text": "It was great to deal with you. I am totally satisfied with your service",
+        "name": "soren bapun",
+        "via": "Google"
       },
       {
         "text": "Sir bhoot vadiya quality hai. Superb sir thank you",
@@ -218,6 +246,41 @@
       {
         "text": "I received it. Loved it",
         "via": "WhatsApp"
+      },
+      {
+        "text": "Mr.Omar at vibe x is decent guy and they have good collection .Wish him luck !",
+        "name": "O B",
+        "via": "Google"
+      },
+      {
+        "text": "Wow what a collection bro , cheap price and 100% orginal",
+        "name": "Faizan mir",
+        "via": "Google"
+      },
+      {
+        "text": "Best surplus shop in j&k with affordable price always . Love u vibe x",
+        "name": "Adi k vlogs",
+        "via": "Google"
+      },
+      {
+        "text": "Best quality and Branded outfits at reasonable price",
+        "name": "abuzar akhoni",
+        "via": "Google"
+      },
+      {
+        "text": "Vibe X is the best place for orginal products at low price.",
+        "name": "Suhail",
+        "via": "Google"
+      },
+      {
+        "text": "Best quality and highly satisfying pricing.",
+        "name": "Nasir Bukhari",
+        "via": "Google"
+      },
+      {
+        "text": "Best surplus store , you must try it",
+        "name": "Vibe With Khushi",
+        "via": "Google"
       }
     ]
   }
