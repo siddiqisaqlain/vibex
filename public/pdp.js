@@ -94,15 +94,45 @@
       cols: ["Chest", "Waist", "Hip"],
       rows: [["S", "35 to 38 in", "30 to 33 in", "35 to 37 in"], ["M", "38 to 41 in", "33 to 36 in", "38 to 40 in"], ["L", "41 to 45 in", "36 to 39 in", "41 to 44 in"], ["XL", "45 to 48 in", "40 to 43 in", "44 to 48 in"]] },
   ];
+  // The shop writes sizes as "M", "m" or "M · 42": the chart matches on the first word, and 2XL is XXL.
+  const sizeKey = (s) => { const k = String(s || "").toUpperCase().trim().split(/[^A-Z0-9]+/)[0]; return { "2XL": "XXL", "3XL": "XXXL" }[k] || k; };
+  // The piece in the size a chart row names: one of its sizes, or the piece itself when it comes in a single size.
+  function chartOption(p, size) {
+    const k = sizeKey(size), opts = optionsOf(p);
+    if (opts.length) return opts.find((o) => sizeKey(o.size) === k) || null;
+    return p.sizes && sizeKey(p.sizes) === k ? { size: p.sizes, price: p.price } : null;
+  }
+  root.addEventListener("click", (e) => {
+    const row = e.target.closest?.(".pdp-guide tr[data-gsize]");
+    if (!row) return;
+    const now = products.find((x) => x.id === id);
+    if (!now) return;
+    const size = row.dataset.gsize, o = chartOption(now, size);
+    // Only sizes the chart itself lists are named back, so a stray chest number saved as a size is not offered.
+    const onChart = new Set([...row.parentElement.querySelectorAll("tr[data-gsize]")].map((r) => sizeKey(r.dataset.gsize)));
+    const inStock = optionsOf(now).filter((x) => x.left !== 0 && onChart.has(sizeKey(x.size))).map((x) => x.size);
+    window.VXTrack?.("chart_size", { pr: now.id, size, ok: Boolean(o && o.left !== 0 && now.status === "available") });
+    if (!o || o.left === 0 || now.status !== "available") {
+      const others = now.status === "available" && inStock.length ? ` In stock: ${inStock.map(esc).join(", ")}.` : "";
+      return O.toast(`<b>Size ${esc(size)} is not available</b><span>${o ? "It is sold out in this piece." : "We do not have this piece in that size."}${others}</span>`);
+    }
+    const old = document.getElementById("toast"); if (old) old.hidden = true; // an earlier "not available" must not sit over the add
+    pick = o.size; needPick = false;
+    render();
+    O.place({ ...now, price: o.price, sizes: o.size, chosenSize: o.size });
+  });
   function sizeGuide(p) {
     if (p.category !== "Clothing") return "";
     const g = GUIDES.find((x) => x.test.test(`${p.brand || ""} ${p.name || ""}`));
     if (!g) return "";
-    const have = new Set((p.options || []).map((o) => String(o.size).toUpperCase()));
+    // A row can be tapped (2026-11-12): a size the shop has goes in the bag, one it does not have says so.
+    const state = (size) => { const o = chartOption(p, size); return !o ? "none" : o.left === 0 || p.status !== "available" ? "out" : "have"; };
+    const word = { have: "Add to bag", out: "Sold out", none: "Not in stock" };
     return `<details class="pdp-guide"><summary>Size chart</summary>
         <p class="pdp-guide-what">${esc(g.title)}. ${g.kind === "body" ? "Your own body measurements: pick the size whose chest matches yours." : "The sweater itself, measured flat: compare with one you own."}</p>
+        <p class="pdp-guide-tap">Tap a size to add it to your bag.</p>
         <div class="pdp-guide-scroll"><table><thead><tr><th>Size</th>${g.cols.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead>
-        <tbody>${g.rows.map((r) => `<tr${have.has(r[0]) ? ' class="have"' : ""}><th>${esc(r[0])}</th>${r.slice(1).map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+        <tbody>${g.rows.map((r) => { const s = state(r[0]); return `<tr class="${s}" data-gsize="${esc(r[0])}"><th><button type="button" class="pdp-guide-pick" aria-label="Size ${esc(r[0])}: ${word[s]}">${esc(r[0])}</button><small>${word[s]}</small></th>${r.slice(1).map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`; }).join("")}</tbody></table></div>
         <p class="pdp-guide-src">From the brand's own size chart (${esc(g.source)}).${g.kind === "garment" ? " A piece can differ by about half an inch." : ""}</p>
       </details>`;
   }

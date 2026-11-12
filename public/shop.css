@@ -1395,6 +1395,16 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .pdp-guide thead th { border-top: 0; font: 500 10.5px/1.7 var(--mono); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
 .pdp-guide tbody th { font-weight: 600; }
 .pdp-guide tr.have th, .pdp-guide tr.have td { color: var(--teal-deep, var(--ink)); font-weight: 600; }
+/* Chart rows are tappable: a size in stock goes in the bag, the others say they are not available. */
+.pdp-guide tr[data-gsize] { cursor: pointer; }
+.pdp-guide tr[data-gsize]:hover td, .pdp-guide tr[data-gsize]:hover th { background: rgba(18,18,18,.04); }
+.pdp-guide tbody th { white-space: nowrap; }
+.pdp-guide-pick { min-width: 44px; min-height: 36px; padding: 0 10px; border: 1px solid var(--ink); border-radius: 999px; background: none; color: inherit; font: 600 13px/1 var(--body); cursor: pointer; }
+.pdp-guide tbody th small { display: block; margin-top: 4px; font: 500 10px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.pdp-guide tr.have .pdp-guide-pick { background: var(--ink); color: var(--paper, #fff); }
+.pdp-guide tr.out th, .pdp-guide tr.out td, .pdp-guide tr.none th, .pdp-guide tr.none td { color: var(--muted); }
+.pdp-guide tr.out .pdp-guide-pick, .pdp-guide tr.none .pdp-guide-pick { border-color: var(--line-2); text-decoration: line-through; }
+.pdp-guide-tap { margin: 0; padding: 0 14px 10px; font-size: 13px; color: var(--ink); font-weight: 600; }
 /* Order form: the question above the two choices, and a slip marked on the box it belongs to. */
 .co-details .co-q { margin: 2px 2px -6px; font: 600 14px/1.2 var(--body, system-ui, sans-serif); color: var(--ink); }
 .co-details .co-form .co-bad, .co-details .co-form .co-bad:focus-within { border-color: #b3261e !important; outline: none !important; box-shadow: 0 0 0 3px rgba(179,38,30,.18) !important; animation: vx-jiggle .45s ease; }
