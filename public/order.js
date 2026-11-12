@@ -274,8 +274,10 @@ window.VXOrder = (() => {
     // Each card shows the heart of the message; a long one opens to the whole thing on a tap.
     const card = (r) => `<figure class="rv-card"><blockquote${r.short ? ` data-short="${esc(r.short)}" data-full="${esc(r.text)}"` : ""}>${esc(r.short || r.text)}</blockquote>${r.short ? `<button type="button" class="rv-more" aria-expanded="false">Read full message</button>` : ""}<figcaption><b>${esc(r.name || "Vibe X customer")}</b>${r.place ? `<span>${esc(r.place)}</span>` : ""}<i>${r.bought ? `<em class="rv-bought">✓ Bought here</em> · ` : ""}${r.when ? `${esc(r.when)} · ` : ""}on ${esc(r.via || "WhatsApp")}</i></figcaption></figure>`;
     // The shop's Google rating, exactly as Google shows it (shop.json -> reviews.google), with a link to every review.
-    const g = R.google, stars = g?.rating && g?.count ? `<a class="rv-google" href="${esc(g.url || "#")}" target="_blank" rel="noopener"><b>${esc(String(g.rating))}</b><span class="rv-stars" style="--pct:${Math.round(g.rating / 5 * 100)}%" aria-hidden="true">★★★★★</span><span>${esc(String(g.count))} reviews on Google</span><i>See them all →</i></a>` : "";
-    return `${stars}<div class="rv-row" tabindex="0" role="group" aria-label="Customer messages">${list.map(card).join("")}</div>
+    const g = R.google, stars = g?.rating ? `<a class="rv-google" href="${esc(g.url || "#")}" target="_blank" rel="noopener"><b>${esc(String(g.rating))}</b><span class="rv-stars" style="--pct:${Math.round(g.rating / 5 * 100)}%" aria-hidden="true">★★★★★</span><span>Reviews on Google</span><i>See them all →</i></a>` : "";
+    // A carousel: it moves on by itself, and the arrows or a swipe take over whenever someone wants them to.
+    return `${stars}<div class="rv-car"><div class="rv-row" tabindex="0" role="group" aria-roledescription="carousel" aria-label="Customer messages">${list.map(card).join("")}</div>
+      <div class="rv-nav"><button type="button" class="rv-go" data-rv-go="-1" aria-label="Previous review">←</button><span class="rv-at" aria-live="off">1 / ${list.length}</span><button type="button" class="rv-go" data-rv-go="1" aria-label="Next review">→</button></div></div>
       <p class="rv-note">What customers wrote to us and on Google, in their own words.${R.source ? ` <a href="${esc(R.source)}" target="_blank" rel="noopener">See the chats on Instagram →</a>` : ""}</p>`;
   }
 
@@ -285,6 +287,41 @@ window.VXOrder = (() => {
     q.textContent = open ? q.dataset.full : q.dataset.short;
     b.setAttribute("aria-expanded", String(open)); b.textContent = open ? "Show less" : "Read full message";
   });
+
+  // ---- the reviews carousel ----
+  const RV_EVERY = 4500, RV_HOLD = 9000;
+  const rvCards = (row) => [...row.querySelectorAll(".rv-card")];
+  const rvAt = (row) => { const c = rvCards(row), x = row.scrollLeft + row.getBoundingClientRect().left; let best = 0, d = Infinity; c.forEach((el, i) => { const q = Math.abs(el.getBoundingClientRect().left + row.scrollLeft - x); if (q < d) { d = q; best = i; } }); return best; };
+  function rvGo(row, by) {
+    const c = rvCards(row); if (!c.length) return;
+    const end = row.scrollLeft + row.clientWidth >= row.scrollWidth - 4;
+    let i = rvAt(row) + by; if (by > 0 && end) i = 0; if (i < 0) i = c.length - 1; if (i >= c.length) i = 0;
+    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    row.scrollTo({ left: c[i].offsetLeft - c[0].offsetLeft, behavior: calm ? "auto" : "smooth" });
+  }
+  const rvHold = (row) => { if (row) row._hold = Date.now() + RV_HOLD; };
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest?.("[data-rv-go]"); if (!b) return;
+    const row = b.closest(".rv-car")?.querySelector(".rv-row"); if (!row) return;
+    rvHold(row); rvGo(row, Number(b.dataset.rvGo));
+  });
+  for (const ev of ["pointerdown", "touchstart", "wheel", "keydown", "focusin"]) document.addEventListener(ev, (e) => rvHold(e.target.closest?.(".rv-car")?.querySelector(".rv-row")), { passive: true, capture: true });
+  document.addEventListener("scroll", (e) => {
+    const row = e.target; if (!row.classList?.contains("rv-row")) return;
+    const at = row.parentNode.querySelector(".rv-at"), n = rvCards(row).length;
+    // change the text node in place, and only when the number moves: other scripts watch the page for added nodes
+    const say = `${(row.scrollLeft + row.clientWidth >= row.scrollWidth - 4 ? n - 1 : rvAt(row)) + 1} / ${n}`;
+    if (at?.firstChild && at.firstChild.nodeValue !== say) at.firstChild.nodeValue = say;
+  }, { passive: true, capture: true });
+  setInterval(() => {
+    if (document.hidden || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    for (const row of document.querySelectorAll(".rv-car .rv-row")) {
+      const b = row.getBoundingClientRect();
+      if (b.bottom < 60 || b.top > innerHeight - 60 || !b.width) continue; // only while it's on screen
+      if ((row._hold || 0) > Date.now() || row.matches(":hover") || row.querySelector('.rv-more[aria-expanded="true"]')) continue;
+      rvGo(row, 1);
+    }
+  }, RV_EVERY);
 
   // One customer's words in a line, for the places where someone is making up their mind: beside the
   // price, above Place Order, on the pay screen. `pick` is a spot name set in shop.json ("checkout",

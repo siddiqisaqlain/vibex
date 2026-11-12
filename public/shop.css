@@ -1655,3 +1655,11 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .pdp-start { margin-top: 56px; }
 .pdp-start h2 { margin-bottom: 8px; }
 .pdp-start-say { margin: 0 0 22px; color: var(--muted); font: 400 15px/1.5 var(--body); max-width: 46ch; }
+
+/* Reviews carousel (2026-11-12): one card per step, moves by itself, arrows and a count underneath */
+.rv-car .rv-row { scroll-snap-type: x mandatory; scrollbar-width: none; padding-bottom: 6px; }
+.rv-car .rv-row::-webkit-scrollbar { display: none; }
+.rv-nav { display: flex; align-items: center; gap: 12px; margin: 6px 0 2px; }
+.rv-go { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line, #e3ddd2); background: transparent; color: var(--ink); font: 400 18px/1 var(--body); cursor: pointer; }
+.rv-go:active { background: var(--line, #e3ddd2); }
+.rv-at { font: 500 12.5px/1 var(--mono, monospace); color: var(--muted); min-width: 52px; text-align: center; }
