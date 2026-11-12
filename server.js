@@ -1228,9 +1228,31 @@ function homeHead(req) {
     .map(([k, v]) => `<meta property="${k}" content="${escHtml(v)}">`).join("\n");
   return `<link rel="canonical" href="${escHtml(origin + "/")}">\n${og}\n<meta name="twitter:card" content="summary">\n<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, "\\u003c")}</script>\n`;
 }
+// Visible FAQ + FAQPage JSON-LD. Every answer is built from shop.json policy values already shown on the policy pages.
+function homeFaq() {
+  const b = SHOP.business || {}, pol = SHOP.policy || {}, c = pol.courier || {};
+  const qa = [];
+  if (pol.dispatchWorkingDays && pol.deliveryDays) qa.push(["How long does delivery take?", `Orders are dispatched within ${pol.dispatchWorkingDays} working days, and delivery takes ${pol.deliveryDays} days after dispatch. We ship anywhere in India.`]);
+  if (c.perKg) qa.push(["How much is the courier charge?", `Rs ${c.perKg} per kg outside Kashmir${c.insideKashmirPerKg ? ` and Rs ${c.insideKashmirPerKg} per kg inside Kashmir` : ""}, charged per started kg.`]);
+  if (pol.changeOfMindDays) qa.push(["Can I return something I changed my mind about?", `Yes, within ${pol.changeOfMindDays} days. The full terms are on the Returns page.`]);
+  if (pol.damageReportHours) qa.push(["What if my piece arrives damaged or wrong?", `Tell us within ${pol.damageReportHours} hours of delivery.${pol.refundWorkingDays ? ` Refunds are made within ${pol.refundWorkingDays} working days.` : ""}`]);
+  qa.push(["How do I pay?", "Pay by UPI when you order, or message us on WhatsApp about the exact piece."]);
+  if (b.address) qa.push(["Where is the store?", `${SHOP.name} is at ${b.address}. You can pick a piece up in person or have it shipped.`]);
+  if (qa.length < 2) return { html: "", ld: "" };
+  const html = `<section class="faq wrap" id="faq" aria-labelledby="faq-h">
+    <header class="sec-head"><h2 class="sec-h" id="faq-h">Questions</h2></header>
+    <div class="faq-list">${qa.map(([q, a]) => `<details><summary>${escHtml(q)}</summary><p>${escHtml(a)}</p></details>`).join("")}</div>
+  </section>
+
+  `;
+  const ld = { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: qa.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) };
+  return { html, ld: `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, "\\u003c")}</script>\n` };
+}
 function homePage(req, res) {
   let html = fs.readFileSync(path.join(PUBLIC, "index.html"), "utf8");
-  html = html.replace("</head>", () => homeHead(req) + "</head>");
+  const faq = homeFaq();
+  html = html.replace("</head>", () => homeHead(req) + faq.ld + "</head>");
+  if (faq.html) html = html.replace('<section class="store wrap" id="visit"', () => faq.html + '<section class="store wrap" id="visit"');
   send(res, 200, html, "text/html; charset=utf-8", "no-cache");
 }
 

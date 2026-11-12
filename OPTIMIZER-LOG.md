@@ -41,3 +41,11 @@ Nightly SEO / GEO / AEO notes. Newest last. Hard rules: no checkout/payment/lega
 - **Checks:** node --check server.js; local server: /llms.txt, /, /sitemap.xml all 200; tests/domain.mjs 22/22.
 - **Note:** live site unreachable from the sandbox again (proxy refused), judged from repo.
 - **Next:** FAQ block + FAQPage schema from policy; canonical/OG on /wardrobe and legal pages (inject in server.js, not lib/legal.js); meta description quality, image alt text, heading order.
+
+## 2026-11-12 (night 5)
+- **Changed:** visible "Questions" FAQ section on the home page (before "The store", matches the existing `#faq` nav link) plus FAQPage JSON-LD. Six Q&As built at serve time from shop.json policy (delivery time, courier rates, change-of-mind return, damage report + refund, payment by UPI/WhatsApp as already stated in "How it works", store address). `homeFaq()` in server.js; small `.faq` styles appended to public/shop.css.
+- **Why:** backlog item 5 (AEO).
+- **Checks:** node --check server.js; local /, /sitemap.xml, /llms.txt 200; Store + FAQPage JSON-LD parse; FAQ appears once, before #visit; tests/domain.mjs 22/22 (needed `npm ci` first).
+- **Left out on purpose:** the "Why is it this cheap?" answer (claims.surplus in shop.json is marked DRAFT, not owner-confirmed).
+- **Note:** live site unreachable from the sandbox again, judged from repo.
+- **Next:** canonical/OG on /wardrobe and legal pages (inject in server.js, not lib/legal.js); meta description quality, image alt text, heading order on home; add the surplus FAQ once the owner confirms it.
