@@ -77,6 +77,10 @@
   .deck .rail svg{height:34px}
   .deck input{position:absolute;inset:auto 0 -6px 0;width:100%;margin:0;accent-color:var(--ink)}
   .deck time{font:12px var(--mono);min-width:66px;text-align:right}
+  .deck button.mini{width:36px;height:36px;background:transparent;color:var(--ink);border:1px solid var(--line);font:600 13px var(--mono)}
+  .deck button.mini:active{background:var(--line)}
+  .deck button.pace{width:auto;min-width:48px;padding:0 10px;border-radius:18px}
+  @media(max-width:520px){.deck{flex-wrap:wrap}.deck .rail{order:5;flex:1 0 100%;margin-top:4px}.deck time{flex:1}}
   #whoBox{font-size:13.5px;color:var(--ink2);min-height:22px;margin-top:8px}
   .ticker{font-size:13.5px;margin:0;padding:0;list-style:none}
   .ticker li{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}.ticker li:last-child{border:0}
@@ -394,7 +398,7 @@
     { key: "pg:wardrobe", label: "The Wardrobe", group: "pages" }, { key: "pg:bag", label: "Bag", group: "pages" }, { key: "pg:account", label: "My account", group: "pages" }, { key: "back", label: "Policies and other", group: "pages" },
   ];
   const GROUPS = { home: "Home page", products: "Products", pages: "Other pages", form: "Order form", pay: "Paying", end: "The end" };
-  const water = { on: false, rooms: new Map(), drops: [], k: 1, focus: "", mode: "live", wide: true, W: 0, H: 0, edges: [], total: 0, slot: -1, replay: null, playing: false, last: 0, pos: 0, products: [], colors: null, day: "" };
+  const water = { on: false, rooms: new Map(), drops: [], k: 1, focus: "", mode: "live", wide: true, W: 0, H: 0, edges: [], total: 0, slot: -1, replay: null, playing: false, pace: 1, held: false, quiet: false, last: 0, pos: 0, products: [], colors: null, day: "" };
   const still = () => matchMedia("(prefers-reduced-motion:reduce)").matches;
   const SCALE = 2, MAX_DROPS = () => (water.wide ? 1400 : 700);
 
@@ -552,7 +556,8 @@
   function loop(time) {
     if (!water.on) return;
     if (water.mode === "replay" && water.playing) {
-      const step = (time - water.last) / REPLAY_MS; water.last = time;
+      // a tab left in the background must not leap to the end, and empty stretches of the day go by quickly
+      const gap = Math.min(100, time - water.last), step = (gap * water.pace * (water.quiet ? QUIET_RUSH : 1)) / REPLAY_MS; water.last = time;
       water.pos = Math.min(1, water.pos + step); applySlot();
       if (water.pos >= 1) pauseReplay();
     }
@@ -579,12 +584,17 @@
     if ($("waterBox")) return;
     $("v-now").innerHTML = `<div class="card"><div class="planHead"><div class="bigNow" id="bigN">0</div><div class="say" id="planSay"></div><div class="chips" id="modes"><button type="button" data-m="live" class="on">Live</button><button type="button" data-m="all">Whole period</button><button type="button" data-m="0">Replay today</button><button type="button" data-m="1">Yesterday</button></div></div>
       <div id="waterBox" class="waterBox"><canvas id="waterCv" role="img" aria-label="The shop drawn as connected tanks of water. Each tank is a part of the site, and its size and water show how many people are in it. A list of every room follows."></canvas></div>
-      <div class="deck hide" id="deck"><button type="button" id="playBtn" aria-label="Pause">❚❚</button><div class="rail"><div id="railArt"></div><input type="range" id="rail" min="0" max="1000" value="0" aria-label="Time of day"></div><time id="railT"></time></div>
+      <div class="deck hide" id="deck"><button type="button" id="playBtn" aria-label="Pause">❚❚</button><button type="button" class="mini" id="backBtn" aria-label="One step back">‹</button><button type="button" class="mini" id="fwdBtn" aria-label="One step forward">›</button><button type="button" class="mini pace" id="paceBtn" aria-label="Playback speed">1×</button><div class="rail"><div id="railArt"></div><input type="range" id="rail" min="0" max="1000" value="0" aria-label="Time of day"></div><time id="railT"></time></div>
       <div class="key"><span><i class="w"></i><span id="scaleKey">One drop is one person</span></span><span><i class="r"></i>Hit a problem in that room</span><span><i class="g"></i>Bought</span><span>Press any room to open it</span><span id="lostKey" class="hide"></span></div><div id="whoBox"></div></div>
       <div id="payBox"></div><div id="roomBox"></div><div class="card" id="listCard"><div id="listBox"></div></div>`;
     $("modes").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; const m = b.dataset.m; m === "live" ? goLive() : m === "all" ? showPeriod() : startReplay(Number(m)); };
     $("playBtn").onclick = () => { if (water.playing) pauseReplay(); else playReplay(); };
-    $("rail").oninput = (e) => { pauseReplay(); water.pos = Number(e.target.value) / 1000; applySlot(); };
+    // dragging holds the film still, letting go carries on if it was playing
+    $("rail").oninput = (e) => { if (water.playing) { water.held = true; pauseReplay(); } water.pos = Number(e.target.value) / 1000; applySlot(); };
+    $("rail").onchange = () => { if (water.held) { water.held = false; if (water.pos < 1) playReplay(); } };
+    $("backBtn").onclick = () => stepReplay(-1); $("fwdBtn").onclick = () => stepReplay(1);
+    $("paceBtn").onclick = () => { water.pace = PACES[(PACES.indexOf(water.pace) + 1) % PACES.length]; showPace(); };
+    showPace();
     const cv = $("waterCv"), hit = (e) => { const b = cv.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top; for (const r of water.rooms.values()) if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return r; return null; };
     cv.onpointermove = (e) => { const r = hit(e); if (!r) { cv.removeAttribute("data-tip"); cv.style.cursor = ""; return; } cv.style.cursor = "pointer"; cv.dataset.tip = `${r.label}: ${num(r.n)}${r.time ? `, typically ${dur(r.time)}` : ""}`; };
     cv.onclick = (e) => { const r = hit(e); openRoom(r && r.key !== water.focus ? r.key : ""); };
@@ -618,7 +628,14 @@
     $("planSay").textContent = `Everyone from ${state.from} to ${state.to}: how many passed through each room, and where they went next.`;
   }
   // ---- replay: the whole day, however many people came ----
-  const REPLAY_MS = 60e3;
+  const REPLAY_MS = 30e3, PACES = [1, 2, 4, 0.5], QUIET_RUSH = 8;
+  const showPace = () => { const b = $("paceBtn"); if (b) b.textContent = `${water.pace === 0.5 ? "½" : water.pace}×`; };
+  function stepReplay(by) {
+    const R = water.replay; if (!R) return;
+    water.held = false; pauseReplay();
+    const n = R.z - R.a + 1, i = Math.max(0, Math.min(n - 1, Math.min(n - 1, Math.floor(water.pos * n)) + by));
+    water.pos = (i + 0.001) / n; applySlot();
+  }
   async function startReplay(back) {
     pauseReplay(); modeOn(back);
     const day = shift(today(), -back);
@@ -635,12 +652,13 @@
     const R = water.replay; if (!R) return;
     const i = Math.min(R.z, R.a + Math.floor(water.pos * (R.z - R.a + 1))), at = R.T.t0 + (R.a + water.pos * (R.z - R.a + 1)) * R.T.step;
     $("railT").textContent = clock(at);
-    if (document.activeElement !== $("rail")) $("rail").value = Math.round(water.pos * 1000);
+    $("rail").value = Math.round(water.pos * 1000);
     if (i === water.slot) return;
     water.slot = i;
-    const s = R.T.slots[i], fill = Object.fromEntries(Object.entries(s.rooms).map(([k, c]) => [k, { n: c[0], bad: c[1], good: c[2] }]));
+    const s = R.T.slots[i]; water.quiet = !Object.keys(s.rooms).length;
+    const fill = Object.fromEntries(Object.entries(s.rooms).map(([k, c]) => [k, { n: c[0], bad: c[1], good: c[2] }]));
     setRooms(fill, Object.entries(s.edges).map(([k, n]) => { const [a, b] = k.split(">"); return { a, b, n }; }));
-    $("planSay").textContent = `${R.day === today() ? "Today" : "Yesterday"}, a minute for the whole day. Shown in 15-minute steps.`;
+    $("planSay").textContent = `${R.day === today() ? "Today" : "Yesterday"}, in ${Math.round(R.T.step / 60e3)}-minute steps. Drag the bar, or press ‹ › to go one step at a time.`;
   }
   function playReplay() { if (!water.replay) return; if (water.pos >= 1) { water.pos = 0; water.slot = -1; } water.playing = true; water.last = performance.now(); $("playBtn").textContent = "❚❚"; $("playBtn").setAttribute("aria-label", "Pause"); }
   function pauseReplay() { water.playing = false; if ($("playBtn")) { $("playBtn").textContent = "▶"; $("playBtn").setAttribute("aria-label", "Play"); } }
