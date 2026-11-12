@@ -874,7 +874,7 @@ ${head}
 <nav class="nav"><a href="/#rack">New drops</a><a class="nav-ig" href="https://www.instagram.com/vibex.india/" target="_blank" rel="noopener">Instagram ↗</a></nav></div></header>
 <main class="wrap pdp" id="pdp" data-id="${escHtml(id)}"></main>
 <div class="toast" id="toast" role="status" hidden></div>
-<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/bag.js"></script><script src="/pdp.js"></script><script src="/salebar.js"></script><script src="/newtab.js"></script><script src="/track.js"></script><script src="/lab.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
+<script src="/config.js"></script><script src="/art.js"></script><script src="/order.js"></script><script src="/vendor/qrcode.js"></script><script src="/checkout.js"></script><script src="/bag.js"></script><script src="/pdp.js"></script><script src="/salebar.js"></script><script src="/newtab.js"></script><script src="/track.js"></script><script src="/lab.js"></script><script src="/guide.js"></script><script src="/rush.js"></script><script src="/race.js"></script>
 </body></html>`;
 }
 
@@ -904,7 +904,7 @@ ${head}
 <nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a></nav></div>
 <p class="foot-note">© 2026 Vibe X · The Surplus Room, Srinagar, Kashmir</p></div></footer>
 <div class="toast" id="toast" role="status" hidden></div>
-<script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}<script src="/ui.js"></script><script src="/newtab.js"></script><script src="/track.js"></script><script src="/lab.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
+<script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}<script src="/ui.js"></script><script src="/newtab.js"></script><script src="/track.js"></script><script src="/lab.js"></script><script src="/guide.js"></script><script src="/rush.js"></script><script src="/race.js"></script>
 </body></html>`;
 }
 
@@ -927,7 +927,7 @@ ${head}
 <footer class="foot"><div class="wrap"><div class="foot-mark">VIBE<span>X</span></div>
 <div class="foot-row mono"><span>© Vibe X · The Surplus Room</span><span>World brands, one destination</span></div>
 <nav class="foot-links" aria-label="Policies"><a href="/returns">Returns and refunds</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/contact">Contact</a></nav></div></footer>
-${scripts.length ? `<div class="toast" id="toast" role="status" hidden></div><script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}` : ""}<script src="/newtab.js"></script><script src="/track.js"></script><script src="/lab.js"></script><script src="/guide.js"></script><script src="/rush.js"></script>
+${scripts.length ? `<div class="toast" id="toast" role="status" hidden></div><script src="/config.js"></script>${scripts.map((src) => `<script src="${src}"></script>`).join("")}` : ""}<script src="/newtab.js"></script><script src="/track.js"></script><script src="/lab.js"></script><script src="/guide.js"></script><script src="/rush.js"></script><script src="/race.js"></script>
 </body></html>`;
 }
 
@@ -998,7 +998,24 @@ function kitData() {
 }
 const holds = require("./lib/holds")();
 // A piece with one size has nothing to choose, so the page sends none: the same rule as an order, or a hold wouldn't protect it.
-function holdSize(p, size) { const options = p ? optionsOf(p) : []; return options.length === 1 ? options[0].size || "" : String(size || ""); }
+// One piece left in all, with no count per size: it is one piece whatever size is named, so it gets one hold.
+const onePieceInAll = (p) => Boolean(p) && !p.sizeStock && billing.stockOf(p) === 1;
+function holdSize(p, size) { if (onePieceInAll(p)) return ""; const options = p ? optionsOf(p) : []; return options.length === 1 ? options[0].size || "" : String(size || ""); }
+// The 15 second race for a last piece (lib/races.js). shop.json -> rush.race switches it on.
+const races = require("./lib/races")();
+const RACE_ON = SHOP.rush?.race === true;
+// Visitors who have a last piece in their bag and are on the site now, on any page. Their own page says so every few
+// seconds (lib/race.js), and it only counts while the shop can really see them here.
+const bagWatch = new Map(), BAG_SEEN_MS = 20e3; // product id -> Map(visitor -> when)
+function bagHolders(id, add) {
+  const t = Date.now();
+  let m = bagWatch.get(id);
+  if (add && analytics.isActive(add)) { if (!m) bagWatch.set(id, (m = new Map())); if (m.size < 50 || m.has(add)) m.set(add, t); }
+  if (!m) return [];
+  for (const [who, at] of m) if (t - at > BAG_SEEN_MS || !analytics.isActive(who)) m.delete(who);
+  if (!m.size) bagWatch.delete(id);
+  return [...m.keys()];
+}
 // Only the true last piece gets a hold: with more in stock there's nothing to protect, and no reason to say so.
 function isLastPiece(p, size) {
   const options = optionsOf(p), picked = options.find((o) => o.size === size);
@@ -2803,6 +2820,7 @@ async function handle(req, res) {
       if (p === "/owner/replay.css") return serveFile(res, path.join(ROOT, "node_modules", "rrweb", "dist"), "style.min.css", "public, max-age=86400");
       if (p === "/guide.js") return serveFile(res, path.join(ROOT, "lib"), "guide.js");
       if (p === "/rush.js") return serveFile(res, path.join(ROOT, "lib"), "rush.js");
+      if (p === "/race.js") return serveFile(res, path.join(ROOT, "lib"), "race.js");
       // The Drop Kit: Status cards for the owner, a short link for the card, and a line for anyone who arrives too late.
       if (p === "/kit") return serveFile(res, path.join(ROOT, "owner"), "kit.html");
       const dm = /^\/d\/(\d{1,8})$/.exec(p);
@@ -2845,13 +2863,22 @@ async function handle(req, res) {
         const id = String(url.searchParams.get("id") || ""), me = String(url.searchParams.get("s") || "");
         const held = holds.anyOn(id).filter((h) => h.token !== me);
         const piece = load().filter(isPublic).find((x) => x.id === id);
-        return send(res, 200, { ...analytics.pulse(id, me), heldByOther: held.length > 0, status: piece?.status || "" });
+        const { who, ...seen } = analytics.pulse(id, me);
+        // The race: only for a true last piece nobody holds yet, and only between visitors the shop has really seen here.
+        const mine = holds.anyOn(id).some((h) => h.token === me), last = RACE_ON && piece?.status === "available" && onePieceInAll(piece);
+        // Someone with this piece in their bag is a real rival too, wherever on the site they are.
+        const fromBag = url.searchParams.get("bag") === "1", holders = last ? bagHolders(id, fromBag ? me : "") : [];
+        const here = [...new Set([...who, ...holders])];
+        const race = last && !held.length && !mine ? races.see(id, here, me) : null;
+        return send(res, 200, { ...seen, heldByOther: held.length > 0, status: piece?.status || "", ...(last ? { last: true, mine, now: Date.now(), inBags: holders.filter((x) => x !== me && !who.includes(x)).length, ...(fromBag ? { name: piece.name } : {}), ...(race ? { race } : {}) } : {}) });
       }
       if (req.method === "POST" && p === "/api/hold") {
         let b; try { b = JSON.parse(await readBody(req, 2048)); } catch { return send(res, 400, { error: "Bad request." }); }
         const item = load().filter(isPublic).find((x) => x.id === String(b.productId || "")), size = holdSize(item, b.size), token = String(b.token || "");
         if (!item || item.status !== "available" || !/^[a-f0-9]{16}$/.test(token) || !isLastPiece(item, size)) return send(res, 200, { held: false });
-        return send(res, 200, { ...holds.take(item.id, size, token, clientIp(req)), now: Date.now() });
+        const got = holds.take(item.id, size, token, clientIp(req));
+        if (got.held) races.end(item.id); // the race is over the moment someone has it
+        return send(res, 200, { ...got, now: Date.now() });
       }
       if (req.method === "POST" && p === "/api/hold/release") {
         let b; try { b = JSON.parse(await readBody(req, 2048)); } catch { return send(res, 400, { error: "Bad request." }); }

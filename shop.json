@@ -58,7 +58,9 @@
   },
   "rush": {
     "_note": "live: true shows the live count on product pages, the countdown on a held last piece and the 'It's yours' note. Off (owner's choice, 2026-11-06) until there are regular daily sales. The hold itself and Next in line work either way.",
-    "live": false
+    "live": false,
+    "_raceNote": "race: true (2026-11-12): when a second real visitor opens a piece with one left, both are told and both see the same 15 second clock; the first to tap Let me have it gets the real hold. Separate from live.",
+    "race": true
   },
   "pay": {
     "window": { "minutes": 4, "opensHour": 0, "closesHour": 24 },

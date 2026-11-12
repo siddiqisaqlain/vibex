@@ -329,7 +329,7 @@
       ${n > 1 ? `<div class="pdp-zthumbs">${list.map((u, i) => `<button type="button" data-zshot="${i}" aria-label="Photo ${i + 1} of ${n}"><img src="${esc(u)}" alt="" loading="lazy" decoding="async"></button>`).join("")}</div>
       <button type="button" class="pdp-zbtn pdp-zstep prev" data-z="-1" aria-label="Previous photo">‹</button><button type="button" class="pdp-zbtn pdp-zstep next" data-z="1" aria-label="Next photo">›</button>` : ""}
       <button type="button" class="pdp-zbtn pdp-zclose" aria-label="Close photo">×</button>
-      <div class="pdp-zfoot"><p class="pdp-zname"><b>${esc(p.name)}</b><span>${esc(root.querySelector(".pdp-price b")?.textContent || "")}</span></p>${buy ? `<button type="button" class="pdp-zadd">Add to bag</button>` : ""}</div>
+      <div class="pdp-zfoot"><p class="pdp-zname"><b>${esc(p.name)}</b><span>${esc(root.querySelector(".pdp-price b")?.textContent || "")}</span></p>${buy ? `<button type="button" class="pdp-zadd">Let me have it</button>` : ""}</div>
     </div>`;
     const stage = box.querySelector(".pdp-zstage"), img = stage.querySelector("img");
     const clamp = (v) => Math.max(0, Math.min(1, v));

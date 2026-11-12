@@ -48,7 +48,7 @@ try {
   await b.nav(`${base}/p/${jacket}`);
   await b.until(`document.querySelector(".pdp-sizes .pill")`);
   ok(await b.js(`!document.querySelector(".pdp-sizes .pill.on")`), "no size is chosen for them");
-  ok(await b.js(`document.querySelector(".pdp-info .order-now")?.textContent.includes("Add to bag")`), "the product page has Add to bag");
+  ok(await b.js(`document.querySelector(".pdp-info .order-now")?.textContent.includes("Let me have it")`), "the product page has Let me have it");
   await b.tap(".pdp-info .order-now");
   ok(await b.until(`document.querySelector("dialog.vx-sizes")?.open`, 3000), "Add to bag with no size opens the size sheet");
   ok((await b.js(`window.VXBag.bag().length`)) === 0, "nothing is in the bag yet");

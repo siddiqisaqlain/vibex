@@ -78,7 +78,7 @@ window.VXOrder = (() => {
     // Online ordering stays off until the shop's real payment details are in shop.json.
     const order = S.orderingOpen === false ? ""
       : p.price
-      ? `<button type="button" class="order order-now" data-order="${esc(p.id)}">${BAG}Add to bag</button>`
+      ? `<button type="button" class="order order-now" data-order="${esc(p.id)}">${BAG}Let me have it</button>`
       : `<span class="order is-sold">Price on request</span>`;
     let extra = "";
     // Wishlist heart, on product pages (lib: bag.js keeps the list).
