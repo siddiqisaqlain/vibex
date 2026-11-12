@@ -79,6 +79,20 @@
       <span class="brand">${esc(p.brand || p.category)}</span><b>${esc(p.name)}</b><span class="mono">${p.price ? rupees(p.price) : "Ask"}</span></a>`;
   }
 
+  // ---- Start small (2026-11-12): on a costly piece, a nervous first-time buyer gets a cheap way to try the shop.
+  // Sweaters at ₹799 went into the bag about five times as often as the ₹6,600 jackets most visitors land on.
+  const COSTLY = 3000, SMALL = 2000;
+  function starter(p, all) {
+    if (!(p.price >= COSTLY)) return "";
+    const seen = new Set(), pick = [];
+    const cheap = all.filter((x) => x.id !== p.id && x.status === "available" && x.price > 0 && x.price <= SMALL && x.image).sort((a, b) => a.price - b.price);
+    // one of each look first, so the row isn't four of the same sweater
+    for (const x of cheap) { const k = `${x.category}|${String(x.name).toLowerCase().replace(/\s*·.*$/, "").trim()}|${x.sizes || ""}`; if (seen.has(k)) continue; seen.add(k); pick.push(x); }
+    const own = pick.filter((x) => x.category === p.category).slice(0, 3), other = pick.filter((x) => x.category !== p.category).slice(0, 4 - own.length), row = [...own, ...other].slice(0, 4);
+    if (row.length < 2) return "";
+    return `<section class="related pdp-start"><h2>New here? Start small.</h2><p class="pdp-start-say">Try us with something from ${rupees(row[0].price)}. Same shop, same originals, same 7-day returns.</p><div class="related-row">${row.map(mini).join("")}</div></section>`;
+  }
+
   const optionsOf = (p) => p.options || [];
   // ---- Size guides (2026-11-11): each brand's own chart, read off the brand's India site, shown on its pieces.
   // `body` charts say who a size is made for; `garment` charts are the piece laid flat and measured.
@@ -276,6 +290,7 @@
           ${promise(p)}
         </div>
       </div>
+      ${starter(p, products)}
       ${O.reviews(8) ? `<section class="related rv" id="pdp-reviews"><h2>What customers say</h2>${O.reviews(8)}</section>` : ""}
       ${related.length ? `<section class="related"><h2>More ${esc(p.category.toLowerCase())}</h2><div class="related-row">${related.map(mini).join("")}</div></section>` : ""}`;
     if (p.status === "available") countPromise();

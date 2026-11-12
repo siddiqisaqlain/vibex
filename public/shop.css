@@ -1651,3 +1651,7 @@ a.ask-big { display: flex; align-items: center; justify-content: center; gap: 8p
 .rv-google i { font-style: normal; text-decoration: underline; text-underline-offset: 3px; color: var(--muted); }
 .rv-stars { position: relative; display: inline-block; font-size: 17px; letter-spacing: 2px; line-height: 1; color: #d9d4c8; }
 .rv-stars::after { content: "★★★★★"; position: absolute; inset: 0; width: var(--pct); overflow: hidden; white-space: nowrap; color: #e8a400; }
+/* Start small (2026-11-12): cheap pieces offered on a costly product page */
+.pdp-start { margin-top: 56px; }
+.pdp-start h2 { margin-bottom: 8px; }
+.pdp-start-say { margin: 0 0 22px; color: var(--muted); font: 400 15px/1.5 var(--body); max-width: 46ch; }
