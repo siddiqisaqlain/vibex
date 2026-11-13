@@ -49,3 +49,11 @@ Nightly SEO / GEO / AEO notes. Newest last. Hard rules: no checkout/payment/lega
 - **Left out on purpose:** the "Why is it this cheap?" answer (claims.surplus in shop.json is marked DRAFT, not owner-confirmed).
 - **Note:** live site unreachable from the sandbox again, judged from repo.
 - **Next:** canonical/OG on /wardrobe and legal pages (inject in server.js, not lib/legal.js); meta description quality, image alt text, heading order on home; add the surplus FAQ once the owner confirms it.
+
+## 2026-11-13 (night 6)
+- **Changed:** canonical link + Open Graph/Twitter tags on /wardrobe (now served by `wardrobePage()`) and on /returns, /terms, /privacy, /contact (injected via new `canonicalHead()` in server.js; lib/legal.js untouched).
+- **Why:** backlog item 3 remainder.
+- **Files:** server.js, OPTIMIZER-LOG.md.
+- **Checks:** node --check server.js; local 200 and exactly one canonical on /, /wardrobe and the four legal pages; tests/domain.mjs 22/22.
+- **Note:** live site unreachable from the sandbox again (proxy 403), judged from repo.
+- **Next:** meta description quality, image alt text, heading order on home; add surplus FAQ once owner confirms claims.surplus.

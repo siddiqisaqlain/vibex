@@ -944,7 +944,14 @@ function notFoundPage(res) {
 }
 
 const legal = require("./lib/legal");
-function legalPage(res, key) {
+// Canonical link + Open Graph tags for pages whose HTML is not built per request.
+function canonicalHead(req, urlPath, title, desc) {
+  const origin = siteOrigin(req);
+  const tags = [["og:type", "website"], ["og:site_name", SHOP.name], ["og:title", title], ["og:description", desc], ["og:url", origin + urlPath], ["og:image", origin + "/logo.jpg"]]
+    .map(([k, v]) => `<meta property="${k}" content="${escHtml(v)}">`).join("\n");
+  return `<link rel="canonical" href="${escHtml(origin + urlPath)}">\n${tags}\n<meta name="twitter:card" content="summary">\n`;
+}
+function legalPage(req, res, key) {
   const page = legal.pages(SHOP)[key];
   const todo = legal.missing(SHOP);
   const banner = todo.length ? `<p class="draft">This page is being finalised. Still to add: ${escHtml(todo.join(", "))}.</p>` : "";
@@ -953,7 +960,7 @@ function legalPage(res, key) {
   const frame = SHELL === "v1" ? v1Shell : pageShell;
   send(res, 200, frame({
     title: `${page.title} · Vibe X`,
-    head: `<meta name="description" content="${escHtml(page.summary)}">`,
+    head: `<meta name="description" content="${escHtml(page.summary)}">\n` + canonicalHead(req, "/" + key, `${page.title} · Vibe X`, page.summary),
     body: SHELL === "v1" ? `<div class="legal">${inner}</div>` : `<main class="wrap legal">${inner}</main>`,
   }), "text/html; charset=utf-8");
 }
@@ -1253,6 +1260,13 @@ function homePage(req, res) {
   const faq = homeFaq();
   html = html.replace("</head>", () => homeHead(req) + faq.ld + "</head>");
   if (faq.html) html = html.replace('<section class="store wrap" id="visit"', () => faq.html + '<section class="store wrap" id="visit"');
+  send(res, 200, html, "text/html; charset=utf-8", "no-cache");
+}
+
+function wardrobePage(req, res) {
+  let html = fs.readFileSync(path.join(PUBLIC, "wardrobe.html"), "utf8");
+  const desc = (html.match(/<meta name="description" content="([^"]*)"/) || [])[1] || "";
+  html = html.replace("</head>", () => canonicalHead(req, "/wardrobe", "The Wardrobe · Vibe X", desc) + "</head>");
   send(res, 200, html, "text/html; charset=utf-8", "no-cache");
 }
 
@@ -2917,11 +2931,11 @@ async function handle(req, res) {
       if (p === "/" ) return homePage(req, res);
       if (p === "/account" || p === "/bag") return accountPage(res, p.slice(1));
       if (p === "/demo") return serveFile(res, PUBLIC, "demo.html");
-      if (p === "/wardrobe") return serveFile(res, PUBLIC, "wardrobe.html");
+      if (p === "/wardrobe") return wardrobePage(req, res);
       const pm = /^\/p\/([\w-]{1,40})$/.exec(p);
       if (pm) return productPage(req, res, pm[1]);
       const legalKey = { "/returns": "returns", "/terms": "terms", "/privacy": "privacy", "/contact": "contact" }[p];
-      if (legalKey) return legalPage(res, legalKey);
+      if (legalKey) return legalPage(req, res, legalKey);
       if (!path.extname(p)) return notFoundPage(res);
       return serveFile(res, PUBLIC, p.slice(1));
     } catch (e) {
