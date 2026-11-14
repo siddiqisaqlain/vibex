@@ -1218,7 +1218,7 @@ function homeHead(req) {
   const origin = siteOrigin(req);
   const b = SHOP.business || {};
   const title = "Vibe X · The Surplus Store, Srinagar";
-  const desc = "Original world-brand surplus clothing, footwear and fragrances. Srinagar, Kashmir. Pan-India shipping.";
+  const desc = "Original world-brand surplus clothing, footwear and fragrances. Visit the store in Khanyaar, Srinagar or order on WhatsApp. Pan-India shipping.";
   const parts = String(b.address || "").split(",").map((x) => x.trim()).filter(Boolean);
   const pin = (String(b.address || "").match(/\b(\d{6})\s*$/) || [])[1];
   const ld = {

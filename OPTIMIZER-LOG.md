@@ -57,3 +57,12 @@ Nightly SEO / GEO / AEO notes. Newest last. Hard rules: no checkout/payment/lega
 - **Checks:** node --check server.js; local 200 and exactly one canonical on /, /wardrobe and the four legal pages; tests/domain.mjs 22/22.
 - **Note:** live site unreachable from the sandbox again (proxy 403), judged from repo.
 - **Next:** meta description quality, image alt text, heading order on home; add surplus FAQ once owner confirms claims.surplus.
+
+## 2026-11-14 (night 7)
+- **Changed:** home meta description (index.html, plus the copy used for Open Graph and Store JSON-LD in `homeHead()`) now also says the store is in Khanyaar, Srinagar and that orders can be placed on WhatsApp. Both facts already exist in shop.json / the page.
+- **Why:** backlog "meta description quality".
+- **Checked, no change needed:** heading order on home (one h1, h2 sections, h3 panels) is fine; product images already carry the product name as alt text; decorative thumbnails correctly use empty alt.
+- **Files:** server.js, public/index.html, OPTIMIZER-LOG.md.
+- **Checks:** node --check server.js; local / 200, description present in meta/OG/JSON-LD, all JSON-LD parses; tests/domain.mjs 22/22.
+- **Note:** live site unreachable from the sandbox again, judged from repo.
+- **Next:** add the surplus FAQ once the owner confirms claims.surplus; consider a per-product meta description fallback when a product has no description (currently generic text). Otherwise the backlog is essentially done.
