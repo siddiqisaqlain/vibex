@@ -66,3 +66,11 @@ Nightly SEO / GEO / AEO notes. Newest last. Hard rules: no checkout/payment/lega
 - **Checks:** node --check server.js; local / 200, description present in meta/OG/JSON-LD, all JSON-LD parses; tests/domain.mjs 22/22.
 - **Note:** live site unreachable from the sandbox again, judged from repo.
 - **Next:** add the surplus FAQ once the owner confirms claims.surplus; consider a per-product meta description fallback when a product has no description (currently generic text). Otherwise the backlog is essentially done.
+
+## 2026-11-15 (night 8)
+- **Changed:** product pages with no written description now get a fuller fallback meta/OG description (name, brand, category, size, "Original surplus, in stock at Vibe X, Srinagar. Ships across India." or "Sold", using real stock), and Product JSON-LD now carries the same description instead of omitting it. Written descriptions are unchanged.
+- **Why:** backlog "per-product meta description fallback".
+- **Files:** server.js, OPTIMIZER-LOG.md.
+- **Checks:** node --check server.js; local /p/s1 and / 200; both JSON-LD blocks parse; tests/domain.mjs 22/22.
+- **Note:** live site unreachable from the sandbox again (proxy refused), judged from repo.
+- **Next:** only the surplus FAQ remains (needs owner to confirm claims.surplus). Backlog otherwise done.

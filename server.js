@@ -1122,7 +1122,7 @@ function productMeta(req, id) {
   const origin = siteUrl() || `${proto}://${req.headers.host}`;
   const title = p ? `${p.name}${p.price ? ` · ₹${p.price.toLocaleString("en-IN")}` : ""} · Vibe X` : "Vibe X · The Surplus Room";
   const desc = p?.description ? p.description.slice(0, 200) : p
-    ? [p.brand, p.category, p.sizes, p.status === "sold" ? "Sold" : "In stock at Vibe X, Srinagar"].filter(Boolean).join(" · ")
+    ? [p.name, p.brand, p.category, p.sizes && `Size ${p.sizes}`, billing.stockOf(p) > 0 && p.status !== "sold" ? "Original surplus, in stock at Vibe X, Srinagar. Ships across India." : "Sold"].filter(Boolean).join(" · ").slice(0, 200)
     : "Original world-brand surplus. Srinagar, Kashmir.";
   const og = [
     ["og:type", "product"], ["og:site_name", "Vibe X"], ["og:title", title], ["og:description", desc],
@@ -1135,7 +1135,7 @@ function productMeta(req, id) {
     const url = `${origin}/p/${encodeURIComponent(id)}`;
     const product = {
       "@context": "https://schema.org", "@type": "Product", name: p.name, url,
-      ...(p.description ? { description: p.description.slice(0, 500) } : {}),
+      description: p.description ? p.description.slice(0, 500) : desc,
       ...(p.image ? { image: origin + p.image } : {}),
       ...(p.brand ? { brand: { "@type": "Brand", name: p.brand } } : {}),
       ...(p.category ? { category: p.category } : {}),
