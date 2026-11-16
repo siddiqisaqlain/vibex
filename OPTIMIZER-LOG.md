@@ -74,3 +74,9 @@ Nightly SEO / GEO / AEO notes. Newest last. Hard rules: no checkout/payment/lega
 - **Checks:** node --check server.js; local /p/s1 and / 200; both JSON-LD blocks parse; tests/domain.mjs 22/22.
 - **Note:** live site unreachable from the sandbox again (proxy refused), judged from repo.
 - **Next:** only the surplus FAQ remains (needs owner to confirm claims.surplus). Backlog otherwise done.
+
+## 2026-11-16 (night 9)
+- **Changed:** nothing in the site. Log only.
+- **Why:** the backlog is done. Remaining ideas are blocked or risky: the surplus FAQ needs the owner to confirm `claims.surplus` (still marked DRAFT); AggregateRating/Review markup was deliberately not added (Google disallows self-serving reviews on the shop's own LocalBusiness markup, and the ratings are copied from third-party listings).
+- **Note:** live site unreachable from the sandbox again (proxy 403), so nothing could be compared against live state.
+- **Next:** owner to confirm claims.surplus, then add that FAQ; fill business.email / opening hours in shop.json if they want them in Store JSON-LD; add real store photos (storePhotos) for image SEO.
