@@ -110,3 +110,8 @@ Nightly SEO / GEO / AEO notes. Newest last. Hard rules: no checkout/payment/lega
 - **Changed:** nothing in the site. Log only.
 - **Why:** backlog still complete; open items need the owner (confirm `claims.surplus`, still marked DRAFT; business.email / opening hours; real store photos).
 - **Note:** live site unreachable from the sandbox again (no connection), so nothing could be compared against live state.
+
+## 2026-11-23 (night 16)
+- **Changed:** nothing in the site. Log only.
+- **Why:** backlog still complete; open items need the owner (confirm `claims.surplus`, still marked DRAFT; business.email / opening hours; real store photos).
+- **Note:** live site unreachable from the sandbox again (no connection), so nothing could be compared against live state.
