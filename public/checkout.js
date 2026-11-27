@@ -121,17 +121,17 @@ window.VXCheckout = (() => {
       </div>
       <form class="co-form" novalidate>
         <div class="co-group">
-          <label class="co-line"><span class="co-pre"><i class="co-wamark" aria-hidden="true">${WA_ICON}</i>+91</span><input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="WhatsApp number" aria-label="WhatsApp number" maxlength="20" value="${esc(f.phone || "")}" required></label>
-          ${short ? "" : `<label class="co-line"><input name="name" autocomplete="name" maxlength="60" placeholder="Your name" aria-label="Your name" value="${esc(f.name || "")}" required></label>`}
+          <label class="co-line"><span class="co-pre"><i class="co-wamark" aria-hidden="true">${WA_ICON}</i>+91</span><input name="phone" type="tel" inputmode="numeric" autocomplete="tel" enterkeyhint="next" placeholder="WhatsApp number" aria-label="WhatsApp number" maxlength="20" value="${esc(f.phone || "")}" required></label>
+          ${short ? "" : `<label class="co-line"><input name="name" autocomplete="name" autocapitalize="words" enterkeyhint="next" maxlength="60" placeholder="Your name" aria-label="Your name" value="${esc(f.name || "")}" required></label>`}
         </div>
         ${short && f.name ? `<input type="hidden" name="name" value="${esc(f.name)}">` : ""}
         <input type="hidden" name="delivery" value="${pickup ? "pickup" : "ship"}">
         <div class="co-head"><b data-co-title>${pickup ? HEAD.pickup : HEAD.ship}</b><button class="co-how" type="button" data-co-how>${pickup ? HOW.ship : HOW.pickup}</button></div>
         <div class="co-ship" ${pickup ? "hidden" : ""}>
           <div class="co-group">
-            <label class="co-line"><input name="address" autocomplete="street-address" maxlength="300" value="${esc(f.address || "")}" placeholder="House, street, area" aria-label="Address"></label>
-            <label class="co-line"><input name="pin" inputmode="numeric" autocomplete="postal-code" maxlength="6" value="${esc(f.pin || "")}" placeholder="PIN code" aria-label="PIN code"></label>
-            <label class="co-line co-cityline" data-co-city ${rest ? "" : "hidden"}><span class="co-pre">City</span><input name="city" autocomplete="address-level2" maxlength="60" value="${esc(f.city || "")}" placeholder="Your city" aria-label="City"></label>
+            <label class="co-line"><input name="address" autocomplete="street-address" autocapitalize="words" enterkeyhint="next" maxlength="300" value="${esc(f.address || "")}" placeholder="House, street, area" aria-label="Address"></label>
+            <label class="co-line"><input name="pin" inputmode="numeric" autocomplete="postal-code" enterkeyhint="next" maxlength="6" value="${esc(f.pin || "")}" placeholder="PIN code" aria-label="PIN code"></label>
+            <label class="co-line co-cityline" data-co-city ${rest ? "" : "hidden"}><span class="co-pre">City</span><input name="city" autocomplete="address-level2" autocapitalize="words" enterkeyhint="done" maxlength="60" value="${esc(f.city || "")}" placeholder="Your city" aria-label="City"></label>
           </div>
           <p class="co-small co-fee" role="status" hidden></p>
         </div>
